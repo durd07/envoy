@@ -11,7 +11,7 @@ DateFormatter DateProviderImplBase::date_formatter_("%a, %d %b %Y %H:%M:%S GMT")
 TlsCachingDateProviderImpl::TlsCachingDateProviderImpl(Event::Dispatcher& dispatcher,
                                                        ThreadLocal::SlotAllocator& tls)
     : DateProviderImplBase(dispatcher.timeSource()), tls_(tls.allocateSlot()),
-      refresh_timer_(dispatcher.createTimer([this]() -> void { onRefreshDate(); })) {
+      refresh_timer_(dispatcher.createTimer([this]() -> void { (void)this; /*onRefreshDate();*/ })) {
 
   onRefreshDate();
 }
