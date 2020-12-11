@@ -103,9 +103,11 @@ void OriginalConnPoolImpl::createNewConnection() {
 ConnectionPool::Cancellable*
 OriginalConnPoolImpl::newConnection(ConnectionPool::Callbacks& callbacks) {
   if (!ready_conns_.empty()) {
-    ready_conns_.front()->moveBetweenLists(ready_conns_, busy_conns_);
-    ENVOY_CONN_LOG(debug, "using existing connection", *busy_conns_.front()->conn_);
-    assignConnection(*busy_conns_.front(), callbacks);
+    // ready_conns_.front()->moveBetweenLists(ready_conns_, busy_conns_);
+    // ENVOY_CONN_LOG(debug, "using existing connection", *busy_conns_.front()->conn_);
+    ENVOY_CONN_LOG(debug, "using existing connection", *ready_conns_.front()->conn_);
+    // assignConnection(*busy_conns_.front(), callbacks);
+    assignConnection(*ready_conns_.front(), callbacks);
     return nullptr;
   }
 
@@ -262,7 +264,7 @@ void OriginalConnPoolImpl::onUpstreamReady() {
     ENVOY_CONN_LOG(debug, "assigning connection", *conn.conn_);
     // There is work to do so bind a connection to the caller and move it to the busy list. Pending
     // requests are pushed onto the front, so pull from the back.
-    conn.moveBetweenLists(ready_conns_, busy_conns_);
+    // conn.moveBetweenLists(ready_conns_, busy_conns_);
     assignConnection(conn, pending_requests_.back()->callbacks_);
     pending_requests_.pop_back();
   }
@@ -295,7 +297,7 @@ void OriginalConnPoolImpl::processIdleConnection(ActiveConn& conn, bool new_conn
     if (new_connection) {
       conn.moveBetweenLists(pending_conns_, ready_conns_);
     } else {
-      conn.moveBetweenLists(busy_conns_, ready_conns_);
+      // conn.moveBetweenLists(busy_conns_, ready_conns_);
     }
   } else {
     // There is work to do immediately so bind a request to the caller and move it to the busy list.
