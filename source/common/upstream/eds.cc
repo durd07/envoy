@@ -124,6 +124,10 @@ void EdsClusterImpl::onConfigUpdate(const std::vector<Config::DecodedResourceRef
     throw EnvoyException(fmt::format("Unexpected EDS cluster (expecting {}): {}", cluster_name_,
                                      cluster_load_assignment.cluster_name()));
   }
+
+  for (auto & endpoint : cluster_load_assignment.endpoints()) {
+    ENVOY_LOG(trace, "FELIX weight %d", endpoint.load_balancing_weight());
+  }
   // Scrub original type information; we don't config dump endpoints today and
   // this is significant memory overhead.
   Config::VersionConverter::eraseOriginalTypeInformation(cluster_load_assignment);
