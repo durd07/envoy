@@ -180,8 +180,8 @@ EXTENSIONS = {
     # Sip filters
     #
 
-    "envoy.filters.sip_proxy.router":                      "//source/extensions/filters/network/sip_proxy/router:config",
-    "envoy.filters.sip_proxy.ratelimit":                   "//source/extensions/filters/network/sip_proxy/filters/ratelimit:config",
+    "envoy.filters.sip.router":                      "//source/extensions/filters/network/sip_proxy/router:config",
+    "envoy.filters.sip.ratelimit":                   "//source/extensions/filters/network/sip_proxy/filters/ratelimit:config",
 
     #
     # Tracers

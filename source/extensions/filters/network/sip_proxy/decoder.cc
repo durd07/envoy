@@ -122,7 +122,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       // Fail if Content-Length is less then zero
       //
-      if (clen < 0) {
+      if (clen < static_cast<size_t>(0)) {
         break;
       }
 

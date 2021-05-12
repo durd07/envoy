@@ -100,7 +100,7 @@ void Router::onDestroy() {
       try {
         transaction_info->getTransaction(callbacks_->transactionId());
         transaction_info->deleteTransaction(callbacks_->transactionId());
-      } catch (std::out_of_range) {
+      } catch (std::out_of_range const&) {
       }
     }
   //  if (upstream_request_ != nullptr) {
@@ -202,7 +202,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       ENVOY_STREAM_LOG(debug, "reuse upstream request", *callbacks_);
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-      } catch (std::out_of_range) {
+      } catch (std::out_of_range const&) {
         transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                             callbacks_, upstream_request_);
       }
@@ -214,7 +214,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-      } catch (std::out_of_range) {
+      } catch (std::out_of_range const&) {
         transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                             callbacks_, upstream_request_);
       }
@@ -239,7 +239,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 #if 1
         try {
           transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-        } catch (std::out_of_range) {
+        } catch (std::out_of_range const&) {
           transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                               callbacks_, upstream_request_);
         }
@@ -261,7 +261,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
       upstream_request_ = active_trans.upstreamRequest();
       return FilterStatus::Continue;
-    } catch (std::out_of_range) {
+    } catch (std::out_of_range const&) {
       if (settings_->sessionStickness()) {
         ENVOY_LOG(trace, "session stickness is true, choose ep");
         auto host = metadata->EP().value();
@@ -272,7 +272,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
           try {
             transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-          } catch (std::out_of_range) {
+          } catch (std::out_of_range const&) {
             transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                                 callbacks_, upstream_request_);
           }
@@ -484,7 +484,7 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
 SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&& transaction_id) {
   try {
     return transaction_info_->getTransaction(std::move(transaction_id)).activeTrans();
-  } catch (std::out_of_range) {
+  } catch (std::out_of_range const&) {
     return nullptr;
   }
 }
