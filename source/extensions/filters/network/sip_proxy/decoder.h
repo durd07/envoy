@@ -8,7 +8,6 @@
 
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
-#include "extensions/filters/network/sip_proxy/transport.h"
 
 namespace Envoy {
 namespace Extensions {

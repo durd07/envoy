@@ -17,7 +17,6 @@
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
 #include "extensions/filters/network/sip_proxy/stats.h"
-#include "extensions/filters/network/sip_proxy/transport.h"
 
 #include "absl/types/any.h"
 

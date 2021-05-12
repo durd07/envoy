@@ -17,8 +17,6 @@ namespace Router {
 class TransactionInfo;
 using TransactionInfos = std::map<std::string, std::shared_ptr<TransactionInfo>>;
 
-class RateLimitPolicy;
-
 /**
  * RouteEntry is an individual resolved route entry.
  */
@@ -36,11 +34,6 @@ public:
    * selecting an upstream host
    */
   virtual const Envoy::Router::MetadataMatchCriteria* metadataMatchCriteria() const PURE;
-
-  /**
-   * @return const RateLimitPolicy& the rate limit policy for the route.
-   */
-  //virtual const RateLimitPolicy& rateLimitPolicy() const PURE;
 
   /**
    * @return bool should the service name prefix be stripped from the method.

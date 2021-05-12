@@ -5,7 +5,6 @@
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
-#include "extensions/filters/network/sip_proxy/transport.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
 
 namespace Envoy {

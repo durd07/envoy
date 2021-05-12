@@ -21,7 +21,6 @@
 #include "extensions/filters/network/sip_proxy/decoder_events.h"
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
 #include "extensions/filters/network/sip_proxy/router/router.h"
-#include "extensions/filters/network/sip_proxy/router/router_ratelimit_impl.h"
 
 #include "absl/types/optional.h"
 #include <iostream>
@@ -42,7 +41,7 @@ public:
   const Envoy::Router::MetadataMatchCriteria* metadataMatchCriteria() const override {
     return metadata_match_criteria_.get();
   }
-  // const RateLimitPolicy& rateLimitPolicy() const override { return rate_limit_policy_; }
+
   bool stripServiceName() const override { return strip_service_name_; };
   const Http::LowerCaseString& clusterHeader() const override { return cluster_header_; }
 
@@ -66,7 +65,6 @@ private:
     const Envoy::Router::MetadataMatchCriteria* metadataMatchCriteria() const override {
       return parent_.metadataMatchCriteria();
     }
-    // const RateLimitPolicy& rateLimitPolicy() const override { return parent_.rateLimitPolicy(); }
     bool stripServiceName() const override { return parent_.stripServiceName(); }
     const Http::LowerCaseString& clusterHeader() const override { return parent_.clusterHeader(); }
 
@@ -82,7 +80,6 @@ private:
   const std::vector<Http::HeaderUtility::HeaderDataPtr> config_headers_;
   uint64_t total_cluster_weight_;
   Envoy::Router::MetadataMatchCriteriaConstPtr metadata_match_criteria_;
-  // const RateLimitPolicyImpl rate_limit_policy_;
   const bool strip_service_name_;
   const Http::LowerCaseString cluster_header_;
 };

@@ -16,9 +16,6 @@ namespace SipFilters {
  */
 class SipFilterNameValues {
 public:
-  // Ratelimit filter
-  const std::string RATE_LIMIT = "envoy.filters.sip.rate_limit";
-
   // Router filter
   const std::string ROUTER = "envoy.filters.sip.router";
 };
