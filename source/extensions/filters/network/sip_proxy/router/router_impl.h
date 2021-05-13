@@ -1,21 +1,22 @@
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/router/router.h"
 #include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/tcp/conn_pool.h"
+#include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/load_balancer.h"
 
 #include "common/common/logger.h"
 #include "common/http/header_utility.h"
 #include "common/upstream/load_balancer_impl.h"
-#include "envoy/thread_local/thread_local.h"
 
 #include "extensions/filters/network/sip_proxy/conn_manager.h"
 #include "extensions/filters/network/sip_proxy/decoder_events.h"
@@ -23,7 +24,7 @@
 #include "extensions/filters/network/sip_proxy/router/router.h"
 
 #include "absl/types/optional.h"
-#include <iostream>
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -124,10 +125,9 @@ class TransactionInfoItem : public Logger::Loggable<Logger::Id::filter> {
 public:
   TransactionInfoItem(SipFilters::DecoderFilterCallbacks* active_trans,
                       std::shared_ptr<UpstreamRequest> upstream_request)
-      : active_trans_(active_trans), upstream_request_(upstream_request),
-        timestamp_(std::chrono::system_clock::now()) {}
+      : active_trans_(active_trans), upstream_request_(upstream_request) {}
 
-  ~TransactionInfoItem() {}
+  ~TransactionInfoItem() = default;
 
   void resetTrans() { active_trans_->onReset(); }
 
@@ -136,7 +136,7 @@ public:
   SipFilters::DecoderFilterCallbacks* activeTrans() const { return active_trans_; }
   std::shared_ptr<UpstreamRequest> upstreamRequest() const { return upstream_request_; }
 
-  std::chrono::system_clock::time_point timestamp() const { return timestamp_; }
+  SystemTime timestamp() const { return this->active_trans_->streamInfo().startTime(); }
   void toDelete() { deleted_ = true; }
   bool deleted() { return deleted_; }
 
@@ -157,8 +157,8 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
         transaction_timeout_(transaction_timeout) {
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
-  std::unordered_map<std::string, std::shared_ptr<TransactionInfoItem>> transaction_info_map_{};
-  std::unordered_map<std::string, std::shared_ptr<UpstreamRequest>> upstream_request_map_{};
+  absl::flat_hash_map<std::string, std::shared_ptr<TransactionInfoItem>> transaction_info_map_{};
+  absl::flat_hash_map<std::string, std::shared_ptr<UpstreamRequest>> upstream_request_map_{};
 
   std::shared_ptr<TransactionInfo> parent_;
   Event::Dispatcher& dispatcher_;
@@ -166,23 +166,24 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
   std::chrono::milliseconds transaction_timeout_;
 
   void auditTimerAction() {
-    const auto p1 = std::chrono::system_clock::now();
+    const auto p1 = dispatcher_.timeSource().systemTime();
     for (auto it = transaction_info_map_.cbegin(); it != transaction_info_map_.cend();) {
       if (it->second->deleted()) {
-        it = transaction_info_map_.erase(it);
-      } else {
-        auto diff =
-            std::chrono::duration_cast<std::chrono::milliseconds>(p1 - it->second->timestamp());
-        if (diff.count() >= transaction_timeout_.count()) {
-          it->second->resetTrans();
-          // transaction_info_map_.erase(it++);
-        }
+        transaction_info_map_.erase(it++);
+        continue;
+      }
 
-        if (it->second->deleted()) {
-          it = transaction_info_map_.erase(it);
-        } else {
-          ++it;
-        }
+      auto diff =
+          std::chrono::duration_cast<std::chrono::milliseconds>(p1 - it->second->timestamp());
+      if (diff.count() >= transaction_timeout_.count()) {
+        it->second->resetTrans();
+        // transaction_info_map_.erase(it++);
+      }
+
+      if (it->second->deleted()) {
+        transaction_info_map_.erase(it++);
+      } else {
+        ++it;
       }
     }
     audit_timer_->enableTimer(std::chrono::seconds(2));
@@ -411,7 +412,7 @@ private:
   Buffer::OwnedImpl upstream_buffer_;
 
   bool request_complete_ : 1;
-//  bool response_started_ : 1;
+  //  bool response_started_ : 1;
   bool response_complete_ : 1;
 };
 

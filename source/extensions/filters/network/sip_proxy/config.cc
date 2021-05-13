@@ -15,6 +15,7 @@
 #include "extensions/filters/network/sip_proxy/filters/well_known_names.h"
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
 #include "extensions/filters/network/sip_proxy/stats.h"
+
 //#include "extensions/filters/network/sip_proxy/protocol.h"
 
 namespace Envoy {
@@ -47,16 +48,16 @@ Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromPro
 
   /**
    * ConnPool::InstanceImpl contains ThreadLocalObject ThreadLocalPool which only can be
-   * instantianced on main thread. so construct ConnPool::InstanceImpl here.
+   * instantiated on main thread. so construct ConnPool::InstanceImpl here.
    */
   auto transaction_infos = std::make_shared<Router::TransactionInfos>();
   for (auto& cluster : unique_clusters) {
     Stats::ScopePtr stats_scope =
         context.scope().createScope(fmt::format("cluster.{}.sip_cluster", cluster));
-    auto transaction_info_ptr =
-        std::make_shared<Router::TransactionInfo>(cluster, context.threadLocal(),
-          static_cast<std::chrono::milliseconds>(PROTOBUF_GET_MS_OR_DEFAULT(proto_config.settings(), transaction_timeout, 32000))
-            );
+    auto transaction_info_ptr = std::make_shared<Router::TransactionInfo>(
+        cluster, context.threadLocal(),
+        static_cast<std::chrono::milliseconds>(
+            PROTOBUF_GET_MS_OR_DEFAULT(proto_config.settings(), transaction_timeout, 32000)));
     transaction_info_ptr->init();
     transaction_infos->emplace(cluster, transaction_info_ptr);
   }
@@ -81,7 +82,8 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
       stats_(SipFilterStats::generateStats(stats_prefix_, context_.scope())),
       route_matcher_(new Router::RouteMatcher(config.route_config())),
       settings_(std::make_shared<SipSettings>(
-          static_cast<std::chrono::milliseconds>(PROTOBUF_GET_MS_REQUIRED(config.settings(), transaction_timeout)),
+          static_cast<std::chrono::milliseconds>(
+              PROTOBUF_GET_MS_REQUIRED(config.settings(), transaction_timeout)),
           config.settings().session_stickness())) {
 
   if (config.sip_filters().empty()) {
@@ -111,7 +113,6 @@ void ConfigImpl::processFilter(
   ENVOY_LOG(debug, "      name: {}", string_name);
   ENVOY_LOG(debug, "    config: {}",
             MessageUtil::getJsonStringFromMessageOrError(
-                // niefei
                 // proto_config.has_typed_config()
                 //    ? static_cast<const Protobuf::Message&>(proto_config.typed_config())
                 //    : static_cast<const Protobuf::Message&>(

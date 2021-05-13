@@ -118,7 +118,6 @@ public:
  * Decoder encapsulates a configured Transport and Protocol and provides the
  * ability to decode Sip messages.
  */
-// niefei
 class Decoder : public Logger::Loggable<Logger::Id::filter> {
 public:
   Decoder(DecoderCallbacks& callbacks);
@@ -189,8 +188,8 @@ private:
     virtual ~HeaderHandler() = default;
 
     using HeaderProcessor =
-        std::unordered_map<HeaderType,
-                           std::function<int(HeaderHandler*, absl::string_view& header)>>;
+        absl::flat_hash_map<HeaderType,
+                            std::function<int(HeaderHandler*, absl::string_view& header)>>;
 
     virtual int processVia(absl::string_view& header) {
       if (!isFirstVia()) {
@@ -351,18 +350,16 @@ private:
         : MessageHandler(std::make_shared<SUBSCRIBEHeaderHandler>(*this), parent) {}
     ~SUBSCRIBEHandler() override = default;
     void parseHeader(HeaderType& type, absl::string_view& header) override;
-    void setEventType(std::string_view value) {
+    void setEventType(absl::string_view value) {
       if (value == "reg") {
         event_type_ = EventType::REG;
       } else {
         event_type_ = EventType::OTHERS;
       }
     }
+
   private:
-    enum class EventType {
-      REG,
-      OTHERS
-    };
+    enum class EventType { REG, OTHERS };
 
     EventType event_type_;
   };

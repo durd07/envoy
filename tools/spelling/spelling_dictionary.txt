@@ -26,6 +26,7 @@ CB
 CDN
 CDS
 CEL
+CRLF
 DSR
 EBADF
 ENOTCONN
@@ -36,6 +37,7 @@ OWS
 Preconnecting
 RTCP
 RTP
+SCTP
 STATNAME
 SkyWalking
 TIDs
@@ -120,6 +122,7 @@ FQDN
 FREEBIND
 FUZZER
 FUZZERS
+ep
 guarddog
 GC
 GCC

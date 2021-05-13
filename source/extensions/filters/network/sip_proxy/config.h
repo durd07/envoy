@@ -23,8 +23,7 @@ namespace SipProxy {
 class ProtocolOptionsConfigImpl : public ProtocolOptionsConfig {
 public:
   ProtocolOptionsConfigImpl(
-      const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions&
-          proto_config);
+      const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& proto_config);
 };
 
 /**
@@ -43,8 +42,7 @@ private:
       Server::Configuration::FactoryContext& context) override;
 
   Upstream::ProtocolOptionsConfigConstSharedPtr createProtocolOptionsTyped(
-      const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions&
-          proto_config,
+      const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& proto_config,
       Server::Configuration::ProtocolOptionsFactoryContext&) override {
     return std::make_shared<ProtocolOptionsConfigImpl>(proto_config);
   }
@@ -75,8 +73,8 @@ public:
 
   // Settings
 private:
-  void processFilter(
-      const envoy::extensions::filters::network::sip_proxy::v3::SipFilter& proto_config);
+  void
+  processFilter(const envoy::extensions::filters::network::sip_proxy::v3::SipFilter& proto_config);
 
   Server::Configuration::FactoryContext& context_;
   const std::string stats_prefix_;

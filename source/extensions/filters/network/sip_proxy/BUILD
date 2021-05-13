@@ -53,7 +53,6 @@ envoy_cc_library(
         ":encoder_lib",
         ":protocol_interface",
         ":stats_lib",
-#        ":transport_interface",
         "//include/envoy/event:deferred_deletable",
         "//include/envoy/event:dispatcher_interface",
         "//include/envoy/network:connection_interface",
@@ -88,7 +87,6 @@ envoy_cc_library(
         ":app_exception_lib",
         ":protocol_interface",
         ":stats_lib",
-#        ":transport_interface",
         "//source/common/buffer:buffer_lib",
         "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
     ],
@@ -102,7 +100,6 @@ envoy_cc_library(
         ":app_exception_lib",
         ":protocol_interface",
         ":stats_lib",
-#        ":transport_interface",
         "//source/common/buffer:buffer_lib",
         "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
     ],
@@ -131,7 +128,6 @@ envoy_cc_library(
         ":decoder_events_lib",
         ":metadata_lib",
         ":sip_lib",
-#        ":transport_interface",
         "//include/envoy/buffer:buffer_interface",
         "//include/envoy/config:typed_config_interface",
         "//include/envoy/registry",
@@ -149,22 +145,6 @@ envoy_cc_library(
         "//include/envoy/stats:stats_macros",
     ],
 )
-
-#envoy_cc_library(
-#    name = "transport_interface",
-#    hdrs = ["transport.h"],
-#    external_deps = ["abseil_optional"],
-#    deps = [
-#        ":metadata_lib",
-#        ":sip_lib",
-#        "//include/envoy/buffer:buffer_interface",
-#        "//include/envoy/config:typed_config_interface",
-#        "//include/envoy/registry",
-#        "//source/common/common:assert_lib",
-#        "//source/common/config:utility_lib",
-#        "//source/common/singleton:const_singleton",
-#    ],
-#)
 
 envoy_cc_library(
     name = "conn_state_lib",

@@ -4,8 +4,8 @@
 #include "envoy/event/dispatcher.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/protocol.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
+#include "extensions/filters/network/sip_proxy/protocol.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -22,14 +22,14 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  //ENVOY_LOG(trace, "ConnectionManager received data {}\n{}", data.length(), data.toString());
+  // ENVOY_LOG(trace, "ConnectionManager received data {}\n{}", data.length(), data.toString());
   request_buffer_.move(data);
   dispatch();
 
   if (end_stream) {
     ENVOY_CONN_LOG(info, "downstream half-closed", read_callbacks_->connection());
 
-    //resetAllRpcs(false);
+    // resetAllRpcs(false);
     read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
   }
 
@@ -37,31 +37,31 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
 }
 
 void ConnectionManager::dispatch() {
-//  try {
-    decoder_->onData(request_buffer_);
-//    return;
-//  } catch (const AppException& ex) {
-//    ENVOY_LOG(error, "sip application exception: {}", ex.what());
-//    if (transactions_.empty()) {
-//      MessageMetadata metadata;
-//      sendLocalReply(metadata, ex, true);
-//    } else {
-//      sendLocalReply(*(*rpcs_.begin())->metadata_, ex, true);
-//    }
-//  } catch (const EnvoyException& ex) {
-//    ENVOY_CONN_LOG(error, "sip error: {}", read_callbacks_->connection(), ex.what());
-//
-//    if (rpcs_.empty()) {
-//      // Just hang up since we don't know how to encode a response.
-//      read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
-//    } else {
-//      // Use the current rpc's transport/protocol to send an error downstream.
-//      rpcs_.front()->onError(ex.what());
-//    }
-//  }
-//
-//  stats_.request_decoding_error_.inc();
-//  resetAllRpcs(true);
+  //  try {
+  decoder_->onData(request_buffer_);
+  //    return;
+  //  } catch (const AppException& ex) {
+  //    ENVOY_LOG(error, "sip application exception: {}", ex.what());
+  //    if (transactions_.empty()) {
+  //      MessageMetadata metadata;
+  //      sendLocalReply(metadata, ex, true);
+  //    } else {
+  //      sendLocalReply(*(*rpcs_.begin())->metadata_, ex, true);
+  //    }
+  //  } catch (const EnvoyException& ex) {
+  //    ENVOY_CONN_LOG(error, "sip error: {}", read_callbacks_->connection(), ex.what());
+  //
+  //    if (rpcs_.empty()) {
+  //      // Just hang up since we don't know how to encode a response.
+  //      read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
+  //    } else {
+  //      // Use the current rpc's transport/protocol to send an error downstream.
+  //      rpcs_.front()->onError(ex.what());
+  //    }
+  //  }
+  //
+  //  stats_.request_decoding_error_.inc();
+  //  resetAllRpcs(true);
 }
 
 void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectResponse& response,
@@ -114,7 +114,7 @@ void ConnectionManager::continueDecoding() {
 
 void ConnectionManager::doDeferredRpcDestroy(ConnectionManager::ActiveTrans& trans) {
   transactions_.erase(trans.transactionId());
-  //read_callbacks_->connection().dispatcher().deferredDelete(std::unique_ptr<Event::DeferredDeletable>(&trans));
+  // read_callbacks_->connection().dispatcher().deferredDelete(std::unique_ptr<Event::DeferredDeletable>(&trans));
 }
 
 void ConnectionManager::resetAllRpcs(bool local_reset) {
@@ -128,7 +128,7 @@ void ConnectionManager::resetAllRpcs(bool local_reset) {
       stats_.cx_destroy_remote_with_active_rq_.inc();
     }
 
-    it = transactions_.erase(it);
+    transactions_.erase(it++);
   }
 }
 
@@ -146,7 +146,7 @@ void ConnectionManager::onEvent(Network::ConnectionEvent event) {
 
 DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSharedPtr metadata) {
   ENVOY_LOG(trace, "new decoder filter");
-  std::string && k = std::string(metadata->transactionId().value());
+  std::string&& k = std::string(metadata->transactionId().value());
   if (metadata->methodType() == MethodType::Ack) {
     if (transactions_.find(k) != transactions_.end()) {
       // ACK_4XX
@@ -213,8 +213,8 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   Buffer::OwnedImpl buffer;
 
-  metadata_->setEP(cm.read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
-  // metadata_->setEP("127.0.0.1:5062");
+  metadata_->setEP(
+      cm.read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);

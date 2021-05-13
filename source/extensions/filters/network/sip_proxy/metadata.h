@@ -3,9 +3,10 @@
 #include <chrono>
 #include <memory>
 
-#include "absl/types/optional.h"
-#include "absl/strings/string_view.h"
 #include "extensions/filters/network/sip_proxy/sip.h"
+
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -21,10 +22,7 @@ namespace SipProxy {
 class MessageMetadata {
 public:
   MessageMetadata(){};
-  MessageMetadata(std::string&& raw_msg)
-      : raw_msg_(std::move(raw_msg)), timestamp_(std::chrono::system_clock::now()) {}
-
-  std::chrono::system_clock::time_point timestamp() { return timestamp_; };
+  MessageMetadata(std::string&& raw_msg) : raw_msg_(std::move(raw_msg)) {}
 
   MsgType msgType() { return msg_type_; }
   MethodType methodType() { return method_type_; }
@@ -67,7 +65,6 @@ private:
   absl::optional<absl::string_view> transaction_id_{};
 
   std::string raw_msg_{};
-  std::chrono::system_clock::time_point timestamp_;
 };
 
 using MessageMetadataSharedPtr = std::shared_ptr<MessageMetadata>;

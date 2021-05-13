@@ -1,14 +1,14 @@
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
 
+#include <iostream>
 #include <memory>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
 #include "envoy/upstream/thread_local_cluster.h"
 
-#include "common/network/address_impl.h"
-
 #include "common/common/utility.h"
+#include "common/network/address_impl.h"
 #include "common/router/metadatamatchcriteria_impl.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
@@ -16,7 +16,6 @@
 #include "extensions/filters/network/well_known_names.h"
 
 #include "absl/strings/match.h"
-#include <iostream>
 
 namespace Envoy {
 namespace Extensions {
@@ -177,7 +176,8 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    Tcp::ConnectionPool::Instance* conn_pool = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+    Tcp::ConnectionPool::Instance* conn_pool =
+        cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
       stats_.no_healthy_upstream_.inc();
       callbacks_->sendLocalReply(
@@ -310,7 +310,7 @@ FilterStatus Router::messageEnd() {
   //  upstream_request_->transport_->encodeFrame(transport_buffer, *upstream_request_->metadata_,
   //                                             upstream_request_buffer_);
   upstream_request_->write(transport_buffer, false);
-  //upstream_request_->onRequestComplete();
+  // upstream_request_->onRequestComplete();
   return FilterStatus::Continue;
 }
 
@@ -385,7 +385,7 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
   // Mimic an upstream reset.
   onUpstreamHostSelected(host);
   UNREFERENCED_PARAMETER(reason);
-  //onResetStream(reason);
+  // onResetStream(reason);
 }
 
 void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_data,
@@ -418,7 +418,7 @@ void UpstreamRequest::onRequestStart(bool continue_decoding) {
       ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
                        transport_buffer.toString());
       conn_data_->connection().write(transport_buffer, false);
-      //onRequestComplete();
+      // onRequestComplete();
     }
     pending_request_.clear();
   }
@@ -428,9 +428,9 @@ void UpstreamRequest::onRequestStart(bool continue_decoding) {
   //}
 }
 
-//void UpstreamRequest::onRequestComplete() { request_complete_ = true; }
+// void UpstreamRequest::onRequestComplete() { request_complete_ = true; }
 
-//void UpstreamRequest::onResponseComplete() {
+// void UpstreamRequest::onResponseComplete() {
 //  response_complete_ = true;
 //  conn_state_ = nullptr;
 //  conn_data_.reset();
@@ -462,7 +462,7 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
   case ConnectionPool::PoolFailureReason::Timeout:
     // TODO(zuercher): distinguish between these cases where appropriate (particularly timeout)
-    //if (!response_started_) {
+    // if (!response_started_) {
     //  callbacks_->sendLocalReply(
     //      AppException(
     //          AppExceptionType::InternalError,
@@ -544,11 +544,11 @@ void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
   switch (event) {
   case Network::ConnectionEvent::RemoteClose:
     ENVOY_STREAM_LOG(debug, "upstream remote close", *callbacks_);
-    //onResetStream(ConnectionPool::PoolFailureReason::RemoteConnectionFailure);
+    // onResetStream(ConnectionPool::PoolFailureReason::RemoteConnectionFailure);
     break;
   case Network::ConnectionEvent::LocalClose:
     ENVOY_STREAM_LOG(debug, "upstream local close", *callbacks_);
-    //onResetStream(ConnectionPool::PoolFailureReason::LocalConnectionFailure);
+    // onResetStream(ConnectionPool::PoolFailureReason::LocalConnectionFailure);
     break;
   default:
     // Connected is consumed by the connection pool.

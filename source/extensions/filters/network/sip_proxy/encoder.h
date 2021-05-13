@@ -7,6 +7,7 @@
 
 #include "common/common/assert.h"
 #include "common/common/logger.h"
+
 #include "extensions/filters/network/sip_proxy/metadata.h"
 
 namespace Envoy {

@@ -12,6 +12,7 @@
 #include "extensions/filters/network/sip_proxy/protocol.h"
 #include "extensions/filters/network/sip_proxy/router/router.h"
 #include "extensions/filters/network/sip_proxy/sip.h"
+
 //#include "extensions/filters/network/sip_proxy/config.h"
 //#include "extensions/filters/network/sip_proxy/transport.h"
 
@@ -63,15 +64,15 @@ public:
    */
   virtual Router::RouteConstSharedPtr route() PURE;
 
-//  /**
-//   * @return TransportType the originating transport.
-//   */
-//  virtual TransportType downstreamTransportType() const PURE;
-//
-//  /**
-//   * @return ProtocolType the originating protocol.
-//   */
-//  virtual ProtocolType downstreamProtocolType() const PURE;
+  //  /**
+  //   * @return TransportType the originating transport.
+  //   */
+  //  virtual TransportType downstreamTransportType() const PURE;
+  //
+  //  /**
+  //   * @return ProtocolType the originating protocol.
+  //   */
+  //  virtual ProtocolType downstreamProtocolType() const PURE;
 
   /**
    * Create a locally generated response using the provided response object.

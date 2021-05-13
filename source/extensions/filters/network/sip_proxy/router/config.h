@@ -3,7 +3,6 @@
 #include "envoy/extensions/filters/network/sip_proxy/router/v3/router.pb.h"
 #include "envoy/extensions/filters/network/sip_proxy/router/v3/router.pb.validate.h"
 
-
 #include "extensions/filters/network/sip_proxy/filters/factory_base.h"
 #include "extensions/filters/network/sip_proxy/filters/well_known_names.h"
 
@@ -13,8 +12,8 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace Router {
 
-class RouterFilterConfig
-    : public SipFilters::FactoryBase<envoy::extensions::filters::network::sip_proxy::router::v3::Router> {
+class RouterFilterConfig : public SipFilters::FactoryBase<
+                               envoy::extensions::filters::network::sip_proxy::router::v3::Router> {
 public:
   RouterFilterConfig() : FactoryBase(SipFilters::SipFilterNames::get().ROUTER) {}
 

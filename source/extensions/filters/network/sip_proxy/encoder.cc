@@ -29,8 +29,7 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
     }
   } else if (metadata->methodType() == MethodType::Invite &&
              metadata->insertEPLocation().has_value() && metadata->EP().has_value()) {
-    msg.insert(metadata->insertEPLocation().value(),
-               ";ep=" + std::string(metadata->EP().value()));
+    msg.insert(metadata->insertEPLocation().value(), ";ep=" + std::string(metadata->EP().value()));
   } else if ((metadata->methodType() == MethodType::Ack ||
               metadata->methodType() == MethodType::Bye ||
               metadata->methodType() == MethodType::Cancel) &&

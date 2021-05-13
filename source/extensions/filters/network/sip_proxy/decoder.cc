@@ -1,11 +1,14 @@
+#include "extensions/filters/network/sip_proxy/decoder.h"
+
 #include <regex>
 
 #include "envoy/common/exception.h"
+
 #include "common/common/assert.h"
 #include "common/common/macros.h"
+#include "common/common/regex.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/decoder.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -116,8 +119,6 @@ int Decoder::reassemble(Buffer::Instance& data) {
                              content_length_end - content_length_start - strlen("Content-Length:"),
                              len);
 
-      // Content-Length saved in clen.
-      //
       clen = std::atoi(len);
 
       // Fail if Content-Length is less then zero
@@ -180,10 +181,10 @@ auto Decoder::sipHeaderType(absl::string_view sip_line) {
   auto header_type_str = sip_line.substr(0, sip_line.find_first_of(":"));
   if (auto result = sip_header_type_map.find(header_type_str);
       result != sip_header_type_map.end()) {
-    return std::tuple<HeaderType, std::string_view>{
+    return std::tuple<HeaderType, absl::string_view>{
         result->second, sip_line.substr(sip_line.find_first_of(":") + 2)};
   } else {
-    return std::tuple<HeaderType, std::string_view>{
+    return std::tuple<HeaderType, absl::string_view>{
         HeaderType::Other, sip_line.substr(sip_line.find_first_of(":") + 2)};
   }
 }
@@ -394,7 +395,7 @@ int Decoder::GeneralHeaderHandler::processContact(absl::string_view& header) {
 // SUBSCRIBE Header Handler
 //
 int Decoder::SUBSCRIBEHeaderHandler::processEvent(absl::string_view& header) {
-  auto & parent = dynamic_cast<SUBSCRIBEHandler &>(this->parent_);
+  auto& parent = dynamic_cast<SUBSCRIBEHandler&>(this->parent_);
   parent.setEventType(header);
   return 0;
 }

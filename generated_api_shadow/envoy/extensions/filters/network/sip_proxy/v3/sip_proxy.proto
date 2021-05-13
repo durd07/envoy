@@ -33,21 +33,21 @@ message SipProxy {
     // | Timer   | Default value           | Section  | Meaning                                                                      |
     // |---------|-------------------------|----------|------------------------------------------------------------------------------|
     // | T1      | 500 ms                  | 17.1.1.1 | Round-trip time (RTT) estimate                                               |
-    // | T2      | 4 sec.                  | 17.1.2.2 | Maximum retransmission interval for non-INVITE requests and INVITE responses |
-    // | T4      | 5 sec.                  | 17.1.2.2 | Maximum duration that a message can remain in the network                    |
-    // | Timer A | initially T1            | 17.1.1.2 | INVITE request retransmission interval, for UDP only                         |
+    // | T2      | 4 sec. | 17.1.2.2 | Maximum re-transmission interval for non-INVITE requests and INVITE responses |
+    // | T4      | 5 sec. | 17.1.2.2 | Maximum duration that a message can remain in the network                    |
+    // | Timer A | initially T1            | 17.1.1.2 | INVITE request re-transmission interval, for UDP only                         |
     // | Timer B | 64*T1                   | 17.1.1.2 | INVITE transaction timeout timer                                             |
-    // | Timer D | > 32 sec. for UDP       | 17.1.1.2 | Wait time for response retransmissions                                       |
+    // | Timer D | > 32 sec. for UDP       | 17.1.1.2 | Wait time for response re-transmissions                                       |
     // |         | 0 sec. for TCP and SCTP |          |                                                                              |
-    // | Timer E | initially T1            | 17.1.2.2 | Non-INVITE request retransmission interval, UDP only                         |
+    // | Timer E | initially T1            | 17.1.2.2 | Non-INVITE request re-transmission interval, UDP only                         |
     // | Timer F | 64*T1                   | 17.1.2.2 | Non-INVITE transaction timeout timer                                         |
-    // | Timer G | initially T1            | 17.2.1   | INVITE response retransmission interval                                      |
+    // | Timer G | initially T1            | 17.2.1   | INVITE response re-transmission interval                                      |
     // | Timer H | 64*T1                   | 17.2.1   | Wait time for ACK receipt                                                    |
-    // | Timer I | T4 for UDP              | 17.2.1   | Wait time for ACK retransmissions                                            |
+    // | Timer I | T4 for UDP              | 17.2.1   | Wait time for ACK re-transmissions                                            |
     // |         | 0 sec. for TCP and SCTP |          |                                                                              |
-    // | Timer J | 64*T1 for UDP           | 17.2.2   | Wait time for retransmissions of non-INVITE requests                         |
+    // | Timer J | 64*T1 for UDP           | 17.2.2   | Wait time for re-transmissions of non-INVITE requests                         |
     // |         | 0 sec. for TCP and SCTP |          |                                                                              |
-    // | Timer K | T4 for UDP              | 17.1.2.2 | Wait time for response retransmissions                                       |
+    // | Timer K | T4 for UDP              | 17.1.2.2 | Wait time for response re-transmissions                                       |
     // |         | 0 sec. for TCP and SCTP |          |                                                                              |
     // |---------|-------------------------|----------|------------------------------------------------------------------------------|
     //
@@ -55,9 +55,9 @@ message SipProxy {
     google.protobuf.Duration transaction_timeout = 1;
     //google.protobuf.Duration transaction_timeout = 1;
 
-    // whether envoy should support session_stickness, if false, there is no need to add "ep" in sip message,
-    // otherwise, handle session_stickness by application. true means SIP agents don't support
-    // session_stickness, so envoy will take over it. default is true.
+    // whether envoy should support session_stickiness, if false, there is no need to add "ep" in sip message,
+    // otherwise, handle session_stickiness by application. true means SIP agents don't support
+    // session_stickiness, so envoy will take over it. default is true.
     bool session_stickness = 2;
   }
 
@@ -88,4 +88,3 @@ message SipFilter {
 // keyed by the name `envoy.filters.network.sip_proxy`.
 message SipProtocolOptions {
 }
-

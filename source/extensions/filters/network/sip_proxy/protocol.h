@@ -1,8 +1,10 @@
 #pragma once
 
 #include "envoy/buffer/buffer.h"
+
 #include "extensions/filters/network/sip_proxy/conn_state.h"
 #include "extensions/filters/network/sip_proxy/metadata.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {

@@ -152,12 +152,13 @@ private:
                                parent_.stats_.request_time_ms_, parent_.time_source_)),
           stream_id_(parent_.random_generator_.random()),
           transaction_id_(metadata->transactionId().value()),
-          stream_info_(parent_.time_source_, parent_.read_callbacks_->connection().addressProviderSharedPtr()), metadata_(metadata), local_response_sent_{false},
-          pending_transport_end_{false}, timestamp_{std::chrono::system_clock::now()} {
+          stream_info_(parent_.time_source_,
+                       parent_.read_callbacks_->connection().addressProviderSharedPtr()),
+          metadata_(metadata), local_response_sent_{false}, pending_transport_end_{false} {
       parent_.stats_.request_active_.inc();
     }
     ~ActiveTrans() override {
-      // request_timer_->complete();
+      request_timer_->complete();
       ENVOY_LOG(trace, "destruct activetrans {}", transaction_id_);
       parent_.stats_.request_active_.dec();
 
@@ -222,7 +223,6 @@ private:
 
     /* Used by Router */
     std::shared_ptr<Router::TransactionInfos> transaction_infos_;
-    std::chrono::system_clock::time_point timestamp_;
   };
 
   using ActiveTransPtr = std::unique_ptr<ActiveTrans>;
@@ -239,7 +239,7 @@ private:
   Network::ReadFilterCallbacks* read_callbacks_{};
 
   DecoderPtr decoder_;
-  std::unordered_map<std::string, ActiveTransPtr> transactions_;
+  absl::flat_hash_map<std::string, ActiveTransPtr> transactions_;
   Buffer::OwnedImpl request_buffer_;
   Random::RandomGenerator& random_generator_;
   TimeSource& time_source_;

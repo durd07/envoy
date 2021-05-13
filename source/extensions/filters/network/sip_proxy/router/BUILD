@@ -52,10 +52,9 @@ envoy_cc_library(
         "//source/extensions/filters/network:well_known_names",
         "//source/extensions/filters/network/sip_proxy:app_exception_lib",
         "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
+        "//source/extensions/filters/network/sip_proxy:encoder_lib",
         "//source/extensions/filters/network/sip_proxy:protocol_interface",
-#        "//source/extensions/filters/network/sip_proxy:transport_interface",
         "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
         "@envoy_api//envoy/extensions/filters/network/sip_proxy/v3:pkg_cc_proto",
-        "//source/extensions/filters/network/sip_proxy:encoder_lib",
     ],
 )
