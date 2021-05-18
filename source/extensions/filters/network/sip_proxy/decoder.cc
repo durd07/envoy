@@ -1,14 +1,13 @@
 #include "extensions/filters/network/sip_proxy/decoder.h"
 
-#include <regex>
-
 #include "envoy/common/exception.h"
 
 #include "common/common/assert.h"
 #include "common/common/macros.h"
-#include "common/common/regex.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
+
+#include "re2/re2.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -575,7 +574,8 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
 }
 
 absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType header_type) {
-  std::regex pattern;
+  std::string domain = "";
+  std::string pattern;
 
   switch (header_type) {
   case HeaderType::TopLine:
@@ -589,12 +589,8 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
     return "";
   }
 
-  std::match_results<absl::string_view::const_iterator> m;
-  if (std::regex_match(sip_header.begin(), sip_header.end(), m, pattern)) {
-    return absl::string_view{&*m[1].first, static_cast<size_t>(m[1].length())};
-  } else {
-    return "";
-  }
+  re2::RE2::FullMatch(sip_header, pattern, &domain);
+  return sip_header.substr(sip_header.find(domain), domain.length());
 }
 
 } // namespace SipProxy

@@ -11,8 +11,7 @@ enum class FilterStatus {
   // Continue filter chain iteration.
   Continue,
 
-  // Stop iterating over filters in the filter chain. Iteration must be explicitly restarted via
-  // continueDecoding().
+  // Stop iterating over filters in the filter chain.
   StopIteration
 };
 

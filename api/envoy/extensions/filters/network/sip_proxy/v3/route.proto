@@ -21,11 +21,13 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 
 message RouteConfiguration {
   string name = 1;
+
   repeated Route routes = 2;
 }
 
 message Route {
   RouteMatch match = 1 [(validate.rules).message = {required: true}];
+
   RouteAction route = 2 [(validate.rules).message = {required: true}];
 }
 
@@ -58,6 +60,7 @@ message RouteMatch {
   repeated config.route.v3.HeaderMatcher headers = 3;
 }
 
+// [#next-free-field: 7]
 message RouteAction {
   oneof cluster_specifier {
     option (validate.required) = true;

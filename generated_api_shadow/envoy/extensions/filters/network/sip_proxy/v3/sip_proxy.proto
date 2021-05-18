@@ -16,18 +16,6 @@ option java_multiple_files = true;
 option (udpa.annotations.file_status).package_version_status = ACTIVE;
 
 message SipProxy {
-  // The human readable prefix to use when emitting statistics.
-  string stat_prefix = 1 [(validate.rules).string = {min_len: 1}];
-
-  // The route table for the connection manager is static and is specified in this property.
-  RouteConfiguration route_config = 2;
-
-  // A list of individual Sip filters that make up the filter chain for requests made to the
-  // Sip proxy. Order matters as the filters are processed sequentially. For backwards
-  // compatibility, if no sip_filters are specified, a default Sip router filter
-  // (`envoy.filters.sip.router`) is used.
-  repeated SipFilter sip_filters = 3;
-
   message SipSettings {
     // |---------|-------------------------|----------|------------------------------------------------------------------------------|
     // | Timer   | Default value           | Section  | Meaning                                                                      |
@@ -60,6 +48,18 @@ message SipProxy {
     // session_stickiness, so envoy will take over it. default is true.
     bool session_stickness = 2;
   }
+
+  // The human readable prefix to use when emitting statistics.
+  string stat_prefix = 1 [(validate.rules).string = {min_len: 1}];
+
+  // The route table for the connection manager is static and is specified in this property.
+  RouteConfiguration route_config = 2;
+
+  // A list of individual Sip filters that make up the filter chain for requests made to the
+  // Sip proxy. Order matters as the filters are processed sequentially. For backwards
+  // compatibility, if no sip_filters are specified, a default Sip router filter
+  // (`envoy.filters.sip.router`) is used.
+  repeated SipFilter sip_filters = 3;
 
   // SipSettings settings = 4 [(validate.rules).message = {required: true}];
   SipSettings settings = 4;

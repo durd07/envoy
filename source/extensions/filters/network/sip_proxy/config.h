@@ -60,9 +60,8 @@ public:
   void createFilterChain(SipFilters::FilterChainFactoryCallbacks& callbacks) override;
 
   // Router::Config
-  Router::RouteConstSharedPtr route(MessageMetadata& metadata,
-                                    uint64_t random_value) const override {
-    return route_matcher_->route(metadata, random_value);
+  Router::RouteConstSharedPtr route(MessageMetadata& metadata) const override {
+    return route_matcher_->route(metadata);
   }
 
   // Config

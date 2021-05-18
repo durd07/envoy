@@ -1,9 +1,7 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
@@ -49,10 +47,10 @@ public:
   // Router::Route
   const RouteEntry* routeEntry() const override;
 
-  virtual RouteConstSharedPtr matches(MessageMetadata& metadata, uint64_t random_value) const PURE;
+  virtual RouteConstSharedPtr matches(MessageMetadata& metadata) const PURE;
 
 protected:
-  RouteConstSharedPtr clusterEntry(uint64_t random_value, const MessageMetadata& metadata) const;
+  RouteConstSharedPtr clusterEntry(const MessageMetadata& metadata) const;
   bool headersMatch(const Http::HeaderMap& headers) const;
 
 private:
@@ -78,8 +76,6 @@ private:
   };
 
   const std::string cluster_name_;
-  const std::vector<Http::HeaderUtility::HeaderDataPtr> config_headers_;
-  uint64_t total_cluster_weight_;
   Envoy::Router::MetadataMatchCriteriaConstPtr metadata_match_criteria_;
   const bool strip_service_name_;
   const Http::LowerCaseString cluster_header_;
@@ -93,7 +89,7 @@ public:
   GeneralRouteEntryImpl(const envoy::extensions::filters::network::sip_proxy::v3::Route& route);
 
   // RouteEntryImplBase
-  RouteConstSharedPtr matches(MessageMetadata& metadata, uint64_t random_value) const override;
+  RouteConstSharedPtr matches(MessageMetadata& metadata) const override;
 
 private:
   const std::string domain_;
@@ -104,7 +100,7 @@ class RouteMatcher {
 public:
   RouteMatcher(const envoy::extensions::filters::network::sip_proxy::v3::RouteConfiguration&);
 
-  RouteConstSharedPtr route(MessageMetadata& metadata, uint64_t random_value) const;
+  RouteConstSharedPtr route(MessageMetadata& metadata) const;
 
 private:
   std::vector<RouteEntryImplBaseConstSharedPtr> routes_;
@@ -121,7 +117,7 @@ struct RouterStats {
 };
 
 class UpstreamRequest;
-class TransactionInfoItem : public Logger::Loggable<Logger::Id::filter> {
+class TransactionInfoItem : public Logger::Loggable<Logger::Id::sip> {
 public:
   TransactionInfoItem(SipFilters::DecoderFilterCallbacks* active_trans,
                       std::shared_ptr<UpstreamRequest> upstream_request)
@@ -149,7 +145,7 @@ private:
 };
 
 struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
-                                    public Logger::Loggable<Logger::Id::filter> {
+                                    public Logger::Loggable<Logger::Id::sip> {
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
                              std::chrono::milliseconds transaction_timeout)
       : parent_(parent), dispatcher_(dispatcher),
@@ -191,7 +187,7 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
 };
 
 class TransactionInfo : public std::enable_shared_from_this<TransactionInfo>,
-                        Logger::Loggable<Logger::Id::filter> {
+                        Logger::Loggable<Logger::Id::sip> {
 public:
   TransactionInfo(const std::string& cluster_name, ThreadLocal::SlotAllocator& tls,
                   std::chrono::milliseconds transaction_timeout)
@@ -219,11 +215,6 @@ public:
   void insertTransaction(std::string&& transaction_id,
                          SipFilters::DecoderFilterCallbacks* active_trans,
                          std::shared_ptr<UpstreamRequest> upstream_request) {
-    //    tls_->getTyped<ThreadLocalTransactionInfo>().transaction_info_map_.emplace(std::piecewise_construct,
-    //        std::forward_as_tuple(transaction_id), std::forward_as_tuple(active_trans,
-    //        upstream_request) ); std::make_pair(transaction_id, TransactionInfoItem(active_trans,
-    //        upstream_request)));
-    // ENVOY_LOG(error, "insert transaction {}", transaction_id);
     tls_->getTyped<ThreadLocalTransactionInfo>().transaction_info_map_.emplace(std::make_pair(
         transaction_id, std::make_shared<TransactionInfoItem>(active_trans, upstream_request)));
   }
@@ -240,7 +231,6 @@ public:
 
   void insertUpstreamRequest(const std::string& host,
                              std::shared_ptr<UpstreamRequest> upstream_request) {
-    // tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_[host] = upstream_request;
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.emplace(
         std::make_pair(host, upstream_request));
   }
@@ -266,7 +256,7 @@ private:
 class Router : public Upstream::LoadBalancerContextBase,
                public virtual DecoderEventHandler,
                public SipFilters::DecoderFilter,
-               Logger::Loggable<Logger::Id::filter> {
+               Logger::Loggable<Logger::Id::sip> {
 public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
          Stats::Scope& scope)
@@ -314,7 +304,9 @@ private:
 };
 
 class ThreadLocalActiveConn;
-class ResponseDecoder : public DecoderCallbacks, public DecoderEventHandler {
+class ResponseDecoder : public DecoderCallbacks,
+                        public DecoderEventHandler,
+                        public Logger::Loggable<Logger::Id::sip> {
 public:
   ResponseDecoder(UpstreamRequest& parent)
       : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {}
@@ -338,17 +330,14 @@ public:
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
-  //  MessageMetadataSharedPtr metadata_;
-  //  absl::optional<bool> success_;
-  //  bool complete_ : 1;
-  //  bool first_reply_field_ : 1;
 };
+
 using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
 
 class UpstreamRequest : public Tcp::ConnectionPool::Callbacks,
                         public Tcp::ConnectionPool::UpstreamCallbacks,
                         public std::enable_shared_from_this<UpstreamRequest>,
-                        public Logger::Loggable<Logger::Id::filter> {
+                        public Logger::Loggable<Logger::Id::sip> {
 public:
   UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
                   std::shared_ptr<TransactionInfo> transaction_info);
@@ -366,7 +355,7 @@ public:
   void onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn,
                    Upstream::HostDescriptionConstSharedPtr host) override;
 
-  void onRequestStart(bool continue_decoding);
+  void onRequestStart();
   void onRequestComplete();
   void onResponseComplete();
   void onUpstreamHostSelected(Upstream::HostDescriptionConstSharedPtr host);
@@ -412,7 +401,6 @@ private:
   Buffer::OwnedImpl upstream_buffer_;
 
   bool request_complete_ : 1;
-  //  bool response_started_ : 1;
   bool response_complete_ : 1;
 };
 

@@ -53,7 +53,7 @@ public:
 class ConnectionManager : public Network::ReadFilter,
                           public Network::ConnectionCallbacks,
                           public DecoderCallbacks,
-                          Logger::Loggable<Logger::Id::filter> {
+                          Logger::Loggable<Logger::Id::sip> {
 public:
   ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
                     TimeSource& time_system,
@@ -77,9 +77,7 @@ private:
   struct ActiveTrans;
 
   struct ResponseDecoder : public DecoderCallbacks, public DecoderEventHandler {
-    ResponseDecoder(ActiveTrans& parent)
-        : parent_(parent), decoder_(std::make_unique<Decoder>(*this)), complete_(false),
-          first_reply_field_(false) {}
+    ResponseDecoder(ActiveTrans& parent) : parent_(parent) {}
 
     bool onData(MessageMetadataSharedPtr metadata);
 
@@ -99,12 +97,7 @@ private:
     }
 
     ActiveTrans& parent_;
-    DecoderPtr decoder_;
-    Buffer::OwnedImpl upstream_buffer_;
     MessageMetadataSharedPtr metadata_;
-    absl::optional<bool> success_;
-    bool complete_ : 1;
-    bool first_reply_field_ : 1;
   };
   using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
 
@@ -119,7 +112,6 @@ private:
     uint64_t streamId() const override { return parent_.streamId(); }
     std::string transactionId() const override { return parent_.transactionId(); }
     const Network::Connection* connection() const override { return parent_.connection(); }
-    void continueDecoding() override;
     Router::RouteConstSharedPtr route() override { return parent_.route(); }
     void sendLocalReply(const DirectResponse& response, bool end_stream) override {
       parent_.sendLocalReply(response, end_stream);
@@ -154,7 +146,7 @@ private:
           transaction_id_(metadata->transactionId().value()),
           stream_info_(parent_.time_source_,
                        parent_.read_callbacks_->connection().addressProviderSharedPtr()),
-          metadata_(metadata), local_response_sent_{false}, pending_transport_end_{false} {
+          metadata_(metadata) {
       parent_.stats_.request_active_.inc();
     }
     ~ActiveTrans() override {
@@ -177,7 +169,6 @@ private:
     uint64_t streamId() const override { return stream_id_; }
     std::string transactionId() const override { return transaction_id_; }
     const Network::Connection* connection() const override;
-    void continueDecoding() override { return parent_.continueDecoding(); }
     Router::RouteConstSharedPtr route() override;
     void sendLocalReply(const DirectResponse& response, bool end_stream) override;
     void startUpstreamResponse() override;
@@ -214,12 +205,10 @@ private:
     std::list<ActiveTransDecoderFilterPtr> decoder_filters_;
     ResponseDecoderPtr response_decoder_;
     absl::optional<Router::RouteConstSharedPtr> cached_route_;
-    Buffer::OwnedImpl response_buffer_;
-    int32_t original_sequence_id_{0};
     std::function<FilterStatus(DecoderEventHandler*)> filter_action_;
+
     absl::any filter_context_;
     bool local_response_sent_ : 1;
-    bool pending_transport_end_ : 1;
 
     /* Used by Router */
     std::shared_ptr<Router::TransactionInfos> transaction_infos_;
@@ -227,11 +216,10 @@ private:
 
   using ActiveTransPtr = std::unique_ptr<ActiveTrans>;
 
-  void continueDecoding();
   void dispatch();
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
-  void doDeferredRpcDestroy(ActiveTrans& rpc);
-  void resetAllRpcs(bool local_reset);
+  void doDeferredTransDestroy(ActiveTrans& trans);
+  void resetAllTrans(bool local_reset);
 
   Config& config_;
   SipFilterStats& stats_;
@@ -244,7 +232,7 @@ private:
   Random::RandomGenerator& random_generator_;
   TimeSource& time_source_;
 
-  /* This is used in Router, put here to pass to Router */
+  // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
 };

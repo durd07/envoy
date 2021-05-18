@@ -29,40 +29,14 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
   if (end_stream) {
     ENVOY_CONN_LOG(info, "downstream half-closed", read_callbacks_->connection());
 
-    // resetAllRpcs(false);
+    resetAllTrans(false);
     read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
   }
 
   return Network::FilterStatus::StopIteration;
 }
 
-void ConnectionManager::dispatch() {
-  //  try {
-  decoder_->onData(request_buffer_);
-  //    return;
-  //  } catch (const AppException& ex) {
-  //    ENVOY_LOG(error, "sip application exception: {}", ex.what());
-  //    if (transactions_.empty()) {
-  //      MessageMetadata metadata;
-  //      sendLocalReply(metadata, ex, true);
-  //    } else {
-  //      sendLocalReply(*(*rpcs_.begin())->metadata_, ex, true);
-  //    }
-  //  } catch (const EnvoyException& ex) {
-  //    ENVOY_CONN_LOG(error, "sip error: {}", read_callbacks_->connection(), ex.what());
-  //
-  //    if (rpcs_.empty()) {
-  //      // Just hang up since we don't know how to encode a response.
-  //      read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
-  //    } else {
-  //      // Use the current rpc's transport/protocol to send an error downstream.
-  //      rpcs_.front()->onError(ex.what());
-  //    }
-  //  }
-  //
-  //  stats_.request_decoding_error_.inc();
-  //  resetAllRpcs(true);
-}
+void ConnectionManager::dispatch() { decoder_->onData(request_buffer_); }
 
 void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectResponse& response,
                                        bool end_stream) {
@@ -98,27 +72,14 @@ void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectRe
   }
 }
 
-void ConnectionManager::continueDecoding() {
-  ENVOY_CONN_LOG(info, "sip filter continued", read_callbacks_->connection());
-  // dispatch();
-  //  stopped_ = false;
-  //  dispatch();
-  //
-  //  if (!stopped_ && half_closed_) {
-  //    // If we're half closed, but not stopped waiting for an upstream, reset any pending rpcs and
-  //    // close the connection.
-  //    resetAllRpcs(false);
-  //    read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
-  //  }
-}
-
-void ConnectionManager::doDeferredRpcDestroy(ConnectionManager::ActiveTrans& trans) {
+void ConnectionManager::doDeferredTransDestroy(ConnectionManager::ActiveTrans& trans) {
+  read_callbacks_->connection().dispatcher().deferredDelete(
+      std::move(transactions_.at(trans.transactionId())));
   transactions_.erase(trans.transactionId());
-  // read_callbacks_->connection().dispatcher().deferredDelete(std::unique_ptr<Event::DeferredDeletable>(&trans));
 }
 
-void ConnectionManager::resetAllRpcs(bool local_reset) {
-  ENVOY_LOG(info, "active_rpc to be deleted {}", transactions_.size());
+void ConnectionManager::resetAllTrans(bool local_reset) {
+  ENVOY_LOG(info, "active_trans to be deleted {}", transactions_.size());
   for (auto it = transactions_.cbegin(); it != transactions_.cend();) {
     if (local_reset) {
       ENVOY_CONN_LOG(debug, "local close with active request", read_callbacks_->connection());
@@ -128,7 +89,8 @@ void ConnectionManager::resetAllRpcs(bool local_reset) {
       stats_.cx_destroy_remote_with_active_rq_.inc();
     }
 
-    transactions_.erase(it++);
+    it->second->onReset();
+    ++it;
   }
 }
 
@@ -141,7 +103,7 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {
   ENVOY_CONN_LOG(info, "received event {}", read_callbacks_->connection(), event);
-  resetAllRpcs(event == Network::ConnectionEvent::LocalClose);
+  resetAllTrans(event == Network::ConnectionEvent::LocalClose);
 }
 
 DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSharedPtr metadata) {
@@ -154,7 +116,7 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
     }
   }
 
-  ActiveTransPtr new_trans(new ActiveTrans(*this, metadata));
+  ActiveTransPtr new_trans = std::make_unique<ActiveTrans>(*this, metadata);
   new_trans->createFilterChain();
   transactions_.emplace(k, std::move(new_trans));
 
@@ -187,19 +149,7 @@ FilterStatus ConnectionManager::ResponseDecoder::messageBegin(MessageMetadataSha
   return FilterStatus::Continue;
 }
 
-FilterStatus ConnectionManager::ResponseDecoder::messageEnd() {
-  if (first_reply_field_) {
-    // When the response is sip void type there is never a fieldBegin call on a success
-    // because the response struct has no fields and so the first field type is FieldType::Stop.
-    // The decoder state machine handles FieldType::Stop by going immediately to structEnd,
-    // skipping fieldBegin callback. Therefore if we are still waiting for the first reply field
-    // at end of message then it is a void success.
-    success_ = true;
-    first_reply_field_ = false;
-  }
-
-  return FilterStatus::Continue;
-}
+FilterStatus ConnectionManager::ResponseDecoder::messageEnd() { return FilterStatus::Continue; }
 
 FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
   ASSERT(metadata_ != nullptr);
@@ -207,7 +157,6 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
   ConnectionManager& cm = parent_.parent_;
 
   if (cm.read_callbacks_->connection().state() == Network::Connection::State::Closed) {
-    complete_ = true;
     throw EnvoyException("downstream connection is closed");
   }
 
@@ -224,40 +173,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   cm.stats_.response_.inc();
 
-  // switch (metadata_->messageType()) {
-  // case MessageType::Reply:
-  //   cm.stats_.response_reply_.inc();
-  //   if (success_.value_or(false)) {
-  //     cm.stats_.response_success_.inc();
-  //   } else {
-  //     cm.stats_.response_error_.inc();
-  //   }
-  //
-  //   break;
-  //
-  // case MessageType::Exception:
-  //   cm.stats_.response_exception_.inc();
-  //   break;
-  //
-  // default:
-  //   cm.stats_.response_invalid_type_.inc();
-  //   break;
-  // }
-
   return FilterStatus::Continue;
-}
-
-void ConnectionManager::ActiveTransDecoderFilter::continueDecoding() {
-  const FilterStatus status = parent_.applyDecoderFilters(this);
-  if (status == FilterStatus::Continue) {
-    // All filters have been executed for the current decoder state.
-    if (parent_.pending_transport_end_) {
-      // If the filter stack was paused during transportEnd, handle end-of-request details.
-      parent_.finalizeRequest();
-    }
-
-    parent_.continueDecoding();
-  }
 }
 
 FilterStatus ConnectionManager::ActiveTrans::applyDecoderFilters(ActiveTransDecoderFilter* filter) {
@@ -311,7 +227,6 @@ FilterStatus ConnectionManager::ActiveTrans::transportEnd() {
 
   status = applyDecoderFilters(nullptr);
   if (status == FilterStatus::StopIteration) {
-    pending_transport_end_ = true;
     return status;
   }
 
@@ -320,39 +235,7 @@ FilterStatus ConnectionManager::ActiveTrans::transportEnd() {
   return status;
 }
 
-void ConnectionManager::ActiveTrans::finalizeRequest() {
-  //  pending_transport_end_ = false;
-  //
-  //  parent_.stats_.request_.inc();
-  //
-  //  bool destroy_rpc = false;
-  //  switch (original_msg_type_) {
-  //  case MessageType::Call:
-  //    parent_.stats_.request_call_.inc();
-  //
-  //    // Local response or protocol upgrade mean we don't wait for an upstream response.
-  //    destroy_rpc = local_response_sent_ || (upgrade_handler_ != nullptr);
-  //    break;
-  //
-  //  case MessageType::Oneway:
-  //    parent_.stats_.request_oneway_.inc();
-  //
-  //    // No response forthcoming, we're done.
-  //    destroy_rpc = true;
-  //    break;
-  //
-  //  default:
-  //    parent_.stats_.request_invalid_type_.inc();
-  //
-  //    // Invalid request, implies no response.
-  //    destroy_rpc = true;
-  //    break;
-  //  }
-  //
-  //  if (destroy_rpc) {
-  //    parent_.doDeferredRpcDestroy(*this);
-  //  }
-}
+void ConnectionManager::ActiveTrans::finalizeRequest() {}
 
 FilterStatus ConnectionManager::ActiveTrans::messageBegin(MessageMetadataSharedPtr metadata) {
   metadata_ = metadata;
@@ -374,10 +257,7 @@ void ConnectionManager::ActiveTrans::createFilterChain() {
   parent_.config_.filterFactory().createFilterChain(*this);
 }
 
-void ConnectionManager::ActiveTrans::onReset() {
-  // TODO(zuercher): e.g., parent_.stats_.named_.downstream_rq_rx_reset_.inc();
-  parent_.doDeferredRpcDestroy(*this);
-}
+void ConnectionManager::ActiveTrans::onReset() { parent_.doDeferredTransDestroy(*this); }
 
 void ConnectionManager::ActiveTrans::onError(const std::string& what) {
   if (metadata_) {
@@ -385,10 +265,7 @@ void ConnectionManager::ActiveTrans::onError(const std::string& what) {
     return;
   }
 
-  // Transport or protocol error happened before (or during message begin) parsing. It's not
-  // possible to provide a valid response, so don't try.
-
-  parent_.doDeferredRpcDestroy(*this);
+  parent_.doDeferredTransDestroy(*this);
   parent_.read_callbacks_->connection().close(Network::ConnectionCloseType::NoFlush);
 }
 
@@ -399,8 +276,7 @@ const Network::Connection* ConnectionManager::ActiveTrans::connection() const {
 Router::RouteConstSharedPtr ConnectionManager::ActiveTrans::route() {
   if (!cached_route_) {
     if (metadata_ != nullptr) {
-      Router::RouteConstSharedPtr route =
-          parent_.config_.routerConfig().route(*metadata_, stream_id_);
+      Router::RouteConstSharedPtr route = parent_.config_.routerConfig().route(*metadata_);
       cached_route_ = std::move(route);
     } else {
       cached_route_ = nullptr;
@@ -423,8 +299,6 @@ void ConnectionManager::ActiveTrans::sendLocalReply(const DirectResponse& respon
 }
 
 void ConnectionManager::ActiveTrans::startUpstreamResponse() {
-  // ASSERT(response_decoder_ == nullptr);
-
   response_decoder_ = std::make_unique<ResponseDecoder>(*this);
 }
 

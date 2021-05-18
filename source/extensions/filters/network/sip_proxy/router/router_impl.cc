@@ -1,6 +1,5 @@
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
 
-#include <iostream>
 #include <memory>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
@@ -26,8 +25,6 @@ namespace Router {
 RouteEntryImplBase::RouteEntryImplBase(
     const envoy::extensions::filters::network::sip_proxy::v3::Route& route)
     : cluster_name_(route.route().cluster()),
-      config_headers_(Http::HeaderUtility::buildHeaderDataVector(route.match().headers())),
-      // rate_limit_policy_(route.route().rate_limits()),
       strip_service_name_(route.route().strip_service_name()),
       cluster_header_(route.route().cluster_header()) {
   if (route.route().has_metadata_match()) {
@@ -44,10 +41,8 @@ const std::string& RouteEntryImplBase::clusterName() const { return cluster_name
 
 const RouteEntry* RouteEntryImplBase::routeEntry() const { return this; }
 
-RouteConstSharedPtr RouteEntryImplBase::clusterEntry(uint64_t random_value,
-                                                     const MessageMetadata& metadata) const {
-  (void)random_value;
-  (void)metadata;
+RouteConstSharedPtr RouteEntryImplBase::clusterEntry(const MessageMetadata& metadata) const {
+  UNREFERENCED_PARAMETER(metadata);
   return shared_from_this();
 }
 
@@ -55,12 +50,11 @@ GeneralRouteEntryImpl::GeneralRouteEntryImpl(
     const envoy::extensions::filters::network::sip_proxy::v3::Route& route)
     : RouteEntryImplBase(route), domain_(route.match().domain()), invert_(route.match().invert()) {}
 
-RouteConstSharedPtr GeneralRouteEntryImpl::matches(MessageMetadata& metadata,
-                                                   uint64_t random_value) const {
+RouteConstSharedPtr GeneralRouteEntryImpl::matches(MessageMetadata& metadata) const {
   bool matches = metadata.domain().value() == domain_ || domain_ == "*";
 
   if (matches ^ invert_) {
-    return clusterEntry(random_value, metadata);
+    return clusterEntry(metadata);
   }
 
   return nullptr;
@@ -81,9 +75,9 @@ RouteMatcher::RouteMatcher(
   }
 }
 
-RouteConstSharedPtr RouteMatcher::route(MessageMetadata& metadata, uint64_t random_value) const {
+RouteConstSharedPtr RouteMatcher::route(MessageMetadata& metadata) const {
   for (const auto& route : routes_) {
-    RouteConstSharedPtr route_entry = route->matches(metadata, random_value);
+    RouteConstSharedPtr route_entry = route->matches(metadata);
     if (nullptr != route_entry) {
       return route_entry;
     }
@@ -102,10 +96,6 @@ void Router::onDestroy() {
       } catch (std::out_of_range const&) {
       }
     }
-  //  if (upstream_request_ != nullptr) {
-  //    upstream_request_->resetStream();
-  //    cleanup();
-  //  }
 }
 
 void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks) {
@@ -119,14 +109,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   return FilterStatus::Continue;
 }
 
-FilterStatus Router::transportEnd() {
-  //  if (upstream_request_->metadata_->messageType() == MessageType::Oneway) {
-  //    // No response expected
-  //    upstream_request_->onResponseComplete();
-  //    cleanup();
-  //  }
-  return FilterStatus::Continue;
-}
+FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
 FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   if (upstream_request_ != nullptr) {
@@ -236,14 +219,13 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
           upstream_request != nullptr) {
         // There is action connection, reuse it.
         upstream_request_ = upstream_request;
-#if 1
+
         try {
           transaction_info->getTransaction(std::string(metadata->transactionId().value()));
         } catch (std::out_of_range const&) {
           transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                               callbacks_, upstream_request_);
         }
-#endif
         return upstream_request_->start();
       } else {
         message_handler_with_loadbalancer();
@@ -303,14 +285,10 @@ FilterStatus Router::messageEnd() {
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
 
-  // static size_t counter = 0;
   ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
                    transport_buffer.toString());
 
-  //  upstream_request_->transport_->encodeFrame(transport_buffer, *upstream_request_->metadata_,
-  //                                             upstream_request_buffer_);
   upstream_request_->write(transport_buffer, false);
-  // upstream_request_->onRequestComplete();
   return FilterStatus::Continue;
 }
 
@@ -385,15 +363,11 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
   // Mimic an upstream reset.
   onUpstreamHostSelected(host);
   UNREFERENCED_PARAMETER(reason);
-  // onResetStream(reason);
 }
 
 void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_data,
                                   Upstream::HostDescriptionConstSharedPtr host) {
   ENVOY_STREAM_LOG(trace, "onPoolReady", *callbacks_);
-
-  // Only invoke continueDecoding if we'd previously stopped the filter chain.
-  bool continue_decoding = conn_pool_handle_ != nullptr;
 
   conn_data_ = std::move(conn_data);
 
@@ -403,10 +377,10 @@ void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_
 
   conn_state_ = ConnectionState::Connected;
 
-  onRequestStart(continue_decoding);
+  onRequestStart();
 }
 
-void UpstreamRequest::onRequestStart(bool continue_decoding) {
+void UpstreamRequest::onRequestStart() {
   if (!pending_request_.empty()) {
     for (const auto& metadata : pending_request_) {
       Buffer::OwnedImpl transport_buffer;
@@ -418,36 +392,16 @@ void UpstreamRequest::onRequestStart(bool continue_decoding) {
       ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
                        transport_buffer.toString());
       conn_data_->connection().write(transport_buffer, false);
-      // onRequestComplete();
     }
     pending_request_.clear();
   }
-  UNREFERENCED_PARAMETER(continue_decoding);
-  // if (continue_decoding) {
-  //  callbacks_->continueDecoding();
-  //}
 }
-
-// void UpstreamRequest::onRequestComplete() { request_complete_ = true; }
-
-// void UpstreamRequest::onResponseComplete() {
-//  response_complete_ = true;
-//  conn_state_ = nullptr;
-//  conn_data_.reset();
-//}
 
 void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstSharedPtr host) {
   upstream_host_ = host;
 }
 
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
-  // if (metadata_->messageType() == MessageType::Oneway) {
-  //  // For oneway requests, we should not attempt a response. Reset the downstream to signal
-  //  // an error.
-  //  parent_.callbacks_->resetDownstreamConnection();
-  //  return;
-  //}
-
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
     callbacks_->sendLocalReply(
@@ -493,62 +447,18 @@ SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&
 void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
-  // ASSERT(!upstream_request_->response_complete_);
-
-  // ENVOY_STREAM_LOG(trace, "reading response: {} bytes", *callbacks_, data.length());
-
-  // std::cout << "received response \n" << data.toString() << std::endl;
   auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
   response_decoder_->onData(upstream_buffer_);
-  // std::cout << "received response left " << data.length() << std::endl;
-
-  //      auto parser = std::make_shared<SipParser>(data.toString());
-  //      parser->decode();
-  //
-  //      auto callbacks = parent_.transaction_map_[parser.->metadata()->transactionId];
-  //
-  //      request_ = std::make_unique<ActiveRequest>(callbacks_.newDecoderEventHandler());
-  //      request_->handler_.run(parser);
-  //
-  //
-  //      // Handle normal response.
-  //      if (!upstream_request_->response_started_) {
-  //        callbacks->startUpstreamResponse();
-  //        upstream_request_->response_started_ = true;
-  //      }
-  //
-  //      SipFilters::ResponseStatus status = callbacks->upstreamData(data);
-  //      if (status == SipFilters::ResponseStatus::Complete) {
-  //        ENVOY_STREAM_LOG(debug, "response complete", *callbacks_);
-  //        upstream_request_->onResponseComplete();
-  //        ENVOY_STREAM_LOG(debug, "response complete", *callbacks_);
-  //        cleanup();
-  //        return;
-  //      } else if (status == SipFilters::ResponseStatus::Reset) {
-  //        ENVOY_STREAM_LOG(debug, "upstream reset", *callbacks_);
-  //        upstream_request_->resetStream();
-  //        return;
-  //      }
-  //
-  //      if (end_stream) {
-  //        // Response is incomplete, but no more data is coming.
-  //        ENVOY_STREAM_LOG(debug, "response underflow", *callbacks_);
-  //        upstream_request_->onResponseComplete();
-  //        upstream_request_->onResetStream(
-  //            ConnectionPool::PoolFailureReason::RemoteConnectionFailure);
-  //        cleanup();
-  //      }
 }
+
 void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
   ENVOY_LOG(info, "received upstream event {}", event);
   switch (event) {
   case Network::ConnectionEvent::RemoteClose:
     ENVOY_STREAM_LOG(debug, "upstream remote close", *callbacks_);
-    // onResetStream(ConnectionPool::PoolFailureReason::RemoteConnectionFailure);
     break;
   case Network::ConnectionEvent::LocalClose:
     ENVOY_STREAM_LOG(debug, "upstream local close", *callbacks_);
-    // onResetStream(ConnectionPool::PoolFailureReason::LocalConnectionFailure);
     break;
   default:
     // Connected is consumed by the connection pool.
@@ -570,7 +480,7 @@ bool ResponseDecoder::onData(Buffer::Instance& data) {
 }
 
 FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) {
-  // ENVOY_LOG(trace, "ResponseDecoder {metadata->rawMsg()}");
+  ENVOY_LOG(trace, "ResponseDecoder {metadata->rawMsg()}");
   if (metadata->transactionId().has_value()) {
     auto transaction_id = metadata->transactionId().value();
 
@@ -579,13 +489,14 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
     } else {
-      std::cout << "no active trans selected " << transaction_id << "\n>>>>>>>>>>>>>>>>>>>\n"
-                << metadata->rawMsg() << "\n<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+      ENVOY_LOG(debug,
+                "no active trans selected {}\n>>>>>>>>>>>>>>>>>>>\n{}\n<<<<<<<<<<<<<<<<<<<<<",
+                transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;
     }
   } else {
-    std::cout << ">>>>>>>>>>>>>>>>>>>\n"
-              << metadata->rawMsg() << "\n<<<<<<<<<<<<<<<<<<<<<" << std::endl;
+    ENVOY_LOG(debug, "no active trans selected \n>>>>>>>>>>>>>>>>>>>\n{}\n<<<<<<<<<<<<<<<<<<<<<",
+              metadata->rawMsg());
     return FilterStatus::StopIteration;
   }
 

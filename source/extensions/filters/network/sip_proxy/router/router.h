@@ -75,7 +75,7 @@ public:
    * @param random_value uint64_t used to select cluster affinity
    * @return the route or nullptr if there is no matching route for the request.
    */
-  virtual RouteConstSharedPtr route(MessageMetadata& metadata, uint64_t random_value) const PURE;
+  virtual RouteConstSharedPtr route(MessageMetadata& metadata) const PURE;
 };
 
 using ConfigConstSharedPtr = std::shared_ptr<const Config>;
