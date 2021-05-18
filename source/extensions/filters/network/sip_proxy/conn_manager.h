@@ -146,7 +146,7 @@ private:
           transaction_id_(metadata->transactionId().value()),
           stream_info_(parent_.time_source_,
                        parent_.read_callbacks_->connection().addressProviderSharedPtr()),
-          metadata_(metadata) {
+          metadata_(metadata), local_response_sent_(false) {
       parent_.stats_.request_active_.inc();
     }
     ~ActiveTrans() override {
