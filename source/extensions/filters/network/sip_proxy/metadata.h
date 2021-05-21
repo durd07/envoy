@@ -35,6 +35,7 @@ public:
   absl::optional<absl::string_view> topRoute() { return top_route_; }
   absl::optional<absl::string_view> domain() { return domain_; }
   absl::optional<absl::string_view> transactionId() { return transaction_id_; }
+  absl::optional<absl::string_view> destination() { return destination_; }
 
   std::string& rawMsg() { return raw_msg_; }
 
@@ -50,6 +51,8 @@ public:
   void setDomain(absl::string_view data) { domain_ = data; }
   void setTransactionId(absl::string_view data) { transaction_id_ = data; }
 
+  void setDestination(absl::string_view destination) { destination_ = destination; }
+
 private:
   MsgType msg_type_;
   MethodType method_type_;
@@ -63,6 +66,7 @@ private:
   absl::optional<absl::string_view> top_route_{};
   absl::optional<absl::string_view> domain_{};
   absl::optional<absl::string_view> transaction_id_{};
+  absl::optional<absl::string_view> destination_{};
 
   std::string raw_msg_{};
 };

@@ -41,12 +41,6 @@ message SipProxy {
     //
     // transaction timeout timer [Timer B] unit is milliseconds, default value 64*T1.
     google.protobuf.Duration transaction_timeout = 1;
-    //google.protobuf.Duration transaction_timeout = 1;
-
-    // whether envoy should support session_stickiness, if false, there is no need to add "ep" in sip message,
-    // otherwise, handle session_stickiness by application. true means SIP agents don't support
-    // session_stickiness, so envoy will take over it. default is true.
-    bool session_stickness = 2;
   }
 
   // The human readable prefix to use when emitting statistics.

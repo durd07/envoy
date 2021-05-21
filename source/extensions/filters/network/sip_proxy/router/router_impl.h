@@ -41,9 +41,6 @@ public:
     return metadata_match_criteria_.get();
   }
 
-  bool stripServiceName() const override { return strip_service_name_; };
-  const Http::LowerCaseString& clusterHeader() const override { return cluster_header_; }
-
   // Router::Route
   const RouteEntry* routeEntry() const override;
 
@@ -64,8 +61,6 @@ private:
     const Envoy::Router::MetadataMatchCriteria* metadataMatchCriteria() const override {
       return parent_.metadataMatchCriteria();
     }
-    bool stripServiceName() const override { return parent_.stripServiceName(); }
-    const Http::LowerCaseString& clusterHeader() const override { return parent_.clusterHeader(); }
 
     // Router::Route
     const RouteEntry* routeEntry() const override { return this; }
@@ -77,8 +72,6 @@ private:
 
   const std::string cluster_name_;
   Envoy::Router::MetadataMatchCriteriaConstPtr metadata_match_criteria_;
-  const bool strip_service_name_;
-  const Http::LowerCaseString cluster_header_;
 };
 
 using RouteEntryImplBaseConstSharedPtr = std::shared_ptr<const RouteEntryImplBase>;
@@ -93,7 +86,6 @@ public:
 
 private:
   const std::string domain_;
-  const bool invert_;
 };
 
 class RouteMatcher {

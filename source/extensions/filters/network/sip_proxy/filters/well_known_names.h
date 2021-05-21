@@ -18,6 +18,7 @@ class SipFilterNameValues {
 public:
   // Router filter
   const std::string ROUTER = "envoy.filters.sip.router";
+  const std::string AFFINITY = "envoy.filters.sip.affinity";
 };
 
 using SipFilterNames = ConstSingleton<SipFilterNameValues>;

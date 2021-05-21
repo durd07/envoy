@@ -81,10 +81,8 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
     : context_(context), stats_prefix_(fmt::format("sip.{}.", config.stat_prefix())),
       stats_(SipFilterStats::generateStats(stats_prefix_, context_.scope())),
       route_matcher_(new Router::RouteMatcher(config.route_config())),
-      settings_(std::make_shared<SipSettings>(
-          static_cast<std::chrono::milliseconds>(
-              PROTOBUF_GET_MS_REQUIRED(config.settings(), transaction_timeout)),
-          config.settings().session_stickness())) {
+      settings_(std::make_shared<SipSettings>(static_cast<std::chrono::milliseconds>(
+          PROTOBUF_GET_MS_REQUIRED(config.settings(), transaction_timeout)))) {
 
   if (config.sip_filters().empty()) {
     ENVOY_LOG(debug, "using default router filter");
@@ -113,16 +111,11 @@ void ConfigImpl::processFilter(
   ENVOY_LOG(debug, "      name: {}", string_name);
   ENVOY_LOG(debug, "    config: {}",
             MessageUtil::getJsonStringFromMessageOrError(
-                // proto_config.has_typed_config()
-                //    ? static_cast<const Protobuf::Message&>(proto_config.typed_config())
-                //    : static_cast<const Protobuf::Message&>(
-                //          proto_config.hidden_envoy_deprecated_config()),
                 static_cast<const Protobuf::Message&>(proto_config.typed_config())));
   auto& factory =
       Envoy::Config::Utility::getAndCheckFactory<SipFilters::NamedSipFilterConfigFactory>(
           proto_config);
 
-  //  ProtobufTypes::MessagePtr message = Envoy::Config::Utility::translateToFactoryConfig(
   ProtobufTypes::MessagePtr message = Envoy::Config::Utility::translateAnyToFactoryConfig(
       proto_config.typed_config(), context_.messageValidationVisitor(), factory);
   SipFilters::FilterFactoryCb callback =

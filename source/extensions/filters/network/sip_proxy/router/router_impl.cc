@@ -24,18 +24,7 @@ namespace Router {
 
 RouteEntryImplBase::RouteEntryImplBase(
     const envoy::extensions::filters::network::sip_proxy::v3::Route& route)
-    : cluster_name_(route.route().cluster()),
-      strip_service_name_(route.route().strip_service_name()),
-      cluster_header_(route.route().cluster_header()) {
-  if (route.route().has_metadata_match()) {
-    const auto filter_it = route.route().metadata_match().filter_metadata().find(
-        Envoy::Config::MetadataFilters::get().ENVOY_LB);
-    if (filter_it != route.route().metadata_match().filter_metadata().end()) {
-      metadata_match_criteria_ =
-          std::make_unique<Envoy::Router::MetadataMatchCriteriaImpl>(filter_it->second);
-    }
-  }
-}
+    : cluster_name_(route.route().cluster()) {}
 
 const std::string& RouteEntryImplBase::clusterName() const { return cluster_name_; }
 
@@ -48,12 +37,12 @@ RouteConstSharedPtr RouteEntryImplBase::clusterEntry(const MessageMetadata& meta
 
 GeneralRouteEntryImpl::GeneralRouteEntryImpl(
     const envoy::extensions::filters::network::sip_proxy::v3::Route& route)
-    : RouteEntryImplBase(route), domain_(route.match().domain()), invert_(route.match().invert()) {}
+    : RouteEntryImplBase(route), domain_(route.match().domain()) {}
 
 RouteConstSharedPtr GeneralRouteEntryImpl::matches(MessageMetadata& metadata) const {
   bool matches = metadata.domain().value() == domain_ || domain_ == "*";
 
-  if (matches ^ invert_) {
+  if (matches) {
     return clusterEntry(metadata);
   }
 
@@ -205,70 +194,27 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     return upstream_request_->start();
   };
 
-  switch (metadata->methodType()) {
-  case MethodType::Invite: {
-    message_handler_with_loadbalancer();
-    break;
-  }
-  case MethodType::Ack: { // ACK_200
-    auto& transaction_info = (*transaction_infos_)[cluster_name];
-    if (settings_->sessionStickness()) {
-      ENVOY_LOG(trace, "session stickness is true, choose ep");
-      auto host = metadata->EP().value();
-      if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
-          upstream_request != nullptr) {
-        // There is action connection, reuse it.
-        upstream_request_ = upstream_request;
+  if (metadata->destination().has_value()) {
+    auto host = metadata->destination().value();
+    if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
+        upstream_request != nullptr) {
+      // There is action connection, reuse it.
+      upstream_request_ = upstream_request;
 
-        try {
-          transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-        } catch (std::out_of_range const&) {
-          transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
-                                              callbacks_, upstream_request_);
-        }
-        return upstream_request_->start();
-      } else {
-        message_handler_with_loadbalancer();
+      try {
+        transaction_info->getTransaction(std::string(metadata->transactionId().value()));
+      } catch (std::out_of_range const&) {
+        transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
+                                            callbacks_, upstream_request_);
       }
+      return upstream_request_->start();
     } else {
       message_handler_with_loadbalancer();
     }
-    break;
+  } else {
+    message_handler_with_loadbalancer();
   }
-  default:
-    auto& transaction_info = (*transaction_infos_)[cluster_name];
-    try {
-      auto active_trans =
-          transaction_info->getTransaction(std::string(metadata->transactionId().value()));
 
-      upstream_request_ = active_trans.upstreamRequest();
-      return FilterStatus::Continue;
-    } catch (std::out_of_range const&) {
-      if (settings_->sessionStickness()) {
-        ENVOY_LOG(trace, "session stickness is true, choose ep");
-        auto host = metadata->EP().value();
-        if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
-            upstream_request != nullptr) {
-          // There is action connection, reuse it.
-          upstream_request_ = upstream_request;
-
-          try {
-            transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-          } catch (std::out_of_range const&) {
-            transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
-                                                callbacks_, upstream_request_);
-          }
-
-          return upstream_request_->start();
-        } else {
-          message_handler_with_loadbalancer();
-        }
-      } else {
-        message_handler_with_loadbalancer();
-      }
-    }
-    break;
-  }
   return FilterStatus::Continue;
 }
 
@@ -474,8 +420,6 @@ void UpstreamRequest::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbac
 
 bool ResponseDecoder::onData(Buffer::Instance& data) {
   decoder_->onData(data);
-  // std::cout << "There are still " << upstream_buffer_.length() << " in upstream_buffer_" <<
-  // std::endl;
   return true;
 }
 
@@ -489,14 +433,11 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
     } else {
-      ENVOY_LOG(debug,
-                "no active trans selected {}\n>>>>>>>>>>>>>>>>>>>\n{}\n<<<<<<<<<<<<<<<<<<<<<",
-                transaction_id, metadata->rawMsg());
+      ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;
     }
   } else {
-    ENVOY_LOG(debug, "no active trans selected \n>>>>>>>>>>>>>>>>>>>\n{}\n<<<<<<<<<<<<<<<<<<<<<",
-              metadata->rawMsg());
+    ENVOY_LOG(debug, "no active trans selected \n{}", metadata->rawMsg());
     return FilterStatus::StopIteration;
   }
 

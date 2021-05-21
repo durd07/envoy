@@ -89,8 +89,7 @@ void ConnectionManager::resetAllTrans(bool local_reset) {
       stats_.cx_destroy_remote_with_active_rq_.inc();
     }
 
-    it->second->onReset();
-    ++it;
+    (it++)->second->onReset();
   }
 }
 
