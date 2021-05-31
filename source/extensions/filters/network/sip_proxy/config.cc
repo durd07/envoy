@@ -1,6 +1,5 @@
 #include "extensions/filters/network/sip_proxy/config.h"
 
-#include <map>
 #include <string>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.h"
@@ -15,8 +14,6 @@
 #include "extensions/filters/network/sip_proxy/filters/well_known_names.h"
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
 #include "extensions/filters/network/sip_proxy/stats.h"
-
-//#include "extensions/filters/network/sip_proxy/protocol.h"
 
 namespace Envoy {
 namespace Extensions {

@@ -55,7 +55,6 @@ message SipProxy {
   // (`envoy.filters.sip.router`) is used.
   repeated SipFilter sip_filters = 3;
 
-  // SipSettings settings = 4 [(validate.rules).message = {required: true}];
   SipSettings settings = 4;
 }
 
