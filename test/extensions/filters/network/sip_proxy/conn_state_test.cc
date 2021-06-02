@@ -26,28 +26,6 @@ TEST(SipConnectionStateTest, NextSequenceId) {
   }
 }
 
-// Test how markUpgraded/upgradedAttempts/isUpgraded when upgrade is successful.
-TEST(SipConnectionStateTest, TestUpgradeSucceeded) {
-  SipConnectionState cs;
-  EXPECT_FALSE(cs.upgradeAttempted());
-  EXPECT_FALSE(cs.isUpgraded());
-
-  cs.markUpgraded();
-  EXPECT_TRUE(cs.upgradeAttempted());
-  EXPECT_TRUE(cs.isUpgraded());
-}
-
-// Test how markUpgraded/upgradedAttempts/isUpgraded when upgrade fails.
-TEST(SipConnectionStateTest, TestUpgradeFailed) {
-  SipConnectionState cs;
-  EXPECT_FALSE(cs.upgradeAttempted());
-  EXPECT_FALSE(cs.isUpgraded());
-
-  cs.markUpgradeFailed();
-  EXPECT_TRUE(cs.upgradeAttempted());
-  EXPECT_FALSE(cs.isUpgraded());
-}
-
 } // namespace SipProxy
 } // namespace NetworkFilters
 } // namespace Extensions

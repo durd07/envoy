@@ -40,52 +40,10 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 namespace Router {
-namespace {
-
-class TestNamedTransportConfigFactory : public NamedTransportConfigFactory {
-public:
-  TestNamedTransportConfigFactory(std::function<MockTransport*()> f) : f_(f) {}
-
-  TransportPtr createTransport() override { return TransportPtr{f_()}; }
-  std::string name() const override { return TransportNames::get().FRAMED; }
-
-  std::function<MockTransport*()> f_;
-};
-
-class TestNamedProtocolConfigFactory : public NamedProtocolConfigFactory {
-public:
-  TestNamedProtocolConfigFactory(std::function<MockProtocol*()> f) : f_(f) {}
-
-  ProtocolPtr createProtocol() override { return ProtocolPtr{f_()}; }
-  std::string name() const override { return ProtocolNames::get().BINARY; }
-
-  std::function<MockProtocol*()> f_;
-};
-
-} // namespace
 
 class SipRouterTestBase {
 public:
-  SipRouterTestBase()
-      : transport_factory_([&]() -> MockTransport* {
-          ASSERT(transport_ == nullptr);
-          transport_ = new NiceMock<MockTransport>();
-          if (mock_transport_cb_) {
-            mock_transport_cb_(transport_);
-          }
-          return transport_;
-        }),
-        protocol_factory_([&]() -> MockProtocol* {
-          ASSERT(protocol_ == nullptr);
-          protocol_ = new NiceMock<MockProtocol>();
-          if (mock_protocol_cb_) {
-            mock_protocol_cb_(protocol_);
-          }
-          return protocol_;
-        }),
-        transport_register_(transport_factory_), protocol_register_(protocol_factory_) {
-    context_.cluster_manager_.initializeThreadLocalClusters({"cluster"});
-  }
+  SipRouterTestBase() { context_.cluster_manager_.initializeThreadLocalClusters({"cluster"}); }
 
   void initializeRouter() {
     route_ = new NiceMock<MockRoute>();
@@ -96,15 +54,6 @@ public:
     EXPECT_EQ(nullptr, router_->downstreamConnection());
 
     router_->setDecoderFilterCallbacks(callbacks_);
-  }
-
-  void initializeMetadata(MessageType msg_type, std::string method = "method") {
-    msg_type_ = msg_type;
-
-    metadata_ = std::make_shared<MessageMetadata>();
-    metadata_->setMethodName(method);
-    metadata_->setMessageType(msg_type_);
-    metadata_->setSequenceId(1);
   }
 
   void startRequest(MessageType msg_type, std::string method = "method",

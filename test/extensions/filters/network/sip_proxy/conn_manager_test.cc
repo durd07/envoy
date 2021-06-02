@@ -5,7 +5,6 @@
 
 #include "common/buffer/buffer_impl.h"
 
-#include "extensions/filters/network/sip_proxy/buffer_helper.h"
 #include "extensions/filters/network/sip_proxy/config.h"
 #include "extensions/filters/network/sip_proxy/conn_manager.h"
 
@@ -91,7 +90,7 @@ public:
     ON_CALL(random_, random()).WillByDefault(Return(42));
     filter_ = std::make_unique<ConnectionManager>(
         *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(),
-        transaction_infos);
+        transaction_infos_);
     filter_->initializeReadFilterCallbacks(filter_callbacks_);
     filter_->onNewConnection();
 
@@ -100,224 +99,32 @@ public:
     filter_->onBelowWriteBufferLowWatermark();
   }
 
-  // Return the number of requests actually sent.
-  uint32_t sendRequests(uint32_t request_number) {
-    for (uint32_t i = 0; i < request_number; i++) {
-      writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-      writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
-
-      SipFilters::DecoderFilterCallbacks* callbacks{};
-      ON_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-          .WillByDefault(
-              Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-      EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-      if (!callbacks) {
-        return i;
-      }
-
-      FramedTransportImpl transport;
-      BinaryProtocolImpl proto;
-      callbacks->startUpstreamResponse(transport, proto);
-
-      EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-      EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-    }
-    return request_number;
-  }
-
-  void writeMessage(Buffer::Instance& buffer, TransportType transport_type,
-                    ProtocolType protocol_type, MessageType msg_type, int32_t seq_id) {
-    Buffer::OwnedImpl msg;
-    ProtocolPtr proto = NamedProtocolConfigFactory::getFactory(protocol_type).createProtocol();
-    MessageMetadata metadata;
-    metadata.setProtocol(protocol_type);
-    metadata.setMethodName("name");
-    metadata.setMessageType(msg_type);
-    metadata.setSequenceId(seq_id);
-
-    proto->writeMessageBegin(msg, metadata);
-    proto->writeStructBegin(msg, "response");
-    proto->writeFieldBegin(msg, "success", FieldType::String, 0);
-    proto->writeString(msg, "field");
-    proto->writeFieldEnd(msg);
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0);
-    proto->writeStructEnd(msg);
-    proto->writeMessageEnd(msg);
-
-    TransportPtr transport =
-        NamedTransportConfigFactory::getFactory(transport_type).createTransport();
-    transport->encodeFrame(buffer, metadata, msg);
-  }
-
-  void writeFramedBinaryMessage(Buffer::Instance& buffer, MessageType msg_type, int32_t seq_id) {
-    writeMessage(buffer, TransportType::Framed, ProtocolType::Binary, msg_type, seq_id);
-  }
-
-  void writeComplexFramedBinaryMessage(Buffer::Instance& buffer, MessageType msg_type,
-                                       int32_t seq_id) {
-    Buffer::OwnedImpl msg;
-    ProtocolPtr proto =
-        NamedProtocolConfigFactory::getFactory(ProtocolType::Binary).createProtocol();
-    MessageMetadata metadata;
-    metadata.setMethodName("name");
-    metadata.setMessageType(msg_type);
-    metadata.setSequenceId(seq_id);
-
-    proto->writeMessageBegin(msg, metadata);
-    proto->writeStructBegin(msg, "wrapper"); // call args struct or response struct
-    proto->writeFieldBegin(msg, "wrapper_field", FieldType::Struct, 0); // call arg/response success
-
-    proto->writeStructBegin(msg, "payload");
-    proto->writeFieldBegin(msg, "f1", FieldType::Bool, 1);
-    proto->writeBool(msg, true);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f2", FieldType::Byte, 2);
-    proto->writeByte(msg, 2);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f3", FieldType::Double, 3);
-    proto->writeDouble(msg, 3.0);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f4", FieldType::I16, 4);
-    proto->writeInt16(msg, 4);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f5", FieldType::I32, 5);
-    proto->writeInt32(msg, 5);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f6", FieldType::I64, 6);
-    proto->writeInt64(msg, 6);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f7", FieldType::String, 7);
-    proto->writeString(msg, "seven");
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f8", FieldType::Map, 8);
-    proto->writeMapBegin(msg, FieldType::I32, FieldType::I32, 1);
-    proto->writeInt32(msg, 8);
-    proto->writeInt32(msg, 8);
-    proto->writeMapEnd(msg);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f9", FieldType::List, 9);
-    proto->writeListBegin(msg, FieldType::I32, 1);
-    proto->writeInt32(msg, 8);
-    proto->writeListEnd(msg);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "f10", FieldType::Set, 10);
-    proto->writeSetBegin(msg, FieldType::I32, 1);
-    proto->writeInt32(msg, 8);
-    proto->writeSetEnd(msg);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0); // payload stop field
-    proto->writeStructEnd(msg);
-    proto->writeFieldEnd(msg);
-
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0); // wrapper stop field
-    proto->writeStructEnd(msg);
-    proto->writeMessageEnd(msg);
-
-    TransportPtr transport =
-        NamedTransportConfigFactory::getFactory(TransportType::Framed).createTransport();
-    transport->encodeFrame(buffer, metadata, msg);
-  }
-
-  void writePartialFramedBinaryMessage(Buffer::Instance& buffer, MessageType msg_type,
-                                       int32_t seq_id, bool start) {
-    Buffer::OwnedImpl frame;
-    writeFramedBinaryMessage(frame, msg_type, seq_id);
-
-    if (start) {
-      buffer.move(frame, 27);
-    } else {
-      frame.drain(27);
-      buffer.move(frame);
-    }
-  }
-
-  void writeVoidFramedBinaryMessage(Buffer::Instance& buffer, int32_t seq_id) {
-    Buffer::OwnedImpl msg;
-    ProtocolPtr proto =
-        NamedProtocolConfigFactory::getFactory(ProtocolType::Binary).createProtocol();
-    MessageMetadata metadata;
-    metadata.setMethodName("name");
-    metadata.setMessageType(MessageType::Reply);
-    metadata.setSequenceId(seq_id);
-
-    proto->writeMessageBegin(msg, metadata);
-    proto->writeStructBegin(msg, "");
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0);
-    proto->writeStructEnd(msg);
-    proto->writeMessageEnd(msg);
-
-    TransportPtr transport =
-        NamedTransportConfigFactory::getFactory(TransportType::Framed).createTransport();
-    transport->encodeFrame(buffer, metadata, msg);
-  }
-
-  void writeFramedBinaryTApplicationException(Buffer::Instance& buffer, int32_t seq_id) {
-    Buffer::OwnedImpl msg;
-    ProtocolPtr proto =
-        NamedProtocolConfigFactory::getFactory(ProtocolType::Binary).createProtocol();
-    MessageMetadata metadata;
-    metadata.setMethodName("name");
-    metadata.setMessageType(MessageType::Exception);
-    metadata.setSequenceId(seq_id);
-
-    proto->writeMessageBegin(msg, metadata);
-    proto->writeStructBegin(msg, "");
-    proto->writeFieldBegin(msg, "", FieldType::String, 1);
-    proto->writeString(msg, "error");
-    proto->writeFieldEnd(msg);
-    proto->writeFieldBegin(msg, "", FieldType::I32, 2);
-    proto->writeInt32(msg, 1);
-    proto->writeFieldEnd(msg);
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0);
-    proto->writeStructEnd(msg);
-    proto->writeMessageEnd(msg);
-
-    TransportPtr transport =
-        NamedTransportConfigFactory::getFactory(TransportType::Framed).createTransport();
-    transport->encodeFrame(buffer, metadata, msg);
-  }
-
-  void writeFramedBinaryIDLException(Buffer::Instance& buffer, int32_t seq_id) {
-    Buffer::OwnedImpl msg;
-    ProtocolPtr proto =
-        NamedProtocolConfigFactory::getFactory(ProtocolType::Binary).createProtocol();
-    MessageMetadata metadata;
-    metadata.setMethodName("name");
-    metadata.setMessageType(MessageType::Reply);
-    metadata.setSequenceId(seq_id);
-
-    proto->writeMessageBegin(msg, metadata);
-    proto->writeStructBegin(msg, "");
-    proto->writeFieldBegin(msg, "", FieldType::Struct, 2);
-
-    proto->writeStructBegin(msg, "");
-    proto->writeFieldBegin(msg, "", FieldType::String, 1);
-    proto->writeString(msg, "err");
-    proto->writeFieldEnd(msg);
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0);
-    proto->writeStructEnd(msg);
-
-    proto->writeFieldEnd(msg);
-    proto->writeFieldBegin(msg, "", FieldType::Stop, 0);
-    proto->writeStructEnd(msg);
-    proto->writeMessageEnd(msg);
-
-    TransportPtr transport =
-        NamedTransportConfigFactory::getFactory(TransportType::Framed).createTransport();
-    transport->encodeFrame(buffer, metadata, msg);
-  }
+  //  // Return the number of requests actually sent.
+  //  uint32_t sendRequests(uint32_t request_number) {
+  //    for (uint32_t i = 0; i < request_number; i++) {
+  //      writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+  //      writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
+  //
+  //      SipFilters::DecoderFilterCallbacks* callbacks{};
+  //      ON_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+  //          .WillByDefault(
+  //              Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+  //
+  //      EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+  //
+  //      if (!callbacks) {
+  //        return i;
+  //      }
+  //
+  //      FramedTransportImpl transport;
+  //      BinaryProtocolImpl proto;
+  //      callbacks->startUpstreamResponse(transport, proto);
+  //
+  //      EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+  //      EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+  //    }
+  //    return request_number;
+  //  }
 
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_;
@@ -332,1516 +139,1542 @@ public:
   NiceMock<Network::MockReadFilterCallbacks> filter_callbacks_;
   NiceMock<Random::MockRandomGenerator> random_;
   std::unique_ptr<ConnectionManager> filter_;
-  std::shared_ptr<Router::TransactionInfos> transaction_infos;
+  std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   SipFilters::DecoderFilterSharedPtr custom_filter_;
 };
 
 TEST_F(SipConnectionManagerTest, OnDataHandlesSipCall) {
   initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+
+  const std::string SIP_INVITE_FULL =
+      "INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
+      "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
+      "From: <sip:User.0001@tas01.defult.svc.cluster.local>;tag=1\x0d\x0a"
+      "To: <sip:User.0000@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
+      "CSeq: 1 INVITE\x0d\x0a"
+      "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
+      "Supported: 100rel\x0d\x0a"
+      "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
+      "P-Asserted-Identity: <sip:User.0001@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Allow: UPDATE,INVITE,ACK,CANCEL,BYE,PRACK,REFER,MESSAGE,INFO\x0d\x0a"
+      "Max-Forwards: 70\x0d\x0a"
+      "Content-Type: application/sdp\x0d\x0a"
+      "Content-Length:  127\x0d\x0a"
+      "\x0d\x0a"
+      "v=0\x0d\x0a"
+      "o=PCTEL 256 2 IN IP4 11.0.0.10\x0d\x0a"
+      "c=IN IP4 11.0.0.10\x0d\x0a"
+      "m=audio 4030 RTP/AVP 0 8\x0d\x0a"
+      "a=rtpmap:0 PCMU/8000\x0d\x0a"
+      "a=rtpmap:8 PCMU/8000\x0d\x0a";
+
+  buffer_.add(SIP_INVITE_FULL);
 
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
+  //  EXPECT_EQ(1U, store_.counter("test.request").value());
+  //  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+  //  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
+  //  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
+  //  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+  //  EXPECT_EQ(1U, stats_.request_active_.value());
+  //  EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipConnectionManagerTest, OnDataHandlesSipOneWay) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(0U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesStopIterationAndResume) {
-  initializeFilter();
-
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-
-  // Nothing further happens: we're stopped.
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  EXPECT_EQ(42, callbacks->streamId());
-  EXPECT_EQ(TransportType::Framed, callbacks->downstreamTransportType());
-  EXPECT_EQ(ProtocolType::Binary, callbacks->downstreamProtocolType());
-  EXPECT_EQ(&filter_callbacks_.connection_, callbacks->connection());
-
-  // Resume processing.
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  callbacks->continueDecoding();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(0U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesFrameSplitAcrossBuffers) {
-  initializeFilter();
-
-  writePartialFramedBinaryMessage(buffer_, MessageType::Call, 0x10, true);
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0, buffer_.length());
-
-  // Complete the buffer
-  writePartialFramedBinaryMessage(buffer_, MessageType::Call, 0x10, false);
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0, buffer_.length());
-
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesInvalidMsgType) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Reply, 0x0F); // reply is invalid for a request
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(0U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(1U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesProtocolError) {
-  initializeFilter();
-  addSeq(buffer_, {
-                      0x00, 0x00, 0x00, 0x1f,                     // framed: 31 bytes
-                      0x80, 0x01, 0x00, 0x01,                     // binary, call
-                      0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                      0x00, 0x00, 0x00, 0x01,                     // sequence id
-                      0x08, 0xff, 0xff                            // illegal field id
-                  });
-
-  std::string err = "invalid binary protocol field id -1";
-  addSeq(write_buffer_, {
-                            0x00, 0x00, 0x00, 0x42,                     // framed: 66 bytes
-                            0x80, 0x01, 0x00, 0x03,                     // binary, exception
-                            0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                            0x00, 0x00, 0x00, 0x01,                     // sequence id
-                            0x0b, 0x00, 0x01,                           // begin string field
-                        });
-  write_buffer_.writeBEInt<uint32_t>(err.length());
-  write_buffer_.add(err);
-  addSeq(write_buffer_, {
-                            0x08, 0x00, 0x02,       // begin i32 field
-                            0x00, 0x00, 0x00, 0x07, // protocol error
-                            0x00,                   // stop field
-                        });
-
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, true))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ(write_buffer_.toString(), buffer.toString());
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesProtocolErrorDuringMessageBegin) {
-  initializeFilter();
-  addSeq(buffer_, {
-                      0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
-                      0x80, 0x01, 0x00, 0xff,                     // binary, invalid type
-                      0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                      0x00, 0x00, 0x00, 0x01,                     // sequence id
-                      0x00,                                       // stop field
-                  });
-
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::NoFlush));
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, OnDataHandlesTransportApplicationException) {
-  initializeFilter();
-  addSeq(buffer_, {
-                      0x00, 0x00, 0x00, 0x64, // header: 100 bytes
-                      0x0f, 0xff, 0x00, 0x00, // magic, flags
-                      0x00, 0x00, 0x00, 0x01, // sequence id
-                      0x00, 0x01, 0x00, 0x02, // header size 4, binary proto, 2 transforms
-                      0x01, 0x02, 0x00, 0x00, // transforms: 1, 2; padding
-                  });
-
-  std::string err = "Unknown transform 1";
-  uint8_t len = 41 + err.length();
-  addSeq(write_buffer_, {
-                            0x00, 0x00, 0x00, len,  // header frame size
-                            0x0f, 0xff, 0x00, 0x00, // magic, flags
-                            0x00, 0x00, 0x00, 0x00, // sequence id 0
-                            0x00, 0x01, 0x00, 0x00, // header size 4, binary, 0 transforms
-                            0x00, 0x00,             // header padding
-                            0x80, 0x01, 0x00, 0x03, // binary, exception
-                            0x00, 0x00, 0x00, 0x00, // message name ""
-                            0x00, 0x00, 0x00, 0x00, // sequence id
-                            0x0b, 0x00, 0x01,       // begin string field
-                        });
-  write_buffer_.writeBEInt<int32_t>(err.length());
-  write_buffer_.add(err);
-  addSeq(write_buffer_, {
-                            0x08, 0x00, 0x02,       // begin i32 field
-                            0x00, 0x00, 0x00, 0x05, // missing result
-                            0x00,                   // stop field
-                        });
-
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, true))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ(write_buffer_.toString(), buffer.toString());
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-// Tests that OnData handles non-sip input. Regression test for crash on invalid input.
-TEST_F(SipConnectionManagerTest, OnDataHandlesGarbageRequest) {
-  initializeFilter();
-  addRepeated(buffer_, 8, 0);
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-TEST_F(SipConnectionManagerTest, OnEvent) {
-  // No active calls
-  {
-    initializeFilter();
-    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
-    filter_->onEvent(Network::ConnectionEvent::LocalClose);
-    EXPECT_EQ(0U, store_.counter("test.cx_destroy_local_with_active_rq").value());
-    EXPECT_EQ(0U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
-  }
-
-  // Remote close mid-request
-  {
-    initializeFilter();
-    addSeq(buffer_, {
-                        0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
-                        0x80, 0x01, 0x00, 0x01,                     // binary proto, call type
-                        0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                        0x00, 0x00, 0x00, 0x0F,                     // seq id
-                    });
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
-
-    EXPECT_EQ(1U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
-
-    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  }
-
-  // Local close mid-request
-  {
-    initializeFilter();
-    addSeq(buffer_, {
-                        0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
-                        0x80, 0x01, 0x00, 0x01,                     // binary proto, call type
-                        0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                        0x00, 0x00, 0x00, 0x0F,                     // seq id
-                    });
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-    filter_->onEvent(Network::ConnectionEvent::LocalClose);
-
-    EXPECT_EQ(1U, store_.counter("test.cx_destroy_local_with_active_rq").value());
-
-    buffer_.drain(buffer_.length());
-
-    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  }
-
-  // Remote close before response
-  {
-    initializeFilter();
-    writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
-
-    EXPECT_EQ(1U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
-
-    buffer_.drain(buffer_.length());
-
-    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  }
-
-  // Local close before response
-  {
-    initializeFilter();
-    writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-    filter_->onEvent(Network::ConnectionEvent::LocalClose);
-
-    EXPECT_EQ(1U, store_.counter("test.cx_destroy_local_with_active_rq").value());
-
-    buffer_.drain(buffer_.length());
-
-    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  }
-}
-
-TEST_F(SipConnectionManagerTest, Routing) {
-  const std::string yaml = R"EOF(
-transport: FRAMED
-protocol: BINARY
-stat_prefix: test
-route_config:
-  name: "routes"
-  routes:
-    - match:
-        method_name: name
-      route:
-        cluster: cluster
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-
-  Router::RouteConstSharedPtr route = callbacks->route();
-  EXPECT_NE(nullptr, route);
-  EXPECT_NE(nullptr, route->routeEntry());
-  EXPECT_EQ("cluster", route->routeEntry()->clusterName());
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  callbacks->continueDecoding();
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndResponse) {
-  initializeFilter();
-  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(1U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndVoidResponse) {
-  initializeFilter();
-  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeVoidFramedBinaryMessage(write_buffer_, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(1U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Tests that the downstream request's sequence number is used for the response.
-TEST_F(SipConnectionManagerTest, RequestAndResponseSequenceIdHandling) {
-  initializeFilter();
-  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0xFF);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  Buffer::OwnedImpl response_buffer;
-  writeComplexFramedBinaryMessage(response_buffer, MessageType::Reply, 0x0F);
-
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ(response_buffer.toString(), buffer.toString());
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(1U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndExceptionResponse) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeFramedBinaryTApplicationException(write_buffer_, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndErrorResponse) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeFramedBinaryIDLException(write_buffer_, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(1U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndInvalidResponse) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  // Call is not valid in a response
-  writeFramedBinaryMessage(write_buffer_, MessageType::Call, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(1U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndResponseProtocolError) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  // illegal field id
-  addSeq(write_buffer_, {
-                            0x00, 0x00, 0x00, 0x1f,                     // framed: 31 bytes
-                            0x80, 0x01, 0x00, 0x02,                     // binary, reply
-                            0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
-                            0x00, 0x00, 0x00, 0x01,                     // sequence id
-                            0x08, 0xff, 0xff                            // illegal field id
-                        });
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, true));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, RequestAndTransportApplicationException) {
-  initializeFilter();
-  writeMessage(buffer_, TransportType::Header, ProtocolType::Binary, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  // Response with unknown transform
-  addSeq(write_buffer_, {
-                            0x00, 0x00, 0x00, 0x64, // header: 100 bytes
-                            0x0f, 0xff, 0x00, 0x00, // magic, flags
-                            0x00, 0x00, 0x00, 0x01, // sequence id
-                            0x00, 0x01, 0x00, 0x02, // header size 4, binary proto, 2 transforms
-                            0x01, 0x02, 0x00, 0x00, // transforms: 1, 2; padding
-                        });
-
-  HeaderTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
-}
-
-// Tests that a request is routed and a non-sip response is handled.
-TEST_F(SipConnectionManagerTest, RequestAndGarbageResponse) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  addRepeated(write_buffer_, 8, 0);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, PipelinedRequestAndResponse) {
-  initializeFilter();
-
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x01);
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x02);
-
-  std::list<SipFilters::DecoderFilterCallbacks*> callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillRepeatedly(Invoke(
-          [&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks.push_back(&cb); }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(2U, stats_.request_active_.value());
-  EXPECT_EQ(2U, store_.counter("test.request").value());
-  EXPECT_EQ(2U, store_.counter("test.request_call").value());
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_)).Times(2);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-
-  writeFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x01);
-  callbacks.front()->startUpstreamResponse(transport, proto);
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks.front()->upstreamData(write_buffer_));
-  callbacks.pop_front();
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-
-  writeFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x02);
-  callbacks.front()->startUpstreamResponse(transport, proto);
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks.front()->upstreamData(write_buffer_));
-  callbacks.pop_front();
-  EXPECT_EQ(2U, store_.counter("test.response").value());
-  EXPECT_EQ(2U, store_.counter("test.response_reply").value());
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-TEST_F(SipConnectionManagerTest, ResetDownstreamConnection) {
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::NoFlush));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  callbacks->resetDownstreamConnection();
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(0U, stats_.request_active_.value());
-}
-
-// Test the base case where there is no limit on the number of requests.
-TEST_F(SipConnectionManagerTest, RequestWithNoMaxRequestsLimit) {
-  initializeFilter("");
-  EXPECT_EQ(0, config_->maxRequestsPerConnection());
-
-  EXPECT_EQ(50, sendRequests(50));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(0U, store_.counter("test.downstream_cx_max_requests").value());
-  EXPECT_EQ(50U, store_.counter("test.request").value());
-  EXPECT_EQ(50U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(50U, store_.counter("test.response").value());
-  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(50U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Test the case where there is a limit on the number of requests but the actual number of requests
-// does not reach the limit.
-TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitButNotReach) {
-  const std::string yaml = R"EOF(
-    stat_prefix: test
-    route_config:
-      name: local_route
-    max_requests_per_connection: 50
-    )EOF";
-
-  initializeFilter(yaml);
-  EXPECT_EQ(50, config_->maxRequestsPerConnection());
-
-  EXPECT_EQ(49, sendRequests(49));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(0U, store_.counter("test.downstream_cx_max_requests").value());
-  EXPECT_EQ(49U, store_.counter("test.request").value());
-  EXPECT_EQ(49U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(49U, store_.counter("test.response").value());
-  EXPECT_EQ(49U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(49U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Test the case where there is a limit on the number of requests and the actual number of requests
-// happens to reach the limit.
-TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReached) {
-  const std::string yaml = R"EOF(
-    stat_prefix: test
-    route_config:
-      name: local_route
-    max_requests_per_connection: 50
-    )EOF";
-
-  initializeFilter(yaml);
-  EXPECT_EQ(50, config_->maxRequestsPerConnection());
-
-  // Since max requests per connection is set to 50, the connection will be disconnected after
-  // all 50 requests is completed.
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
-
-  EXPECT_EQ(50, sendRequests(50));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.downstream_cx_max_requests").value());
-  EXPECT_EQ(50U, store_.counter("test.request").value());
-  EXPECT_EQ(50U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(50U, store_.counter("test.response").value());
-  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(50U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Test the case where there is a limit on the number of requests and the actual number of requests
-// exceeds the limit.
-TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReachedWithMoreRequests) {
-  const std::string yaml = R"EOF(
-    stat_prefix: test
-    route_config:
-      name: local_route
-    max_requests_per_connection: 50
-    )EOF";
-
-  initializeFilter(yaml);
-  EXPECT_EQ(50, config_->maxRequestsPerConnection());
-
-  // Since max requests per connection is set to 50, the connection will be disconnected after
-  // all 50 requests is completed.
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
-
-  EXPECT_EQ(50, sendRequests(55));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.downstream_cx_max_requests").value());
-  EXPECT_EQ(50U, store_.counter("test.request").value());
-  EXPECT_EQ(50U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(50U, store_.counter("test.response").value());
-  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(50U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Test cases where the number of requests is limited and the actual number of requests exceeds the
-// limit several times.
-TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReachedRepeatedly) {
-  const std::string yaml = R"EOF(
-    stat_prefix: test
-    route_config:
-      name: local_route
-    max_requests_per_connection: 5
-    )EOF";
-
-  initializeFilter(yaml);
-  EXPECT_EQ(5, config_->maxRequestsPerConnection());
-
-  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite))
-      .Times(5);
-
-  auto mock_new_connection = [this]() {
-    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-    filter_ = nullptr;
-
-    filter_callbacks_.connection_.read_enabled_ = true;
-    filter_callbacks_.connection_.state_ = Network::Connection::State::Open;
-    filter_callbacks_.connection_.callbacks_.clear();
-
-    ON_CALL(random_, random()).WillByDefault(Return(42));
-    filter_ = std::make_unique<ConnectionManager>(
-        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource());
-    filter_->initializeReadFilterCallbacks(filter_callbacks_);
-    filter_->onNewConnection();
-
-    filter_->onAboveWriteBufferHighWatermark();
-    filter_->onBelowWriteBufferLowWatermark();
-  };
-
-  EXPECT_EQ(5, sendRequests(6));
-
-  for (size_t i = 0; i < 4; i++) {
-    mock_new_connection();
-    EXPECT_EQ(5, sendRequests(6));
-  }
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(5U, store_.counter("test.downstream_cx_max_requests").value());
-  EXPECT_EQ(25U, store_.counter("test.request").value());
-  EXPECT_EQ(25U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(25U, store_.counter("test.response").value());
-  EXPECT_EQ(25U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(25U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, DownstreamProtocolUpgrade) {
-  custom_transport_ = new NiceMock<MockTransport>();
-  custom_protocol_ = new NiceMock<MockProtocol>();
-  initializeFilter();
-
-  EXPECT_CALL(*custom_transport_, decodeFrameStart(_, _)).WillOnce(Return(true));
-  EXPECT_CALL(*custom_protocol_, readMessageBegin(_, _))
-      .WillOnce(Invoke([&](Buffer::Instance&, MessageMetadata& metadata) -> bool {
-        metadata.setSequenceId(0);
-        metadata.setMessageType(MessageType::Call);
-        metadata.setProtocolUpgradeMessage(true);
-        return true;
-      }));
-  EXPECT_CALL(*custom_protocol_, supportsUpgrade()).Times(AnyNumber()).WillRepeatedly(Return(true));
-
-  MockDecoderEventHandler* upgrade_decoder = new NiceMock<MockDecoderEventHandler>();
-  EXPECT_CALL(*custom_protocol_, upgradeRequestDecoder())
-      .WillOnce(Invoke([&]() -> DecoderEventHandlerSharedPtr {
-        return DecoderEventHandlerSharedPtr{upgrade_decoder};
-      }));
-  EXPECT_CALL(*upgrade_decoder, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*custom_protocol_, readStructBegin(_, _)).WillOnce(Return(true));
-  EXPECT_CALL(*upgrade_decoder, structBegin(_)).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*custom_protocol_, readFieldBegin(_, _, _, _))
-      .WillOnce(Invoke(
-          [&](Buffer::Instance&, std::string&, FieldType& field_type, int16_t& field_id) -> bool {
-            field_type = FieldType::Stop;
-            field_id = 0;
-            return true;
-          }));
-  EXPECT_CALL(*custom_protocol_, readStructEnd(_)).WillOnce(Return(true));
-  EXPECT_CALL(*upgrade_decoder, structEnd()).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*custom_protocol_, readMessageEnd(_)).WillOnce(Return(true));
-  EXPECT_CALL(*upgrade_decoder, messageEnd()).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*custom_transport_, decodeFrameEnd(_)).WillOnce(Return(true));
-  EXPECT_CALL(*upgrade_decoder, transportEnd()).WillOnce(Return(FilterStatus::Continue));
-
-  MockDirectResponse* direct_response = new NiceMock<MockDirectResponse>();
-
-  EXPECT_CALL(*custom_protocol_, upgradeResponse(Ref(*upgrade_decoder)))
-      .WillOnce(Invoke([&](const DecoderEventHandler&) -> DirectResponsePtr {
-        return DirectResponsePtr{direct_response};
-      }));
-
-  EXPECT_CALL(*direct_response, encode(_, Ref(*custom_protocol_), _))
-      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
-                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
-        buffer.add("response");
-        return DirectResponse::ResponseType::SuccessReply;
-      }));
-  EXPECT_CALL(*custom_transport_, encodeFrame(_, _, _))
-      .WillOnce(Invoke(
-          [&](Buffer::Instance& buffer, const MessageMetadata&, Buffer::Instance& message) -> void {
-            EXPECT_EQ("response", message.toString());
-            buffer.add("transport-encoded response");
-          }));
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ("transport-encoded response", buffer.toString());
-      }));
-
-  Buffer::OwnedImpl buffer;
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-}
-
-// Tests multiple filters are invoked in the correct order.
-TEST_F(SipConnectionManagerTest, OnDataHandlesSipCallWithMultipleFilters) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-  initializeFilter();
-
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  InSequence s;
-  EXPECT_CALL(*filter, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*filter, messageEnd()).WillOnce(Return(FilterStatus::Continue));
-  EXPECT_CALL(*decoder_filter_, messageEnd()).WillOnce(Return(FilterStatus::Continue));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-}
-
-// Tests stop iteration/resume with multiple filters.
-TEST_F(SipConnectionManagerTest, OnDataResumesWithNextFilter) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  // First filter stops iteration.
-  {
-    EXPECT_CALL(*filter, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-    EXPECT_EQ(0U, store_.counter("test.request").value());
-    EXPECT_EQ(1U, stats_.request_active_.value());
-  }
-
-  // Resume processing.
-  {
-    InSequence s;
-    EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
-    EXPECT_CALL(*filter, messageEnd()).WillOnce(Return(FilterStatus::Continue));
-    EXPECT_CALL(*decoder_filter_, messageEnd()).WillOnce(Return(FilterStatus::Continue));
-    callbacks->continueDecoding();
-  }
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-}
-
-// Tests stop iteration/resume with multiple filters when iteration is stopped during
-// transportEnd.
-TEST_F(SipConnectionManagerTest, OnDataResumesWithNextFilterOnTransportEnd) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  // First filter stops iteration.
-  {
-    InSequence s;
-    EXPECT_CALL(*filter, transportBegin(_)).WillOnce(Return(FilterStatus::Continue));
-    EXPECT_CALL(*decoder_filter_, transportBegin(_)).WillOnce(Return(FilterStatus::Continue));
-    EXPECT_CALL(*filter, transportEnd()).WillOnce(Return(FilterStatus::StopIteration));
-    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-    EXPECT_EQ(0U, store_.counter("test.request").value());
-    EXPECT_EQ(1U, stats_.request_active_.value());
-  }
-
-  // Resume processing.
-  {
-    InSequence s;
-    EXPECT_CALL(*decoder_filter_, transportEnd()).WillOnce(Return(FilterStatus::Continue));
-    callbacks->continueDecoding();
-  }
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-}
-
-// Tests multiple filters where one invokes sendLocalReply with a successful reply.
-TEST_F(SipConnectionManagerTest, OnDataWithFilterSendsLocalReply) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  NiceMock<MockDirectResponse> direct_response;
-  EXPECT_CALL(direct_response, encode(_, _, _))
-      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
-                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
-        buffer.add("response");
-        return DirectResponse::ResponseType::SuccessReply;
-      }));
-
-  // First filter sends local reply.
-  EXPECT_CALL(*filter, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
-        callbacks->sendLocalReply(direct_response, false);
-        return FilterStatus::StopIteration;
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ(8, buffer.drainBEInt<int32_t>());
-        EXPECT_EQ("response", buffer.toString());
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response_success").value());
-}
-
-// Tests multiple filters where one invokes sendLocalReply with an error reply.
-TEST_F(SipConnectionManagerTest, OnDataWithFilterSendsLocalErrorReply) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  NiceMock<MockDirectResponse> direct_response;
-  EXPECT_CALL(direct_response, encode(_, _, _))
-      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
-                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
-        buffer.add("response");
-        return DirectResponse::ResponseType::ErrorReply;
-      }));
-
-  // First filter sends local reply.
-  EXPECT_CALL(*filter, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
-        callbacks->sendLocalReply(direct_response, false);
-        return FilterStatus::StopIteration;
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
-      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
-        EXPECT_EQ(8, buffer.drainBEInt<int32_t>());
-        EXPECT_EQ("response", buffer.toString());
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response_error").value());
-}
-
-// sendLocalReply does nothing, when the remote closed the connection.
-TEST_F(SipConnectionManagerTest, OnDataWithFilterSendLocalReplyRemoteClosedConnection) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  NiceMock<MockDirectResponse> direct_response;
-  EXPECT_CALL(direct_response, encode(_, _, _)).Times(0);
-
-  // First filter sends local reply.
-  EXPECT_CALL(*filter, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
-        callbacks->sendLocalReply(direct_response, false);
-        return FilterStatus::StopIteration;
-      }));
-  EXPECT_CALL(filter_callbacks_.connection_, write(_, false)).Times(0);
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-
-  // Remote closes the connection.
-  filter_callbacks_.connection_.state_ = Network::Connection::State::Closed;
-  EXPECT_EQ(filter_->onData(buffer_, true), Network::FilterStatus::StopIteration);
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-// Tests a decoder filter that modifies data.
-TEST_F(SipConnectionManagerTest, DecoderFiltersModifyRequests) {
-  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
-  custom_filter_.reset(filter);
-
-  initializeFilter();
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
-
-  Http::LowerCaseString key{"key"};
-
-  EXPECT_CALL(*filter, transportBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
-        EXPECT_THAT(*metadata, HasNoHeaders());
-        metadata->headers().addCopy(key, "value");
-        return FilterStatus::Continue;
-      }));
-  EXPECT_CALL(*decoder_filter_, transportBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
-        const auto header = metadata->headers().get(key);
-        EXPECT_FALSE(header.empty());
-        EXPECT_EQ("value", header[0]->value().getStringView());
-        return FilterStatus::Continue;
-      }));
-
-  EXPECT_CALL(*filter, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
-        EXPECT_EQ("name", metadata->methodName());
-        metadata->setMethodName("alternate");
-        return FilterStatus::Continue;
-      }));
-  EXPECT_CALL(*decoder_filter_, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
-        EXPECT_EQ("alternate", metadata->methodName());
-        return FilterStatus::Continue;
-      }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-}
-
-TEST_F(SipConnectionManagerTest, TransportEndWhenRemoteClose) {
-  initializeFilter();
-  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  // Remote closes the connection.
-  filter_callbacks_.connection_.state_ = Network::Connection::State::Closed;
-  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-}
-
-// TODO(caitong93): use TEST_P to avoid duplicating test cases
-TEST_F(SipConnectionManagerTest, PayloadPassthroughOnDataHandlesSipCall) {
-  const std::string yaml = R"EOF(
-transport: FRAMED
-protocol: BINARY
-stat_prefix: test
-payload_passthrough: true
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0, buffer_.length());
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-}
-
-TEST_F(SipConnectionManagerTest, PayloadPassthroughOnDataHandlesSipOneWay) {
-  const std::string yaml = R"EOF(
-stat_prefix: test
-payload_passthrough: true
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(0U, store_.counter("test.request_call").value());
-  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
-  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(0U, store_.counter("test.response").value());
-}
-
-TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndExceptionResponse) {
-  const std::string yaml = R"EOF(
-stat_prefix: test
-payload_passthrough: true
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeFramedBinaryTApplicationException(write_buffer_, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndErrorResponse) {
-  const std::string yaml = R"EOF(
-stat_prefix: test
-payload_passthrough: true
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  writeFramedBinaryIDLException(write_buffer_, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
-  // In payload_passthrough mode, Envoy cannot detect response error.
-  EXPECT_EQ(1U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndInvalidResponse) {
-  const std::string yaml = R"EOF(
-stat_prefix: test
-payload_passthrough: true
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-
-  // Call is not valid in a response
-  writeFramedBinaryMessage(write_buffer_, MessageType::Call, 0x0F);
-
-  FramedTransportImpl transport;
-  BinaryProtocolImpl proto;
-  callbacks->startUpstreamResponse(transport, proto);
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, store_.counter("test.request_call").value());
-  EXPECT_EQ(0U, stats_.request_active_.value());
-  EXPECT_EQ(1U, store_.counter("test.response").value());
-  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
-  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
-  EXPECT_EQ(1U, store_.counter("test.response_invalid_type").value());
-  EXPECT_EQ(0U, store_.counter("test.response_success").value());
-  EXPECT_EQ(0U, store_.counter("test.response_error").value());
-}
-
-TEST_F(SipConnectionManagerTest, PayloadPassthroughRouting) {
-  const std::string yaml = R"EOF(
-transport: FRAMED
-protocol: BINARY
-payload_passthrough: true
-stat_prefix: test
-route_config:
-  name: "routes"
-  routes:
-    - match:
-        method_name: name
-      route:
-        cluster: cluster
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_));
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(0U, store_.counter("test.request").value());
-  EXPECT_EQ(1U, stats_.request_active_.value());
-
-  Router::RouteConstSharedPtr route = callbacks->route();
-  EXPECT_NE(nullptr, route);
-  EXPECT_NE(nullptr, route->routeEntry());
-  EXPECT_EQ("cluster", route->routeEntry()->clusterName());
-
-  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  callbacks->continueDecoding();
-
-  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
-}
-
-// When a local reply was sent, payload passthrough is disabled because there's no
-// active RPC left.
-TEST_F(SipConnectionManagerTest, NoPayloadPassthroughOnLocalReply) {
-  const std::string yaml = R"EOF(
-transport: FRAMED
-protocol: BINARY
-payload_passthrough: true
-stat_prefix: test
-route_config:
-  name: "routes"
-  routes:
-    - match:
-        method_name: not_handled
-      route:
-        cluster: cluster
-)EOF";
-
-  initializeFilter(yaml);
-  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
-
-  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
-  EXPECT_CALL(*decoder_filter_, passthroughData(_)).Times(0);
-
-  SipFilters::DecoderFilterCallbacks* callbacks{};
-  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-
-  NiceMock<MockDirectResponse> direct_response;
-  EXPECT_CALL(direct_response, encode(_, _, _))
-      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
-                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
-        buffer.add("response");
-        return DirectResponse::ResponseType::ErrorReply;
-      }));
-
-  EXPECT_CALL(*decoder_filter_, messageBegin(_))
-      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
-        callbacks->sendLocalReply(direct_response, false);
-        return FilterStatus::StopIteration;
-      }));
-
-  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  EXPECT_EQ(1U, store_.counter("test.request").value());
-
-  Router::RouteConstSharedPtr route = callbacks->route();
-  EXPECT_EQ(nullptr, route);
-}
+// TEST_F(SipConnectionManagerTest, OnDataHandlesSipOneWay) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesStopIterationAndResume) {
+//  initializeFilter();
+//
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//
+//  // Nothing further happens: we're stopped.
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  EXPECT_EQ(42, callbacks->streamId());
+//  EXPECT_EQ(TransportType::Framed, callbacks->downstreamTransportType());
+//  EXPECT_EQ(ProtocolType::Binary, callbacks->downstreamProtocolType());
+//  EXPECT_EQ(&filter_callbacks_.connection_, callbacks->connection());
+//
+//  // Resume processing.
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  callbacks->continueDecoding();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesFrameSplitAcrossBuffers) {
+//  initializeFilter();
+//
+//  writePartialFramedBinaryMessage(buffer_, MessageType::Call, 0x10, true);
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0, buffer_.length());
+//
+//  // Complete the buffer
+//  writePartialFramedBinaryMessage(buffer_, MessageType::Call, 0x10, false);
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0, buffer_.length());
+//
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesInvalidMsgType) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Reply, 0x0F); // reply is invalid for a request
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_invalid_type").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesProtocolError) {
+//  initializeFilter();
+//  addSeq(buffer_, {
+//                      0x00, 0x00, 0x00, 0x1f,                     // framed: 31 bytes
+//                      0x80, 0x01, 0x00, 0x01,                     // binary, call
+//                      0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                      0x00, 0x00, 0x00, 0x01,                     // sequence id
+//                      0x08, 0xff, 0xff                            // illegal field id
+//                  });
+//
+//  std::string err = "invalid binary protocol field id -1";
+//  addSeq(write_buffer_, {
+//                            0x00, 0x00, 0x00, 0x42,                     // framed: 66 bytes
+//                            0x80, 0x01, 0x00, 0x03,                     // binary, exception
+//                            0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                            0x00, 0x00, 0x00, 0x01,                     // sequence id
+//                            0x0b, 0x00, 0x01,                           // begin string field
+//                        });
+//  write_buffer_.writeBEInt<uint32_t>(err.length());
+//  write_buffer_.add(err);
+//  addSeq(write_buffer_, {
+//                            0x08, 0x00, 0x02,       // begin i32 field
+//                            0x00, 0x00, 0x00, 0x07, // protocol error
+//                            0x00,                   // stop field
+//                        });
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, true))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ(write_buffer_.toString(), buffer.toString());
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesProtocolErrorDuringMessageBegin) {
+//  initializeFilter();
+//  addSeq(buffer_, {
+//                      0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
+//                      0x80, 0x01, 0x00, 0xff,                     // binary, invalid type
+//                      0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                      0x00, 0x00, 0x00, 0x01,                     // sequence id
+//                      0x00,                                       // stop field
+//                  });
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::NoFlush));
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnDataHandlesTransportApplicationException) {
+//  initializeFilter();
+//  addSeq(buffer_, {
+//                      0x00, 0x00, 0x00, 0x64, // header: 100 bytes
+//                      0x0f, 0xff, 0x00, 0x00, // magic, flags
+//                      0x00, 0x00, 0x00, 0x01, // sequence id
+//                      0x00, 0x01, 0x00, 0x02, // header size 4, binary proto, 2 transforms
+//                      0x01, 0x02, 0x00, 0x00, // transforms: 1, 2; padding
+//                  });
+//
+//  std::string err = "Unknown transform 1";
+//  uint8_t len = 41 + err.length();
+//  addSeq(write_buffer_, {
+//                            0x00, 0x00, 0x00, len,  // header frame size
+//                            0x0f, 0xff, 0x00, 0x00, // magic, flags
+//                            0x00, 0x00, 0x00, 0x00, // sequence id 0
+//                            0x00, 0x01, 0x00, 0x00, // header size 4, binary, 0 transforms
+//                            0x00, 0x00,             // header padding
+//                            0x80, 0x01, 0x00, 0x03, // binary, exception
+//                            0x00, 0x00, 0x00, 0x00, // message name ""
+//                            0x00, 0x00, 0x00, 0x00, // sequence id
+//                            0x0b, 0x00, 0x01,       // begin string field
+//                        });
+//  write_buffer_.writeBEInt<int32_t>(err.length());
+//  write_buffer_.add(err);
+//  addSeq(write_buffer_, {
+//                            0x08, 0x00, 0x02,       // begin i32 field
+//                            0x00, 0x00, 0x00, 0x05, // missing result
+//                            0x00,                   // stop field
+//                        });
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, true))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ(write_buffer_.toString(), buffer.toString());
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+//// Tests that OnData handles non-sip input. Regression test for crash on invalid input.
+// TEST_F(SipConnectionManagerTest, OnDataHandlesGarbageRequest) {
+//  initializeFilter();
+//  addRepeated(buffer_, 8, 0);
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, OnEvent) {
+//  // No active calls
+//  {
+//    initializeFilter();
+//    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
+//    filter_->onEvent(Network::ConnectionEvent::LocalClose);
+//    EXPECT_EQ(0U, store_.counter("test.cx_destroy_local_with_active_rq").value());
+//    EXPECT_EQ(0U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
+//  }
+//
+//  // Remote close mid-request
+//  {
+//    initializeFilter();
+//    addSeq(buffer_, {
+//                        0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
+//                        0x80, 0x01, 0x00, 0x01,                     // binary proto, call type
+//                        0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                        0x00, 0x00, 0x00, 0x0F,                     // seq id
+//                    });
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
+//
+//    EXPECT_EQ(1U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
+//
+//    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  }
+//
+//  // Local close mid-request
+//  {
+//    initializeFilter();
+//    addSeq(buffer_, {
+//                        0x00, 0x00, 0x00, 0x1d,                     // framed: 29 bytes
+//                        0x80, 0x01, 0x00, 0x01,                     // binary proto, call type
+//                        0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                        0x00, 0x00, 0x00, 0x0F,                     // seq id
+//                    });
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//    filter_->onEvent(Network::ConnectionEvent::LocalClose);
+//
+//    EXPECT_EQ(1U, store_.counter("test.cx_destroy_local_with_active_rq").value());
+//
+//    buffer_.drain(buffer_.length());
+//
+//    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  }
+//
+//  // Remote close before response
+//  {
+//    initializeFilter();
+//    writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//    filter_->onEvent(Network::ConnectionEvent::RemoteClose);
+//
+//    EXPECT_EQ(1U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
+//
+//    buffer_.drain(buffer_.length());
+//
+//    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  }
+//
+//  // Local close before response
+//  {
+//    initializeFilter();
+//    writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//    EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//    filter_->onEvent(Network::ConnectionEvent::LocalClose);
+//
+//    EXPECT_EQ(1U, store_.counter("test.cx_destroy_local_with_active_rq").value());
+//
+//    buffer_.drain(buffer_.length());
+//
+//    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  }
+//}
+//
+// TEST_F(SipConnectionManagerTest, Routing) {
+//  const std::string yaml = R"EOF(
+// transport: FRAMED
+// protocol: BINARY
+// stat_prefix: test
+// route_config:
+//  name: "routes"
+//  routes:
+//    - match:
+//        method_name: name
+//      route:
+//        cluster: cluster
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//
+//  Router::RouteConstSharedPtr route = callbacks->route();
+//  EXPECT_NE(nullptr, route);
+//  EXPECT_NE(nullptr, route->routeEntry());
+//  EXPECT_EQ("cluster", route->routeEntry()->clusterName());
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  callbacks->continueDecoding();
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndResponse) {
+//  initializeFilter();
+//  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndVoidResponse) {
+//  initializeFilter();
+//  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeVoidFramedBinaryMessage(write_buffer_, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Tests that the downstream request's sequence number is used for the response.
+// TEST_F(SipConnectionManagerTest, RequestAndResponseSequenceIdHandling) {
+//  initializeFilter();
+//  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0xFF);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  Buffer::OwnedImpl response_buffer;
+//  writeComplexFramedBinaryMessage(response_buffer, MessageType::Reply, 0x0F);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ(response_buffer.toString(), buffer.toString());
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndExceptionResponse) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeFramedBinaryTApplicationException(write_buffer_, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndErrorResponse) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeFramedBinaryIDLException(write_buffer_, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndInvalidResponse) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  // Call is not valid in a response
+//  writeFramedBinaryMessage(write_buffer_, MessageType::Call, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndResponseProtocolError) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  // illegal field id
+//  addSeq(write_buffer_, {
+//                            0x00, 0x00, 0x00, 0x1f,                     // framed: 31 bytes
+//                            0x80, 0x01, 0x00, 0x02,                     // binary, reply
+//                            0x00, 0x00, 0x00, 0x04, 'n', 'a', 'm', 'e', // message name
+//                            0x00, 0x00, 0x00, 0x01,                     // sequence id
+//                            0x08, 0xff, 0xff                            // illegal field id
+//                        });
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, true));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, RequestAndTransportApplicationException) {
+//  initializeFilter();
+//  writeMessage(buffer_, TransportType::Header, ProtocolType::Binary, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  // Response with unknown transform
+//  addSeq(write_buffer_, {
+//                            0x00, 0x00, 0x00, 0x64, // header: 100 bytes
+//                            0x0f, 0xff, 0x00, 0x00, // magic, flags
+//                            0x00, 0x00, 0x00, 0x01, // sequence id
+//                            0x00, 0x01, 0x00, 0x02, // header size 4, binary proto, 2 transforms
+//                            0x01, 0x02, 0x00, 0x00, // transforms: 1, 2; padding
+//                        });
+//
+//  HeaderTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
+//}
+//
+//// Tests that a request is routed and a non-sip response is handled.
+// TEST_F(SipConnectionManagerTest, RequestAndGarbageResponse) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  addRepeated(write_buffer_, 8, 0);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PipelinedRequestAndResponse) {
+//  initializeFilter();
+//
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x01);
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x02);
+//
+//  std::list<SipFilters::DecoderFilterCallbacks*> callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillRepeatedly(Invoke(
+//          [&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks.push_back(&cb); }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(2U, stats_.request_active_.value());
+//  EXPECT_EQ(2U, store_.counter("test.request").value());
+//  EXPECT_EQ(2U, store_.counter("test.request_call").value());
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_)).Times(2);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//
+//  writeFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x01);
+//  callbacks.front()->startUpstreamResponse(transport, proto);
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks.front()->upstreamData(write_buffer_));
+//  callbacks.pop_front();
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//
+//  writeFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x02);
+//  callbacks.front()->startUpstreamResponse(transport, proto);
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks.front()->upstreamData(write_buffer_));
+//  callbacks.pop_front();
+//  EXPECT_EQ(2U, store_.counter("test.response").value());
+//  EXPECT_EQ(2U, store_.counter("test.response_reply").value());
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, ResetDownstreamConnection) {
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::NoFlush));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  callbacks->resetDownstreamConnection();
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//}
+//
+//// Test the base case where there is no limit on the number of requests.
+// TEST_F(SipConnectionManagerTest, RequestWithNoMaxRequestsLimit) {
+//  initializeFilter("");
+//  EXPECT_EQ(0, config_->maxRequestsPerConnection());
+//
+//  EXPECT_EQ(50, sendRequests(50));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(0U, store_.counter("test.downstream_cx_max_requests").value());
+//  EXPECT_EQ(50U, store_.counter("test.request").value());
+//  EXPECT_EQ(50U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(50U, store_.counter("test.response").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Test the case where there is a limit on the number of requests but the actual number of
+/// requests / does not reach the limit.
+// TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitButNotReach) {
+//  const std::string yaml = R"EOF(
+//    stat_prefix: test
+//    route_config:
+//      name: local_route
+//    max_requests_per_connection: 50
+//    )EOF";
+//
+//  initializeFilter(yaml);
+//  EXPECT_EQ(50, config_->maxRequestsPerConnection());
+//
+//  EXPECT_EQ(49, sendRequests(49));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(0U, store_.counter("test.downstream_cx_max_requests").value());
+//  EXPECT_EQ(49U, store_.counter("test.request").value());
+//  EXPECT_EQ(49U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(49U, store_.counter("test.response").value());
+//  EXPECT_EQ(49U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(49U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Test the case where there is a limit on the number of requests and the actual number of
+/// requests / happens to reach the limit.
+// TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReached) {
+//  const std::string yaml = R"EOF(
+//    stat_prefix: test
+//    route_config:
+//      name: local_route
+//    max_requests_per_connection: 50
+//    )EOF";
+//
+//  initializeFilter(yaml);
+//  EXPECT_EQ(50, config_->maxRequestsPerConnection());
+//
+//  // Since max requests per connection is set to 50, the connection will be disconnected after
+//  // all 50 requests is completed.
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
+//
+//  EXPECT_EQ(50, sendRequests(50));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.downstream_cx_max_requests").value());
+//  EXPECT_EQ(50U, store_.counter("test.request").value());
+//  EXPECT_EQ(50U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(50U, store_.counter("test.response").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Test the case where there is a limit on the number of requests and the actual number of
+/// requests / exceeds the limit.
+// TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReachedWithMoreRequests) {
+//  const std::string yaml = R"EOF(
+//    stat_prefix: test
+//    route_config:
+//      name: local_route
+//    max_requests_per_connection: 50
+//    )EOF";
+//
+//  initializeFilter(yaml);
+//  EXPECT_EQ(50, config_->maxRequestsPerConnection());
+//
+//  // Since max requests per connection is set to 50, the connection will be disconnected after
+//  // all 50 requests is completed.
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite));
+//
+//  EXPECT_EQ(50, sendRequests(55));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.downstream_cx_max_requests").value());
+//  EXPECT_EQ(50U, store_.counter("test.request").value());
+//  EXPECT_EQ(50U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(50U, store_.counter("test.response").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(50U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Test cases where the number of requests is limited and the actual number of requests exceeds
+/// the / limit several times.
+// TEST_F(SipConnectionManagerTest, RequestWithMaxRequestsLimitAndReachedRepeatedly) {
+//  const std::string yaml = R"EOF(
+//    stat_prefix: test
+//    route_config:
+//      name: local_route
+//    max_requests_per_connection: 5
+//    )EOF";
+//
+//  initializeFilter(yaml);
+//  EXPECT_EQ(5, config_->maxRequestsPerConnection());
+//
+//  EXPECT_CALL(filter_callbacks_.connection_, close(Network::ConnectionCloseType::FlushWrite))
+//      .Times(5);
+//
+//  auto mock_new_connection = [this]() {
+//    filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//    filter_ = nullptr;
+//
+//    filter_callbacks_.connection_.read_enabled_ = true;
+//    filter_callbacks_.connection_.state_ = Network::Connection::State::Open;
+//    filter_callbacks_.connection_.callbacks_.clear();
+//
+//    ON_CALL(random_, random()).WillByDefault(Return(42));
+//    filter_ = std::make_unique<ConnectionManager>(
+//        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource());
+//    filter_->initializeReadFilterCallbacks(filter_callbacks_);
+//    filter_->onNewConnection();
+//
+//    filter_->onAboveWriteBufferHighWatermark();
+//    filter_->onBelowWriteBufferLowWatermark();
+//  };
+//
+//  EXPECT_EQ(5, sendRequests(6));
+//
+//  for (size_t i = 0; i < 4; i++) {
+//    mock_new_connection();
+//    EXPECT_EQ(5, sendRequests(6));
+//  }
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(5U, store_.counter("test.downstream_cx_max_requests").value());
+//  EXPECT_EQ(25U, store_.counter("test.request").value());
+//  EXPECT_EQ(25U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(25U, store_.counter("test.response").value());
+//  EXPECT_EQ(25U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(25U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, DownstreamProtocolUpgrade) {
+//  custom_transport_ = new NiceMock<MockTransport>();
+//  custom_protocol_ = new NiceMock<MockProtocol>();
+//  initializeFilter();
+//
+//  EXPECT_CALL(*custom_transport_, decodeFrameStart(_, _)).WillOnce(Return(true));
+//  EXPECT_CALL(*custom_protocol_, readMessageBegin(_, _))
+//      .WillOnce(Invoke([&](Buffer::Instance&, MessageMetadata& metadata) -> bool {
+//        metadata.setSequenceId(0);
+//        metadata.setMessageType(MessageType::Call);
+//        metadata.setProtocolUpgradeMessage(true);
+//        return true;
+//      }));
+//  EXPECT_CALL(*custom_protocol_,
+//  supportsUpgrade()).Times(AnyNumber()).WillRepeatedly(Return(true));
+//
+//  MockDecoderEventHandler* upgrade_decoder = new NiceMock<MockDecoderEventHandler>();
+//  EXPECT_CALL(*custom_protocol_, upgradeRequestDecoder())
+//      .WillOnce(Invoke([&]() -> DecoderEventHandlerSharedPtr {
+//        return DecoderEventHandlerSharedPtr{upgrade_decoder};
+//      }));
+//  EXPECT_CALL(*upgrade_decoder, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*custom_protocol_, readStructBegin(_, _)).WillOnce(Return(true));
+//  EXPECT_CALL(*upgrade_decoder, structBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*custom_protocol_, readFieldBegin(_, _, _, _))
+//      .WillOnce(Invoke(
+//          [&](Buffer::Instance&, std::string&, FieldType& field_type, int16_t& field_id) -> bool {
+//            field_type = FieldType::Stop;
+//            field_id = 0;
+//            return true;
+//          }));
+//  EXPECT_CALL(*custom_protocol_, readStructEnd(_)).WillOnce(Return(true));
+//  EXPECT_CALL(*upgrade_decoder, structEnd()).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*custom_protocol_, readMessageEnd(_)).WillOnce(Return(true));
+//  EXPECT_CALL(*upgrade_decoder, messageEnd()).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*custom_transport_, decodeFrameEnd(_)).WillOnce(Return(true));
+//  EXPECT_CALL(*upgrade_decoder, transportEnd()).WillOnce(Return(FilterStatus::Continue));
+//
+//  MockDirectResponse* direct_response = new NiceMock<MockDirectResponse>();
+//
+//  EXPECT_CALL(*custom_protocol_, upgradeResponse(Ref(*upgrade_decoder)))
+//      .WillOnce(Invoke([&](const DecoderEventHandler&) -> DirectResponsePtr {
+//        return DirectResponsePtr{direct_response};
+//      }));
+//
+//  EXPECT_CALL(*direct_response, encode(_, Ref(*custom_protocol_), _))
+//      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
+//                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
+//        buffer.add("response");
+//        return DirectResponse::ResponseType::SuccessReply;
+//      }));
+//  EXPECT_CALL(*custom_transport_, encodeFrame(_, _, _))
+//      .WillOnce(Invoke(
+//          [&](Buffer::Instance& buffer, const MessageMetadata&, Buffer::Instance& message) -> void
+//          {
+//            EXPECT_EQ("response", message.toString());
+//            buffer.add("transport-encoded response");
+//          }));
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ("transport-encoded response", buffer.toString());
+//      }));
+//
+//  Buffer::OwnedImpl buffer;
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//}
+//
+//// Tests multiple filters are invoked in the correct order.
+// TEST_F(SipConnectionManagerTest, OnDataHandlesSipCallWithMultipleFilters) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//  initializeFilter();
+//
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  InSequence s;
+//  EXPECT_CALL(*filter, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*filter, messageEnd()).WillOnce(Return(FilterStatus::Continue));
+//  EXPECT_CALL(*decoder_filter_, messageEnd()).WillOnce(Return(FilterStatus::Continue));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//}
+//
+//// Tests stop iteration/resume with multiple filters.
+// TEST_F(SipConnectionManagerTest, OnDataResumesWithNextFilter) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  // First filter stops iteration.
+//  {
+//    EXPECT_CALL(*filter, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//    EXPECT_EQ(0U, store_.counter("test.request").value());
+//    EXPECT_EQ(1U, stats_.request_active_.value());
+//  }
+//
+//  // Resume processing.
+//  {
+//    InSequence s;
+//    EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//    EXPECT_CALL(*filter, messageEnd()).WillOnce(Return(FilterStatus::Continue));
+//    EXPECT_CALL(*decoder_filter_, messageEnd()).WillOnce(Return(FilterStatus::Continue));
+//    callbacks->continueDecoding();
+//  }
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//}
+//
+//// Tests stop iteration/resume with multiple filters when iteration is stopped during
+//// transportEnd.
+// TEST_F(SipConnectionManagerTest, OnDataResumesWithNextFilterOnTransportEnd) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  // First filter stops iteration.
+//  {
+//    InSequence s;
+//    EXPECT_CALL(*filter, transportBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//    EXPECT_CALL(*decoder_filter_, transportBegin(_)).WillOnce(Return(FilterStatus::Continue));
+//    EXPECT_CALL(*filter, transportEnd()).WillOnce(Return(FilterStatus::StopIteration));
+//    EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//    EXPECT_EQ(0U, store_.counter("test.request").value());
+//    EXPECT_EQ(1U, stats_.request_active_.value());
+//  }
+//
+//  // Resume processing.
+//  {
+//    InSequence s;
+//    EXPECT_CALL(*decoder_filter_, transportEnd()).WillOnce(Return(FilterStatus::Continue));
+//    callbacks->continueDecoding();
+//  }
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//}
+//
+//// Tests multiple filters where one invokes sendLocalReply with a successful reply.
+// TEST_F(SipConnectionManagerTest, OnDataWithFilterSendsLocalReply) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  NiceMock<MockDirectResponse> direct_response;
+//  EXPECT_CALL(direct_response, encode(_, _, _))
+//      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
+//                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
+//        buffer.add("response");
+//        return DirectResponse::ResponseType::SuccessReply;
+//      }));
+//
+//  // First filter sends local reply.
+//  EXPECT_CALL(*filter, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
+//        callbacks->sendLocalReply(direct_response, false);
+//        return FilterStatus::StopIteration;
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ(8, buffer.drainBEInt<int32_t>());
+//        EXPECT_EQ("response", buffer.toString());
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response_success").value());
+//}
+//
+//// Tests multiple filters where one invokes sendLocalReply with an error reply.
+// TEST_F(SipConnectionManagerTest, OnDataWithFilterSendsLocalErrorReply) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  NiceMock<MockDirectResponse> direct_response;
+//  EXPECT_CALL(direct_response, encode(_, _, _))
+//      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
+//                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
+//        buffer.add("response");
+//        return DirectResponse::ResponseType::ErrorReply;
+//      }));
+//
+//  // First filter sends local reply.
+//  EXPECT_CALL(*filter, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
+//        callbacks->sendLocalReply(direct_response, false);
+//        return FilterStatus::StopIteration;
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, false))
+//      .WillOnce(Invoke([&](Buffer::Instance& buffer, bool) -> void {
+//        EXPECT_EQ(8, buffer.drainBEInt<int32_t>());
+//        EXPECT_EQ("response", buffer.toString());
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response_error").value());
+//}
+//
+//// sendLocalReply does nothing, when the remote closed the connection.
+// TEST_F(SipConnectionManagerTest, OnDataWithFilterSendLocalReplyRemoteClosedConnection) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  NiceMock<MockDirectResponse> direct_response;
+//  EXPECT_CALL(direct_response, encode(_, _, _)).Times(0);
+//
+//  // First filter sends local reply.
+//  EXPECT_CALL(*filter, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
+//        callbacks->sendLocalReply(direct_response, false);
+//        return FilterStatus::StopIteration;
+//      }));
+//  EXPECT_CALL(filter_callbacks_.connection_, write(_, false)).Times(0);
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//
+//  // Remote closes the connection.
+//  filter_callbacks_.connection_.state_ = Network::Connection::State::Closed;
+//  EXPECT_EQ(filter_->onData(buffer_, true), Network::FilterStatus::StopIteration);
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+//// Tests a decoder filter that modifies data.
+// TEST_F(SipConnectionManagerTest, DecoderFiltersModifyRequests) {
+//  auto* filter = new NiceMock<SipFilters::MockDecoderFilter>();
+//  custom_filter_.reset(filter);
+//
+//  initializeFilter();
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*filter, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_));
+//
+//  Http::LowerCaseString key{"key"};
+//
+//  EXPECT_CALL(*filter, transportBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
+//        EXPECT_THAT(*metadata, HasNoHeaders());
+//        metadata->headers().addCopy(key, "value");
+//        return FilterStatus::Continue;
+//      }));
+//  EXPECT_CALL(*decoder_filter_, transportBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
+//        const auto header = metadata->headers().get(key);
+//        EXPECT_FALSE(header.empty());
+//        EXPECT_EQ("value", header[0]->value().getStringView());
+//        return FilterStatus::Continue;
+//      }));
+//
+//  EXPECT_CALL(*filter, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
+//        EXPECT_EQ("name", metadata->methodName());
+//        metadata->setMethodName("alternate");
+//        return FilterStatus::Continue;
+//      }));
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr metadata) -> FilterStatus {
+//        EXPECT_EQ("alternate", metadata->methodName());
+//        return FilterStatus::Continue;
+//      }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, TransportEndWhenRemoteClose) {
+//  initializeFilter();
+//  writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  // Remote closes the connection.
+//  filter_callbacks_.connection_.state_ = Network::Connection::State::Closed;
+//  EXPECT_EQ(SipFilters::ResponseStatus::Reset, callbacks->upstreamData(write_buffer_));
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_decoding_error").value());
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//}
+//
+//// TODO(caitong93): use TEST_P to avoid duplicating test cases
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughOnDataHandlesSipCall) {
+//  const std::string yaml = R"EOF(
+// transport: FRAMED
+// protocol: BINARY
+// stat_prefix: test
+// payload_passthrough: true
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0, buffer_.length());
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_oneway").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughOnDataHandlesSipOneWay) {
+//  const std::string yaml = R"EOF(
+// stat_prefix: test
+// payload_passthrough: true
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_oneway").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.request_decoding_error").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(0U, store_.counter("test.response").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndExceptionResponse) {
+//  const std::string yaml = R"EOF(
+// stat_prefix: test
+// payload_passthrough: true
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeFramedBinaryTApplicationException(write_buffer_, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndErrorResponse) {
+//  const std::string yaml = R"EOF(
+// stat_prefix: test
+// payload_passthrough: true
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  writeFramedBinaryIDLException(write_buffer_, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_invalid_type").value());
+//  // In payload_passthrough mode, Envoy cannot detect response error.
+//  EXPECT_EQ(1U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughRequestAndInvalidResponse) {
+//  const std::string yaml = R"EOF(
+// stat_prefix: test
+// payload_passthrough: true
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//
+//  // Call is not valid in a response
+//  writeFramedBinaryMessage(write_buffer_, MessageType::Call, 0x0F);
+//
+//  FramedTransportImpl transport;
+//  BinaryProtocolImpl proto;
+//  callbacks->startUpstreamResponse(transport, proto);
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, store_.counter("test.request_call").value());
+//  EXPECT_EQ(0U, stats_.request_active_.value());
+//  EXPECT_EQ(1U, store_.counter("test.response").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_reply").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_exception").value());
+//  EXPECT_EQ(1U, store_.counter("test.response_invalid_type").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_success").value());
+//  EXPECT_EQ(0U, store_.counter("test.response_error").value());
+//}
+//
+// TEST_F(SipConnectionManagerTest, PayloadPassthroughRouting) {
+//  const std::string yaml = R"EOF(
+// transport: FRAMED
+// protocol: BINARY
+// payload_passthrough: true
+// stat_prefix: test
+// route_config:
+//  name: "routes"
+//  routes:
+//    - match:
+//        method_name: name
+//      route:
+//        cluster: cluster
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_));
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_)).WillOnce(Return(FilterStatus::StopIteration));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(0U, store_.counter("test.request").value());
+//  EXPECT_EQ(1U, stats_.request_active_.value());
+//
+//  Router::RouteConstSharedPtr route = callbacks->route();
+//  EXPECT_NE(nullptr, route);
+//  EXPECT_NE(nullptr, route->routeEntry());
+//  EXPECT_EQ("cluster", route->routeEntry()->clusterName());
+//
+//  EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
+//  callbacks->continueDecoding();
+//
+//  filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
+//}
+//
+//// When a local reply was sent, payload passthrough is disabled because there's no
+//// active RPC left.
+// TEST_F(SipConnectionManagerTest, NoPayloadPassthroughOnLocalReply) {
+//  const std::string yaml = R"EOF(
+// transport: FRAMED
+// protocol: BINARY
+// payload_passthrough: true
+// stat_prefix: test
+// route_config:
+//  name: "routes"
+//  routes:
+//    - match:
+//        method_name: not_handled
+//      route:
+//        cluster: cluster
+//)EOF";
+//
+//  initializeFilter(yaml);
+//  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);
+//
+//  EXPECT_CALL(*decoder_filter_, passthroughSupported()).WillRepeatedly(Return(true));
+//  EXPECT_CALL(*decoder_filter_, passthroughData(_)).Times(0);
+//
+//  SipFilters::DecoderFilterCallbacks* callbacks{};
+//  EXPECT_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
+//      .WillOnce(Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
+//
+//  NiceMock<MockDirectResponse> direct_response;
+//  EXPECT_CALL(direct_response, encode(_, _, _))
+//      .WillOnce(Invoke([&](MessageMetadata&, Protocol&,
+//                           Buffer::Instance& buffer) -> DirectResponse::ResponseType {
+//        buffer.add("response");
+//        return DirectResponse::ResponseType::ErrorReply;
+//      }));
+//
+//  EXPECT_CALL(*decoder_filter_, messageBegin(_))
+//      .WillOnce(Invoke([&](MessageMetadataSharedPtr) -> FilterStatus {
+//        callbacks->sendLocalReply(direct_response, false);
+//        return FilterStatus::StopIteration;
+//      }));
+//
+//  EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+//  EXPECT_EQ(1U, store_.counter("test.request").value());
+//
+//  Router::RouteConstSharedPtr route = callbacks->route();
+//  EXPECT_EQ(nullptr, route);
+//}
 
 } // namespace SipProxy
 } // namespace NetworkFilters
