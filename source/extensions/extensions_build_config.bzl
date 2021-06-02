@@ -181,7 +181,6 @@ EXTENSIONS = {
     #
 
     "envoy.filters.sip.router":                      "//source/extensions/filters/network/sip_proxy/router:config",
-    "envoy.filters.sip.affinity":                    "//source/extensions/filters/network/sip_proxy/filters/affinity:config",
 
     #
     # Tracers

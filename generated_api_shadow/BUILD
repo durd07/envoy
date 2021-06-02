@@ -233,7 +233,6 @@ proto_library(
         "//envoy/extensions/filters/network/rbac/v3:pkg",
         "//envoy/extensions/filters/network/redis_proxy/v3:pkg",
         "//envoy/extensions/filters/network/rocketmq_proxy/v3:pkg",
-        "//envoy/extensions/filters/network/sip_proxy/filters/affinity/v3:pkg",
         "//envoy/extensions/filters/network/sip_proxy/router/v3:pkg",
         "//envoy/extensions/filters/network/sip_proxy/v3:pkg",
         "//envoy/extensions/filters/network/sni_cluster/v3:pkg",
