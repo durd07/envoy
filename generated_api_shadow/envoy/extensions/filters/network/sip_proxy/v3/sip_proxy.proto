@@ -80,4 +80,6 @@ message SipFilter {
 // :ref:`typed_extension_protocol_options<envoy_api_field_config.cluster.v3.Cluster.typed_extension_protocol_options>`,
 // keyed by the name `envoy.filters.network.sip_proxy`.
 message SipProtocolOptions {
+  bool session_affinity = 1;
+  bool registration_affinity = 2;
 }

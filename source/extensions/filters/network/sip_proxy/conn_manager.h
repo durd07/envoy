@@ -45,6 +45,9 @@ public:
 class ProtocolOptionsConfig : public Upstream::ProtocolOptionsConfig {
 public:
   ~ProtocolOptionsConfig() override = default;
+
+  virtual bool sessionAffinity() const PURE;
+  virtual bool registrationAffinity() const PURE;
 };
 
 /**

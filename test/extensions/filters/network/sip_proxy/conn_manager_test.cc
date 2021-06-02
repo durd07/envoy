@@ -5,12 +5,9 @@
 
 #include "common/buffer/buffer_impl.h"
 
-#include "extensions/filters/network/sip_proxy/binary_protocol_impl.h"
 #include "extensions/filters/network/sip_proxy/buffer_helper.h"
 #include "extensions/filters/network/sip_proxy/config.h"
 #include "extensions/filters/network/sip_proxy/conn_manager.h"
-#include "extensions/filters/network/sip_proxy/framed_transport_impl.h"
-#include "extensions/filters/network/sip_proxy/header_transport_impl.h"
 
 #include "test/common/stats/stat_test_utility.h"
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
@@ -50,29 +47,16 @@ public:
     }
     callbacks.addDecoderFilter(decoder_filter_);
   }
-  TransportPtr createTransport() override {
-    if (transport_) {
-      return TransportPtr{transport_};
-    }
-    return ConfigImpl::createTransport();
-  }
-  ProtocolPtr createProtocol() override {
-    if (protocol_) {
-      return ProtocolPtr{protocol_};
-    }
-    return ConfigImpl::createProtocol();
-  }
 
   SipFilters::DecoderFilterSharedPtr custom_filter_;
   SipFilters::DecoderFilterSharedPtr decoder_filter_;
   SipFilterStats& stats_;
-  MockTransport* transport_{};
-  MockProtocol* protocol_{};
 };
 
 class SipConnectionManagerTest : public testing::Test {
 public:
-  SipConnectionManagerTest() : stats_(SipFilterStats::generateStats("test.", store_)) {}
+  SipConnectionManagerTest() : stats_(SipFilterStats::generateStats("test.", store_)),
+    transaction_infos_(std::make_shared<Router::TransactionInfos>()) {}
   ~SipConnectionManagerTest() override {
     filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
   }
@@ -99,19 +83,13 @@ public:
     decoder_filter_ = std::make_shared<NiceMock<SipFilters::MockDecoderFilter>>();
 
     config_ = std::make_unique<TestConfigImpl>(proto_config_, context_, decoder_filter_, stats_);
-    if (custom_transport_) {
-      config_->transport_ = custom_transport_;
-    }
-    if (custom_protocol_) {
-      config_->protocol_ = custom_protocol_;
-    }
     if (custom_filter_) {
       config_->custom_filter_ = custom_filter_;
     }
 
     ON_CALL(random_, random()).WillByDefault(Return(42));
     filter_ = std::make_unique<ConnectionManager>(
-        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource());
+        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(), transaction_infos);
     filter_->initializeReadFilterCallbacks(filter_callbacks_);
     filter_->onNewConnection();
 
@@ -352,8 +330,7 @@ public:
   NiceMock<Network::MockReadFilterCallbacks> filter_callbacks_;
   NiceMock<Random::MockRandomGenerator> random_;
   std::unique_ptr<ConnectionManager> filter_;
-  MockTransport* custom_transport_{};
-  MockProtocol* custom_protocol_{};
+  std::shared_ptr<Router::TransactionInfos> transaction_infos;
   SipFilters::DecoderFilterSharedPtr custom_filter_;
 };
 

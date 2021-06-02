@@ -29,9 +29,11 @@ addUniqueClusters(absl::flat_hash_set<std::string>& clusters,
 } // namespace
 
 ProtocolOptionsConfigImpl::ProtocolOptionsConfigImpl(
-    const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& config) {
-  UNREFERENCED_PARAMETER(config);
+    const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& config) : session_affinity_(config.session_affinity()), registration_affinity_(config.registration_affinity()) {
 }
+
+bool ProtocolOptionsConfigImpl::sessionAffinity() const { return session_affinity_; }
+bool ProtocolOptionsConfigImpl::registrationAffinity() const { return registration_affinity_; }
 
 Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromProtoTyped(
     const envoy::extensions::filters::network::sip_proxy::v3::SipProxy& proto_config,
@@ -49,12 +51,9 @@ Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromPro
    */
   auto transaction_infos = std::make_shared<Router::TransactionInfos>();
   for (auto& cluster : unique_clusters) {
-    Stats::ScopePtr stats_scope =
-        context.scope().createScope(fmt::format("cluster.{}.sip_cluster", cluster));
+    Stats::ScopePtr stats_scope = context.scope().createScope(fmt::format("cluster.{}.sip_cluster", cluster));
     auto transaction_info_ptr = std::make_shared<Router::TransactionInfo>(
-        cluster, context.threadLocal(),
-        static_cast<std::chrono::milliseconds>(
-            PROTOBUF_GET_MS_OR_DEFAULT(proto_config.settings(), transaction_timeout, 32000)));
+        cluster, context.threadLocal(), static_cast<std::chrono::milliseconds>(PROTOBUF_GET_MS_OR_DEFAULT(proto_config.settings(), transaction_timeout, 32000)));
     transaction_info_ptr->init();
     transaction_infos->emplace(cluster, transaction_info_ptr);
   }
@@ -79,7 +78,7 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
       stats_(SipFilterStats::generateStats(stats_prefix_, context_.scope())),
       route_matcher_(new Router::RouteMatcher(config.route_config())),
       settings_(std::make_shared<SipSettings>(static_cast<std::chrono::milliseconds>(
-          PROTOBUF_GET_MS_REQUIRED(config.settings(), transaction_timeout)))) {
+          PROTOBUF_GET_MS_OR_DEFAULT(config.settings(), transaction_timeout, 32000)))) {
 
   if (config.sip_filters().empty()) {
     ENVOY_LOG(debug, "using default router filter");

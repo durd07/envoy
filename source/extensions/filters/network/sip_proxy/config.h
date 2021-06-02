@@ -24,6 +24,13 @@ class ProtocolOptionsConfigImpl : public ProtocolOptionsConfig {
 public:
   ProtocolOptionsConfigImpl(
       const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& proto_config);
+
+  bool sessionAffinity() const override;
+  bool registrationAffinity() const override;
+
+private:
+  bool session_affinity_;
+  bool registration_affinity_;
 };
 
 /**

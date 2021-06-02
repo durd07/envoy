@@ -1,5 +1,3 @@
-#include "envoy/extensions/filter/network/sip-proxy/router/v3/router.pb.h"
-#include "envoy/extensions/filter/network/sip-proxy/router/v3/router.pb.validate.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.validate.h"
 

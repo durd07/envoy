@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "common/common/logger.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
 #include "envoy/upstream/thread_local_cluster.h"
@@ -145,6 +146,37 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
           NetworkFilterNames::get().SipProxy);
 
+  auto handle_affinity = [&](const std::shared_ptr<const ProtocolOptionsConfig> options) {
+    if (options == nullptr) {
+      return;
+    }
+
+    if (options->sessionAffinity()) {
+      switch (metadata->methodType()) {
+      case SipProxy::MethodType::Invite: {
+        break;
+      }
+      case SipProxy::MethodType::Ack: {
+        if (metadata->EP().has_value()) {
+          auto host = metadata->EP().value();
+          metadata->setDestination(host);
+        }
+        break;
+      }
+      default:
+        if (metadata->EP().has_value()) {
+          auto host = metadata->EP().value();
+          metadata->setDestination(host);
+        }
+        break;
+      }
+    }
+
+    if (options->registrationAffinity()) {
+    }
+  };
+  handle_affinity(options);
+
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
@@ -166,7 +198,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return FilterStatus::StopIteration;
     }
 
-    if (auto upstream_request = transaction_info->getUpstreamRequest(host->address()->asString());
+    if (auto upstream_request = transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
         upstream_request != nullptr) {
       // There is action connection, reuse it.
       upstream_request_ = upstream_request;
@@ -181,8 +213,8 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     } else {
       upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      transaction_info->insertUpstreamRequest(host->address()->asString(), upstream_request_);
-      ENVOY_STREAM_LOG(debug, "create new upstream request", *callbacks_);
+      transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(), upstream_request_);
+      ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_, host->address()->ip()->addressAsString());
 
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
