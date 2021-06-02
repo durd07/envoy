@@ -81,5 +81,6 @@ message SipFilter {
 // keyed by the name `envoy.filters.network.sip_proxy`.
 message SipProtocolOptions {
   bool session_affinity = 1;
+
   bool registration_affinity = 2;
 }

@@ -86,7 +86,7 @@ sip_filters:
   envoy::extensions::filters::network::sip_proxy::v3::SipProxy config = parseSipProxyFromYaml(yaml);
   std::string cluster = "A";
   config.mutable_route_config()->mutable_routes()->at(0).mutable_route()->set_cluster(cluster);
-  EXPECT_NO_THROW({ factory_.createFilterFactoryFromProto(config, context_); } );
+  EXPECT_NO_THROW({ factory_.createFilterFactoryFromProto(config, context_); });
 }
 
 // Test config with an explicitly defined router filter.

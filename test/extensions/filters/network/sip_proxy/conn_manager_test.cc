@@ -55,8 +55,9 @@ public:
 
 class SipConnectionManagerTest : public testing::Test {
 public:
-  SipConnectionManagerTest() : stats_(SipFilterStats::generateStats("test.", store_)),
-    transaction_infos_(std::make_shared<Router::TransactionInfos>()) {}
+  SipConnectionManagerTest()
+      : stats_(SipFilterStats::generateStats("test.", store_)),
+        transaction_infos_(std::make_shared<Router::TransactionInfos>()) {}
   ~SipConnectionManagerTest() override {
     filter_callbacks_.connection_.dispatcher_.clearDeferredDeleteList();
   }
@@ -89,7 +90,8 @@ public:
 
     ON_CALL(random_, random()).WillByDefault(Return(42));
     filter_ = std::make_unique<ConnectionManager>(
-        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(), transaction_infos);
+        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(),
+        transaction_infos);
     filter_->initializeReadFilterCallbacks(filter_callbacks_);
     filter_->onNewConnection();
 

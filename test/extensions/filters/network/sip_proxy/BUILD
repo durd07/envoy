@@ -275,7 +275,7 @@ envoy_extension_cc_test(
         "//test/mocks/upstream:host_mocks",
         "//test/test_common:printers_lib",
         "//test/test_common:registry_lib",
-#        "@envoy_api//envoy/extensions/filter/network/sip-proxy/router/v3:pkg_cc_proto",
+        "@envoy_api//envoy/extensions/filter/network/sip-proxy/v3:pkg_cc_proto",
     ],
 )
 
@@ -309,7 +309,7 @@ envoy_extension_cc_test(
         "//source/extensions/filters/network/sip_proxy/router:router_interface",
         "//source/extensions/filters/network/sip_proxy/router:router_lib",
         "//test/test_common:utility_lib",
-#        "@envoy_api//envoy/extensions/filter/network/sip-proxy/router/v3:pkg_cc_proto",
+        #        "@envoy_api//envoy/extensions/filter/network/sip-proxy/router/v3:pkg_cc_proto",
         "@envoy_api//envoy/extensions/filters/network/sip_proxy/v3:pkg_cc_proto",
     ],
 )
