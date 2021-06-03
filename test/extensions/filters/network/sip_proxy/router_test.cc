@@ -1,7 +1,5 @@
 #include <memory>
 
-#include "envoy/extensions/filter/network/sip-proxy/v3/route.pb.h"
-#include "envoy/extensions/filter/network/sip-proxy/v3/route.pb.validate.h"
 #include "envoy/tcp/conn_pool.h"
 
 #include "common/buffer/buffer_impl.h"

@@ -19,7 +19,7 @@ enum class ConnectionState {
  */
 class SipConnectionState : public Tcp::ConnectionPool::ConnectionState {
 public:
-  SipConnectionState(ConnectionState state, int32_t initial_sequence_id = 0)
+  SipConnectionState(SipProxy::ConnectionState state, int32_t initial_sequence_id = 0)
       : state_(state), next_sequence_id_(initial_sequence_id) {}
 
   /**
@@ -34,10 +34,10 @@ public:
     return next_sequence_id_++;
   }
 
-  ConnectionState state() { return state_; }
+  SipProxy::ConnectionState state() { return state_; }
 
 private:
-  ConnectionState state_;
+  SipProxy::ConnectionState state_;
   int32_t next_sequence_id_;
 };
 
