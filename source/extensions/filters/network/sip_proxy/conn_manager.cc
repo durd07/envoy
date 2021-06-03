@@ -218,6 +218,7 @@ FilterStatus ConnectionManager::ActiveTrans::transportBegin(MessageMetadataShare
 
 FilterStatus ConnectionManager::ActiveTrans::transportEnd() {
   ASSERT(metadata_ != nullptr);
+  parent_.stats_.request_.inc();
 
   FilterStatus status;
   filter_action_ = [](DecoderEventHandler* filter) -> FilterStatus {
