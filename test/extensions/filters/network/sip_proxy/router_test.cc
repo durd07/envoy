@@ -70,22 +70,11 @@ public:
 
     initializeMetadata(msg_type, method);
 
-    EXPECT_CALL(callbacks_, downstreamTransportType())
-        .Times(AtLeast(1))
-        .WillRepeatedly(Return(transport_type));
-    EXPECT_CALL(callbacks_, downstreamProtocolType())
-        .Times(AtLeast(1))
-        .WillRepeatedly(Return(protocol_type));
     EXPECT_EQ(FilterStatus::StopIteration, router_->messageBegin(metadata_));
 
     EXPECT_CALL(callbacks_, connection()).WillRepeatedly(Return(&connection_));
     EXPECT_CALL(callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
     EXPECT_EQ(&connection_, router_->downstreamConnection());
-
-    // Not yet implemented:
-    EXPECT_EQ(absl::optional<uint64_t>(), router_->computeHashKey());
-    EXPECT_EQ(nullptr, router_->metadataMatchCriteria());
-    EXPECT_EQ(nullptr, router_->downstreamHeaders());
   }
 
   void connectUpstream() {
@@ -105,14 +94,6 @@ public:
         .WillOnce(Invoke(
             [&](Tcp::ConnectionPool::ConnectionStatePtr& cs) -> void { conn_state_.swap(cs); }));
 
-    EXPECT_CALL(*protocol_, writeMessageBegin(_, _))
-        .WillOnce(Invoke([&](Buffer::Instance&, const MessageMetadata& metadata) -> void {
-          EXPECT_EQ(metadata_->methodName(), metadata.methodName());
-          EXPECT_EQ(metadata_->messageType(), metadata.messageType());
-          EXPECT_EQ(metadata_->sequenceId(), metadata.sequenceId());
-        }));
-
-    EXPECT_CALL(callbacks_, continueDecoding());
     context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.poolReady(upstream_connection_);
 
     EXPECT_NE(nullptr, upstream_callbacks_);
@@ -180,66 +161,6 @@ public:
     EXPECT_NE(nullptr, upstream_callbacks_);
   }
 
-  void sendTrivialStruct(FieldType field_type) {
-    EXPECT_CALL(*protocol_, writeStructBegin(_, ""));
-    EXPECT_EQ(FilterStatus::Continue, router_->structBegin({}));
-
-    int16_t id = 1;
-    EXPECT_CALL(*protocol_, writeFieldBegin(_, "", field_type, id));
-    EXPECT_EQ(FilterStatus::Continue, router_->fieldBegin({}, field_type, id));
-
-    sendTrivialValue(field_type);
-
-    EXPECT_CALL(*protocol_, writeFieldEnd(_));
-    EXPECT_EQ(FilterStatus::Continue, router_->fieldEnd());
-
-    EXPECT_CALL(*protocol_, writeFieldBegin(_, "", FieldType::Stop, 0));
-    EXPECT_CALL(*protocol_, writeStructEnd(_));
-    EXPECT_EQ(FilterStatus::Continue, router_->structEnd());
-  }
-
-  void sendTrivialValue(FieldType field_type) {
-    switch (field_type) {
-    case FieldType::Bool: {
-      bool v = true;
-      EXPECT_CALL(*protocol_, writeBool(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->boolValue(v));
-    } break;
-    case FieldType::Byte: {
-      uint8_t v = 2;
-      EXPECT_CALL(*protocol_, writeByte(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->byteValue(v));
-    } break;
-    case FieldType::I16: {
-      int16_t v = 3;
-      EXPECT_CALL(*protocol_, writeInt16(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->int16Value(v));
-    } break;
-    case FieldType::I32: {
-      int32_t v = 4;
-      EXPECT_CALL(*protocol_, writeInt32(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->int32Value(v));
-    } break;
-    case FieldType::I64: {
-      int64_t v = 5;
-      EXPECT_CALL(*protocol_, writeInt64(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->int64Value(v));
-    } break;
-    case FieldType::Double: {
-      double v = 6.0;
-      EXPECT_CALL(*protocol_, writeDouble(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->doubleValue(v));
-    } break;
-    case FieldType::String: {
-      std::string v = "seven";
-      EXPECT_CALL(*protocol_, writeString(_, v));
-      EXPECT_EQ(FilterStatus::Continue, router_->stringValue(v));
-    } break;
-    default:
-      NOT_REACHED_GCOVR_EXCL_LINE;
-    }
-  }
-
   void completeRequest() {
     EXPECT_CALL(*protocol_, writeMessageEnd(_));
     EXPECT_CALL(*transport_, encodeFrame(_, _, _));
@@ -281,21 +202,11 @@ public:
     router_.reset();
   }
 
-  TestNamedTransportConfigFactory transport_factory_;
-  TestNamedProtocolConfigFactory protocol_factory_;
-  Registry::InjectFactory<NamedTransportConfigFactory> transport_register_;
-  Registry::InjectFactory<NamedProtocolConfigFactory> protocol_register_;
-
-  std::function<void(MockTransport*)> mock_transport_cb_{};
-  std::function<void(MockProtocol*)> mock_protocol_cb_{};
-
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   NiceMock<Network::MockClientConnection> connection_;
   NiceMock<Event::MockDispatcher> dispatcher_;
   NiceMock<MockTimeSystem> time_source_;
   NiceMock<SipFilters::MockDecoderFilterCallbacks> callbacks_;
-  NiceMock<MockTransport>* transport_{};
-  NiceMock<MockProtocol>* protocol_{};
   NiceMock<MockRoute>* route_{};
   NiceMock<MockRouteEntry> route_entry_;
   NiceMock<Upstream::MockHostDescription>* host_{};
@@ -340,30 +251,6 @@ class SipRouterPassthroughTest
       public SipRouterTestBase {
 public:
 };
-
-static std::string downstreamUpstreamTypesToString(
-    const TestParamInfo<std::tuple<TransportType, ProtocolType, TransportType, ProtocolType>>&
-        params) {
-  TransportType downstream_transport_type;
-  ProtocolType downstream_protocol_type;
-  TransportType upstream_transport_type;
-  ProtocolType upstream_protocol_type;
-
-  std::tie(downstream_transport_type, downstream_protocol_type, upstream_transport_type,
-           upstream_protocol_type) = params.param;
-
-  return fmt::format("{}{}{}{}", TransportNames::get().fromType(downstream_transport_type),
-                     ProtocolNames::get().fromType(downstream_protocol_type),
-                     TransportNames::get().fromType(upstream_transport_type),
-                     ProtocolNames::get().fromType(upstream_protocol_type));
-}
-
-INSTANTIATE_TEST_SUITE_P(DownstreamUpstreamTypes, SipRouterPassthroughTest,
-                         Combine(Values(TransportType::Framed, TransportType::Unframed),
-                                 Values(ProtocolType::Binary, ProtocolType::Twitter),
-                                 Values(TransportType::Framed, TransportType::Unframed),
-                                 Values(ProtocolType::Binary, ProtocolType::Twitter)),
-                         downstreamUpstreamTypesToString);
 
 TEST_F(SipRouterTest, PoolRemoteConnectionFailure) {
   initializeRouter();

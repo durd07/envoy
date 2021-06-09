@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.validate.h"
 
@@ -133,6 +135,8 @@ sip_filters:
       value:
         key: value
   - name: envoy.filters.sip.router
+settings:
+  transaction_timeout: 32s
 )EOF";
 
   SipFilters::MockFilterConfigFactory factory;
@@ -144,6 +148,26 @@ sip_filters:
   EXPECT_EQ(1, factory.config_struct_.fields_size());
   EXPECT_EQ("value", factory.config_struct_.fields().at("key").string_value());
   EXPECT_EQ("sip.ingress.", factory.config_stat_prefix_);
+}
+
+// Test SipProtocolOptions
+TEST_F(SipFilterConfigTest, SipProtocolOptions) {
+  const std::string yaml = R"EOF(
+session_affinity: true
+registration_affinity: true
+)EOF";
+
+  envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions config;
+  TestUtility::loadFromYaml(yaml, config);
+
+  NiceMock<Server::Configuration::MockFactoryContext> context;
+  const auto options = std::make_shared<ProtocolOptionsConfigImpl>(config);
+  EXPECT_CALL(*context.cluster_manager_.thread_local_cluster_.cluster_.info_,
+              extensionProtocolOptions(_))
+      .WillRepeatedly(Return(options));
+
+  EXPECT_EQ(true, options->sessionAffinity());
+  EXPECT_EQ(true, options->registrationAffinity());
 }
 
 } // namespace SipProxy

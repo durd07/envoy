@@ -32,20 +32,20 @@ envoy_extension_cc_mock(
     ],
 )
 
-envoy_extension_cc_test_library(
-    name = "integration_lib",
-    srcs = ["integration.cc"],
-    hdrs = ["integration.h"],
-    extension_name = "envoy.filters.network.sip_proxy",
-    deps = [
-        "//source/extensions/filters/network/sip_proxy:config",
-        "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
-        "//source/extensions/filters/network/sip_proxy/router:config",
-        "//test/integration:integration_lib",
-        "//test/test_common:environment_lib",
-        "//test/test_common:network_utility_lib",
-    ],
-)
+#envoy_extension_cc_test_library(
+#    name = "integration_lib",
+#    srcs = ["integration.cc"],
+#    hdrs = ["integration.h"],
+#    extension_name = "envoy.filters.network.sip_proxy",
+#    deps = [
+#        "//source/extensions/filters/network/sip_proxy:config",
+#        "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
+#        "//source/extensions/filters/network/sip_proxy/router:config",
+#        "//test/integration:integration_lib",
+#        "//test/test_common:environment_lib",
+#        "//test/test_common:network_utility_lib",
+#    ],
+#)
 
 envoy_extension_cc_test_library(
     name = "utility_lib",
@@ -258,7 +258,7 @@ envoy_extension_cc_test(
 #        "//test/test_common:utility_lib",
 #    ],
 #)
-#
+
 #envoy_extension_cc_test(
 #    name = "router_test",
 #    srcs = ["router_test.cc"],
