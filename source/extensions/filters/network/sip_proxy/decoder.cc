@@ -438,6 +438,24 @@ int Decoder::SUBSCRIBEHeaderHandler::processContact(absl::string_view& header) {
   return 0;
 }
 
+void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& header) {
+  if (type == HeaderType::Route) {
+    handler_->processRoute(header);
+  }
+
+  if (type == HeaderType::Via) {
+    handler_->processVia(header);
+  }
+
+  if (type == HeaderType::Contact) {
+    handler_->processContact(header);
+  }
+
+  if (type == HeaderType::Path) {
+    handler_->processPath(header);
+  }
+}
+
 void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& header) {
   if (type == HeaderType::Via) {
     handler_->processVia(header);
