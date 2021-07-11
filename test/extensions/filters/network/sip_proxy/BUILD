@@ -200,7 +200,6 @@ envoy_extension_cc_test_library(
 #        "//test/test_common:utility_lib",
 #    ],
 #)
-
 envoy_extension_cc_test(
     name = "config_test",
     srcs = ["config_test.cc"],
@@ -224,6 +223,7 @@ envoy_extension_cc_test(
         ":utility_lib",
         "//source/extensions/filters/network/sip_proxy:config",
         "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
+        "//source/extensions/filters/network/sip_proxy:decoder_lib",
         "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
         "//source/extensions/filters/network/sip_proxy/router:config",
         "//source/extensions/filters/network/sip_proxy/router:router_interface",
@@ -234,50 +234,57 @@ envoy_extension_cc_test(
     ],
 )
 
-#envoy_extension_cc_test(
-#    name = "decoder_test",
-#    srcs = ["decoder_test.cc"],
-#    extension_name = "envoy.filters.network.sip_proxy",
-#    deps = [
-#        ":mocks",
-#        ":utility_lib",
-#        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
-#        "//source/extensions/filters/network/sip_proxy:decoder_lib",
-#        "//test/test_common:printers_lib",
-#        "//test/test_common:utility_lib",
-#    ],
-#)
+envoy_extension_cc_test(
+    name = "decoder_test",
+    srcs = ["decoder_test.cc"],
+    extension_name = "envoy.filters.network.sip_proxy",
+    deps = [
+        ":mocks",
+        ":utility_lib",
+        "//source/extensions/filters/network/sip_proxy:config",
+        "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
+        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
+        "//source/extensions/filters/network/sip_proxy:decoder_lib",
+        "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
+        "//source/extensions/filters/network/sip_proxy/router:config",
+        "//source/extensions/filters/network/sip_proxy/router:router_interface",
+        "//test/mocks/network:network_mocks",
+        "//test/mocks/server:factory_context_mocks",
+        "//test/test_common:printers_lib",
+        "//test/test_common:utility_lib",
+    ],
+)
 
-#envoy_extension_cc_test(
-#    name = "metadata_test",
-#    srcs = ["metadata_test.cc"],
-#    extension_name = "envoy.filters.network.sip_proxy",
-#    deps = [
-#        "//source/extensions/filters/network/sip_proxy:metadata_lib",
-#        "//test/test_common:printers_lib",
-#        "//test/test_common:utility_lib",
-#    ],
-#)
+envoy_extension_cc_test(
+    name = "metadata_test",
+    srcs = ["metadata_test.cc"],
+    extension_name = "envoy.filters.network.sip_proxy",
+    deps = [
+        "//source/extensions/filters/network/sip_proxy:metadata_lib",
+        "//test/test_common:printers_lib",
+        "//test/test_common:utility_lib",
+    ],
+)
 
-#envoy_extension_cc_test(
-#    name = "router_test",
-#    srcs = ["router_test.cc"],
-#    extension_name = "envoy.filters.network.sip_proxy",
-#    deps = [
-#        ":mocks",
-#        ":utility_lib",
-#        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
-#        "//source/extensions/filters/network/sip_proxy:config",
-#        "//source/extensions/filters/network/sip_proxy/router:config",
-#        "//source/extensions/filters/network/sip_proxy/router:router_lib",
-#        "//test/mocks/network:network_mocks",
-#        "//test/mocks/server:factory_context_mocks",
-#        "//test/mocks/upstream:host_mocks",
-#        "//test/test_common:printers_lib",
-#        "//test/test_common:registry_lib",
-#        "@envoy_api//envoy/extensions/filters/network/sip_proxy/v3:pkg_cc_proto",
-#    ],
-#)
+envoy_extension_cc_test(
+    name = "router_test",
+    srcs = ["router_test.cc"],
+    extension_name = "envoy.filters.network.sip_proxy",
+    deps = [
+        ":mocks",
+        ":utility_lib",
+        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
+        "//source/extensions/filters/network/sip_proxy:config",
+        "//source/extensions/filters/network/sip_proxy/router:config",
+        "//source/extensions/filters/network/sip_proxy/router:router_lib",
+        "//test/mocks/network:network_mocks",
+        "//test/mocks/server:factory_context_mocks",
+        "//test/mocks/upstream:host_mocks",
+        "//test/test_common:printers_lib",
+        "//test/test_common:registry_lib",
+        "@envoy_api//envoy/extensions/filters/network/sip_proxy/v3:pkg_cc_proto",
+    ],
+)
 
 #envoy_extension_cc_test(
 #    name = "router_ratelimit_test",

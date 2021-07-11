@@ -105,7 +105,6 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   if (upstream_request_ != nullptr) {
     return FilterStatus::Continue;
   }
-
   metadata_ = metadata;
   route_ = callbacks_->route();
   if (!route_) {
@@ -153,16 +152,14 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
     if (options->sessionAffinity()) {
       switch (metadata->methodType()) {
-      case SipProxy::MethodType::Invite: {
+      case SipProxy::MethodType::Invite:
         break;
-      }
-      case SipProxy::MethodType::Ack: {
+      case SipProxy::MethodType::Ack: 
         if (metadata->EP().has_value()) {
           auto host = metadata->EP().value();
           metadata->setDestination(host);
         }
         break;
-      }
       default:
         if (metadata->EP().has_value()) {
           auto host = metadata->EP().value();
@@ -281,8 +278,9 @@ const Network::Connection* Router::downstreamConnection() const {
   return nullptr;
 }
 
-void Router::cleanup() { /*upstream_request_.reset();*/
-}
+//Not used
+//void Router::cleanup() { /*upstream_request_.reset();*/
+//}
 
 UpstreamRequest::UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
                                  std::shared_ptr<TransactionInfo> transaction_info)
@@ -382,6 +380,8 @@ void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstShare
   upstream_host_ = host;
 }
 
+/*TODO: not called in current phase */
+/*
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
@@ -415,6 +415,7 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
+*/
 
 SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&& transaction_id) {
   try {

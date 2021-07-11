@@ -52,6 +52,8 @@ public:
   void setTransactionId(absl::string_view data) { transaction_id_ = data; }
 
   void setDestination(absl::string_view destination) { destination_ = destination; }
+  /*only used in UT*/
+  void resetTransactionId() { transaction_id_.reset(); }
 
 private:
   MsgType msg_type_;

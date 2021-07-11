@@ -7,6 +7,7 @@
 
 #include "extensions/filters/network/sip_proxy/config.h"
 #include "extensions/filters/network/sip_proxy/conn_manager.h"
+#include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 
 #include "test/common/stats/stat_test_utility.h"
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
@@ -99,32 +100,202 @@ public:
     filter_->onBelowWriteBufferLowWatermark();
   }
 
-  //  // Return the number of requests actually sent.
-  //  uint32_t sendRequests(uint32_t request_number) {
-  //    for (uint32_t i = 0; i < request_number; i++) {
-  //      writeComplexFramedBinaryMessage(buffer_, MessageType::Call, 0x0F);
-  //      writeComplexFramedBinaryMessage(write_buffer_, MessageType::Reply, 0x0F);
-  //
-  //      SipFilters::DecoderFilterCallbacks* callbacks{};
-  //      ON_CALL(*decoder_filter_, setDecoderFilterCallbacks(_))
-  //          .WillByDefault(
-  //              Invoke([&](SipFilters::DecoderFilterCallbacks& cb) -> void { callbacks = &cb; }));
-  //
-  //      EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  //
-  //      if (!callbacks) {
-  //        return i;
-  //      }
-  //
-  //      FramedTransportImpl transport;
-  //      BinaryProtocolImpl proto;
-  //      callbacks->startUpstreamResponse(transport, proto);
-  //
-  //      EXPECT_CALL(filter_callbacks_.connection_.dispatcher_, deferredDelete_(_));
-  //      EXPECT_EQ(SipFilters::ResponseStatus::Complete, callbacks->upstreamData(write_buffer_));
-  //    }
-  //    return request_number;
-  //  }
+  void encode(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType type) {
+    const std::string yaml = R"EOF(
+stat_prefix: egress
+route_config:
+  name: local_route
+  routes:
+  - match:
+      domain: "test"
+    route:
+      cluster: "test"
+settings:
+  transaction_timeout: 32s
+)EOF";
+    initializeFilter(yaml);
+    MessageMetadata metadata;
+    const MockDirectResponse response;
+    EXPECT_CALL(response, encode(_, _)).WillRepeatedly(Return(type));
+    filter_->sendLocalReply(metadata, response, true);
+  }
+
+void upstreamDataTest() {
+  const std::string yaml = R"EOF(
+stat_prefix: egress
+route_config:
+  name: local_route
+  routes:
+  - match:
+      domain: "test"
+    route:
+      cluster: "test"
+settings:
+  transaction_timeout: 32s
+)EOF";
+  initializeFilter(yaml);
+
+  const std::string SIP_INVITE_WRONG_CONTENT_LENGTH =
+      "INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
+      "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
+      "From: <sip:User.0001@tas01.defult.svc.cluster.local>;tag=1\x0d\x0a"
+      "To: <sip:User.0000@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
+      "CSeq: 1 INVITE\x0d\x0a"
+      "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
+      "Supported: 100rel\x0d\x0a"
+      "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
+      "P-Asserted-Identity: <sip:User.0001@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Allow: UPDATE,INVITE,ACK,CANCEL,BYE,PRACK,REFER,MESSAGE,INFO\x0d\x0a"
+      "Max-Forwards: 70\x0d\x0a"
+      "Content-Type: application/sdp\x0d\x0a"
+      "Content-Length:  300\x0d\x0a"
+      "\x0d\x0a"
+      "v=0\x0d\x0a"
+      "o=PCTEL 256 2 IN IP4 11.0.0.10\x0d\x0a"
+      "c=IN IP4 11.0.0.10\x0d\x0a"
+      "m=audio 4030 RTP/AVP 0 8\x0d\x0a"
+      "a=rtpmap:0 PCMU/8000\x0d\x0a"
+      "a=rtpmap:8 PCMU/8000\x0d\x0a";
+
+  buffer_.add(SIP_INVITE_WRONG_CONTENT_LENGTH);
+
+  //The "Content-Length" is larger to make reassemble do not call complete()
+  filter_->decoder_->reassemble(buffer_);
+  filter_->decoder_->metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  filter_->decoder_->decode();
+  ConnectionManager::ActiveTransPtr trans = std::make_unique<ConnectionManager::ActiveTrans>(*filter_, filter_->decoder_->metadata());
+  trans->startUpstreamResponse();
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //TransportBegin
+  struct MockResponseDecoder_TransportBegin : public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_TransportBegin(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus transportBegin(MessageMetadataSharedPtr) {return FilterStatus::StopIteration;}
+  };
+  MockResponseDecoder_TransportBegin decoder_transportBegin(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_TransportBegin>(decoder_transportBegin);
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //MessageBegin
+  struct MockResponseDecoder_MessageBegin : public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_MessageBegin(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus messageBegin(MessageMetadataSharedPtr) {return FilterStatus::StopIteration;}
+  };
+  MockResponseDecoder_MessageBegin decoder_messageBegin(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_MessageBegin>(decoder_messageBegin);
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //MessageEnd
+  struct MockResponseDecoder_MessageEnd : public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_MessageEnd(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus messageEnd() {return FilterStatus::StopIteration;}
+  };
+  MockResponseDecoder_MessageEnd decoder_messageEnd(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_MessageEnd>(decoder_messageEnd);
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //TransportEnd
+  struct MockResponseDecoder_TransportEnd : public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_TransportEnd(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus transportEnd() {return FilterStatus::StopIteration;}
+  };
+  MockResponseDecoder_TransportEnd decoder_transportEnd(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_TransportEnd>(decoder_transportEnd);
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //AppException
+  struct MockResponseDecoder_AppException: public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_AppException(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus transportBegin(MessageMetadataSharedPtr) {throw AppException(AppExceptionType::ProtocolError, "MockResponseDecoder_AppException");}
+  };
+  MockResponseDecoder_AppException decoder_appException(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_AppException>(decoder_appException);
+  trans->upstreamData(filter_->decoder_->metadata_);
+  EXPECT_EQ(1U, filter_->stats_.response_exception_.value());
+
+  //EnvoyException
+  struct MockResponseDecoder_EnvoyException: public ConnectionManager::ResponseDecoder {
+	  MockResponseDecoder_EnvoyException(ConnectionManager::ActiveTrans& parent) : ConnectionManager::ResponseDecoder(parent) {}
+	  FilterStatus transportBegin(MessageMetadataSharedPtr) {throw EnvoyException("MockResponseDecoder_EnvoyException");}
+  };
+  MockResponseDecoder_EnvoyException decoder_envoyException(*trans);
+  trans->response_decoder_ =  std::make_unique<MockResponseDecoder_EnvoyException>(decoder_envoyException);
+  trans->upstreamData(filter_->decoder_->metadata_);
+
+  //metadata = nullptr
+  std::string transid = trans->transactionId();
+  trans->metadata_ = nullptr;
+ filter_->transactions_.emplace(transid, std::move(trans));
+  filter_->transactions_.at(transid)->upstreamData(filter_->decoder_->metadata_);
+
+  //transportEnd throw envoyException
+  filter_->read_callbacks_->connection().setDelayedCloseTimeout(std::chrono::milliseconds(1));
+  filter_->read_callbacks_->connection().close(Network::ConnectionCloseType::NoFlush);
+  ConnectionManager::ActiveTransPtr trans1 = std::make_unique<ConnectionManager::ActiveTrans>(*filter_, filter_->decoder_->metadata());
+  try {
+    ConnectionManager::ResponseDecoder response_decoder(*trans1);
+    response_decoder.transportEnd();
+  } catch (const EnvoyException& ex) {
+    filter_->stats_.response_exception_.inc();
+    EXPECT_EQ(2U, filter_->stats_.response_exception_.value());
+  }
+
+  //end_stream = false
+  ConnectionManager::ActiveTransPtr trans2 = std::make_unique<ConnectionManager::ActiveTrans>(*filter_, filter_->decoder_->metadata());
+  trans2->sendLocalReply(AppException(AppExceptionType::ProtocolError, "End_stream is false"), false);
+}
+
+void resetAllTransTest(bool local_reset) {
+  //int before = stats_.cx_destroy_local_with_active_rq_;
+  const std::string yaml = R"EOF(
+stat_prefix: egress
+route_config:
+  name: local_route
+  routes:
+  - match:
+      domain: "test"
+    route:
+      cluster: "test"
+settings:
+  transaction_timeout: 32s
+)EOF";
+  initializeFilter(yaml);
+
+  const std::string SIP_ACK_FULL =
+      "ACK sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
+      "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
+      "From: <sip:User.0001@tas01.defult.svc.cluster.local>;tag=1\x0d\x0a"
+      "To: <sip:User.0000@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
+      "CSeq: 1 ACK\x0d\x0a"
+      "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
+      "Supported: 100rel\x0d\x0a"
+      "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
+      "P-Asserted-Identity: <sip:User.0001@tas01.defult.svc.cluster.local>\x0d\x0a"
+      "Allow: UPDATE,INVITE,ACK,CANCEL,BYE,PRACK,REFER,MESSAGE,INFO\x0d\x0a"
+      "Max-Forwards: 70\x0d\x0a"
+      "Content-Type: application/sdp\x0d\x0a"
+      "Content-Length:  127\x0d\x0a"
+      "\x0d\x0a";
+  buffer_.add(SIP_ACK_FULL);
+
+  filter_->decoder_->reassemble(buffer_);
+  filter_->decoder_->metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  filter_->decoder_->decode();
+
+  MessageMetadataSharedPtr metadata = filter_->decoder_->metadata_;
+  std::string&& k = std::string(metadata->transactionId().value()); 
+  ConnectionManager::ActiveTransPtr new_trans = std::make_unique<ConnectionManager::ActiveTrans>(*filter_, metadata);
+  new_trans->createFilterChain(); 
+  filter_->transactions_.emplace(k, std::move(new_trans));
+  filter_->newDecoderEventHandler(metadata);
+  filter_->resetAllTrans(local_reset);
+}
+
+void ActiveTransDecoderFilterTest() {
+	//ConnectionManager::ActiveTransDecoderFilter decode_filter;
+}
 
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_;
@@ -184,6 +355,7 @@ settings:
   buffer_.add(SIP_INVITE_FULL);
 
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+  EXPECT_EQ(filter_->onData(buffer_, true), Network::FilterStatus::StopIteration);
   EXPECT_EQ(1U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
@@ -235,6 +407,26 @@ settings:
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
+TEST_F(SipConnectionManagerTest, SendLocalReply_SuccessReply) {
+  encode(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::SuccessReply);
+}
+
+TEST_F(SipConnectionManagerTest, SendLocalReply_ErrorReply) {
+  encode(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::ErrorReply);
+}
+
+TEST_F(SipConnectionManagerTest, SendLocalReply_Exception) {
+  encode(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::Exception);
+}
+
+
+TEST_F(SipConnectionManagerTest, UpstreamData) {
+  upstreamDataTest();
+}
+
+TEST_F(SipConnectionManagerTest, resetAllTrans) {
+  resetAllTransTest(true);
+}
 // TEST_F(SipConnectionManagerTest, OnDataHandlesSipOneWay) {
 //  initializeFilter();
 //  writeFramedBinaryMessage(buffer_, MessageType::Oneway, 0x0F);

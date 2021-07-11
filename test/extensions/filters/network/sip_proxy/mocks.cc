@@ -40,14 +40,19 @@ MockConfig::~MockConfig() = default;
 //}
 // MockProtocol::~MockProtocol() = default;
 
-// MockDecoderCallbacks::MockDecoderCallbacks() = default;
-// MockDecoderCallbacks::~MockDecoderCallbacks() = default;
+ MockDecoderCallbacks::MockDecoderCallbacks() = default;
+ MockDecoderCallbacks::~MockDecoderCallbacks() = default;
+
+ MockDecoderEventHandler::MockDecoderEventHandler() {
+  ON_CALL(*this, transportBegin(_)).WillByDefault(Return(FilterStatus::Continue));
+  ON_CALL(*this, transportEnd()).WillByDefault(Return(FilterStatus::Continue));
+  ON_CALL(*this, messageBegin(_)).WillByDefault(Return(FilterStatus::Continue));
+  ON_CALL(*this, messageEnd()).WillByDefault(Return(FilterStatus::Continue));
+}
+ MockDecoderEventHandler::~MockDecoderEventHandler() = default;
 //
-// MockDecoderEventHandler::MockDecoderEventHandler() = default;
-// MockDecoderEventHandler::~MockDecoderEventHandler() = default;
-//
-// MockDirectResponse::MockDirectResponse() = default;
-// MockDirectResponse::~MockDirectResponse() = default;
+MockDirectResponse::MockDirectResponse() = default;
+MockDirectResponse::~MockDirectResponse() = default;
 //
 // MockSipObject::MockSipObject() = default;
 // MockSipObject::~MockSipObject() = default;
@@ -82,15 +87,12 @@ MockDecoderFilter::MockDecoderFilter() {
 }
 MockDecoderFilter::~MockDecoderFilter() = default;
 
-// MockDecoderFilterCallbacks::MockDecoderFilterCallbacks() {
-//  route_ = std::make_shared<NiceMock<Router::MockRoute>>();
-//
-//  ON_CALL(*this, streamId()).WillByDefault(Return(stream_id_));
-//  ON_CALL(*this, connection()).WillByDefault(Return(&connection_));
-//  ON_CALL(*this, route()).WillByDefault(Return(route_));
-//  ON_CALL(*this, streamInfo()).WillByDefault(ReturnRef(stream_info_));
-//}
-// MockDecoderFilterCallbacks::~MockDecoderFilterCallbacks() = default;
+ MockDecoderFilterCallbacks::MockDecoderFilterCallbacks() {
+
+  ON_CALL(*this, streamId()).WillByDefault(Return(stream_id_));
+  ON_CALL(*this, transactionInfos()).WillByDefault(Return(transaction_infos_));
+}
+MockDecoderFilterCallbacks::~MockDecoderFilterCallbacks() = default;
 
 MockFilterConfigFactory::MockFilterConfigFactory() : name_("envoy.filters.sip.mock_filter") {
   mock_filter_ = std::make_shared<NiceMock<MockDecoderFilter>>();
@@ -113,7 +115,7 @@ FilterFactoryCb MockFilterConfigFactory::createFilterFactoryFromProto(
 
 } // namespace SipFilters
 //
-// namespace Router {
+namespace Router {
 //
 // MockRateLimitPolicyEntry::MockRateLimitPolicyEntry() {
 //  ON_CALL(*this, disableKey()).WillByDefault(ReturnRef(disable_key_));
@@ -126,17 +128,15 @@ FilterFactoryCb MockFilterConfigFactory::createFilterFactoryFromProto(
 //}
 // MockRateLimitPolicy::~MockRateLimitPolicy() = default;
 //
-// MockRouteEntry::MockRouteEntry() {
-//  ON_CALL(*this, clusterName()).WillByDefault(ReturnRef(cluster_name_));
-//  ON_CALL(*this, rateLimitPolicy()).WillByDefault(ReturnRef(rate_limit_policy_));
-//  ON_CALL(*this, clusterHeader()).WillByDefault(ReturnRef(cluster_header_));
-//}
-// MockRouteEntry::~MockRouteEntry() = default;
-//
-// MockRoute::MockRoute() { ON_CALL(*this, routeEntry()).WillByDefault(Return(&route_entry_)); }
-// MockRoute::~MockRoute() = default;
-//
-//} // namespace Router
+ MockRouteEntry::MockRouteEntry() {
+  ON_CALL(*this, clusterName()).WillByDefault(ReturnRef(cluster_name_));
+}
+ MockRouteEntry::~MockRouteEntry() = default;
+
+ MockRoute::MockRoute() { ON_CALL(*this, routeEntry()).WillByDefault(Return(&route_entry_)); }
+ MockRoute::~MockRoute() = default;
+
+} // namespace Router
 } // namespace SipProxy
 } // namespace NetworkFilters
 } // namespace Extensions
