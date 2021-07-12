@@ -154,7 +154,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       switch (metadata->methodType()) {
       case SipProxy::MethodType::Invite:
         break;
-      case SipProxy::MethodType::Ack: 
+      case SipProxy::MethodType::Ack:
         if (metadata->EP().has_value()) {
           auto host = metadata->EP().value();
           metadata->setDestination(host);
@@ -278,8 +278,8 @@ const Network::Connection* Router::downstreamConnection() const {
   return nullptr;
 }
 
-//Not used
-//void Router::cleanup() { /*upstream_request_.reset();*/
+// Not used
+// void Router::cleanup() { /*upstream_request_.reset();*/
 //}
 
 UpstreamRequest::UpstreamRequest(Tcp::ConnectionPool::Instance& pool,

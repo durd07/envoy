@@ -77,7 +77,7 @@ public:
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override;
 
 private:
-  friend class SipConnectionManagerTest; 
+  friend class SipConnectionManagerTest;
   struct ActiveTrans;
 
   struct ResponseDecoder : public DecoderCallbacks, public DecoderEventHandler {

@@ -110,7 +110,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       ssize_t content_length_end = remaining_data.search(
           "\r\n", strlen("\r\n"), content_length_start + strlen("Content-Length:"), content_pos);
-      /* The "\n\r\n" is alway included in remaining_data, so could not return -1 
+      /* The "\n\r\n" is alway included in remaining_data, so could not return -1
       if (content_length_end == -1) {
         break;
       }
@@ -125,7 +125,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       // Fail if Content-Length is less then zero
       //
-      /* atoi return value >= 0, could not < 0 
+      /* atoi return value >= 0, could not < 0
       if (clen < static_cast<size_t>(0)) {
         break;
       }
@@ -143,13 +143,13 @@ int Decoder::reassemble(Buffer::Instance& data) {
       //
       Buffer::OwnedImpl message{};
       message.move(remaining_data, full_msg_len);
-      /* status not used 
+      /* status not used
       auto status = onDataReady(message);
       */
       onDataReady(message);
       message.drain(message.length());
       full_msg_len = 0;
-      /* no handle for this if 
+      /* no handle for this if
       if (status != FilterStatus::StopIteration) {
         // break;
       }*/
@@ -330,8 +330,7 @@ int Decoder::INVITEHeaderHandler::processRecordRoute(absl::string_view& header) 
 int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
   if (header.find("INVITE") != absl::string_view::npos) {
     metadata()->setRespMethodType(MethodType::Invite);
-  } 
-  else{
+  } else {
     /* need to set a value, else when processRecordRoute,
      *(metadata()->respMethodType() != MethodType::Invite) alway false
      * TODO: need to handle non-invite 200OK
@@ -462,11 +461,11 @@ void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& 
   if (type == HeaderType::Via) {
     handler_->processVia(header);
   }
-/* No need
-  if (type == HeaderType::Contact) {
-    handler_->processContact(header);
-  }
-  */
+  /* No need
+    if (type == HeaderType::Contact) {
+      handler_->processContact(header);
+    }
+    */
 
   if (type == HeaderType::Path) {
     handler_->processPath(header);
@@ -621,7 +620,7 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
 
   if (header_type == HeaderType::TopLine)
     pattern = ".*@(.*?) .*";
-  else if (header_type == HeaderType::Route) 
+  else if (header_type == HeaderType::Route)
     pattern = ".*sip:(.*?)[:;].*";
 
   re2::RE2::FullMatch(sip_header, pattern, &domain);

@@ -10,7 +10,7 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
- TEST(MessageMetadataTest, Fields) {
+TEST(MessageMetadataTest, Fields) {
   MessageMetadata metadata;
 
   metadata.setRespMethodType(MethodType::Invite);
@@ -21,7 +21,6 @@ namespace SipProxy {
 
   metadata.setInsertTagLocation(200);
   EXPECT_EQ(200, metadata.insertTagLocation());
-
 }
 
 } // namespace SipProxy

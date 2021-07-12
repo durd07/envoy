@@ -1,10 +1,9 @@
 #include "common/buffer/buffer_impl.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/decoder.h"
-
 #include "extensions/filters/network/sip_proxy/config.h"
 #include "extensions/filters/network/sip_proxy/conn_manager.h"
+#include "extensions/filters/network/sip_proxy/decoder.h"
 
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
 #include "test/extensions/filters/network/sip_proxy/utility.h"
@@ -38,12 +37,11 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
-
 class TestConfigImpl : public ConfigImpl {
 public:
-  TestConfigImpl(envoy::extensions::filters::network::sip_proxy::v3::SipProxy proto_config, 
-		  Server::Configuration::MockFactoryContext& context, 
-		  SipFilters::DecoderFilterSharedPtr decoder_filter, SipFilterStats& stats)
+  TestConfigImpl(envoy::extensions::filters::network::sip_proxy::v3::SipProxy proto_config,
+                 Server::Configuration::MockFactoryContext& context,
+                 SipFilters::DecoderFilterSharedPtr decoder_filter, SipFilterStats& stats)
       : ConfigImpl(proto_config, context), decoder_filter_(decoder_filter), stats_(stats) {}
 
   // ConfigImpl
@@ -106,7 +104,7 @@ public:
     filter_->onAboveWriteBufferHighWatermark();
     filter_->onBelowWriteBufferLowWatermark();
   }
- 
+
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_;
   Stats::TestUtil::TestStore store_;
@@ -124,7 +122,7 @@ public:
   SipFilters::DecoderFilterSharedPtr custom_filter_;
 };
 
-  const std::string yaml = R"EOF(
+const std::string yaml = R"EOF(
 stat_prefix: egress
 route_config:
   name: local_route
@@ -140,7 +138,7 @@ settings:
 TEST_F(SipDecoderTest, decodeINVITE) {
   initializeFilter(yaml);
 
-   const std::string SIP_INVITE_FULL =
+  const std::string SIP_INVITE_FULL =
       "INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -159,7 +157,7 @@ TEST_F(SipDecoderTest, decodeINVITE) {
   buffer_.add(SIP_INVITE_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_INVITE_EP =
+  const std::string SIP_INVITE_EP =
       "INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -186,7 +184,7 @@ TEST_F(SipDecoderTest, decodeINVITE) {
 TEST_F(SipDecoderTest, decodeCancel) {
   initializeFilter(yaml);
 
-   const std::string SIP_CANCEL_FULL =
+  const std::string SIP_CANCEL_FULL =
       "CANCEL sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -202,7 +200,7 @@ TEST_F(SipDecoderTest, decodeCancel) {
   buffer_.add(SIP_CANCEL_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_CANCEL_VIA_ROUTE =
+  const std::string SIP_CANCEL_VIA_ROUTE =
       "CANCEL sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -224,13 +222,13 @@ TEST_F(SipDecoderTest, decodeCancel) {
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
 
-  //buffer_.move(SIP_CANCEL_FULL);
+  // buffer_.move(SIP_CANCEL_FULL);
 }
 
 TEST_F(SipDecoderTest, decodeRegister) {
   initializeFilter(yaml);
 
-   const std::string SIP_REGISTER_FULL =
+  const std::string SIP_REGISTER_FULL =
       "REGISTER sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -242,7 +240,9 @@ TEST_F(SipDecoderTest, decodeRegister) {
       "Supported: 100rel,timer\x0d\x0a"
       "Content-Length:  0\x0d\x0a"
       "Require: Path\x0d\x0a"
-      "Path: <sip:10.177.8.232;x-fbi=cfed;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip=192.169.110.53;lr;ottag=ue_term;bidx=563242011197570;access-type=ADSL;x-alu-prset-id>\x0d\x0a"
+      "Path: "
+      "<sip:10.177.8.232;x-fbi=cfed;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip=192."
+      "169.110.53;lr;ottag=ue_term;bidx=563242011197570;access-type=ADSL;x-alu-prset-id>\x0d\x0a"
       "Record-Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
       "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
       "\x0d\x0a";
@@ -250,7 +250,7 @@ TEST_F(SipDecoderTest, decodeRegister) {
   buffer_.add(SIP_REGISTER_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_REGISTER_EP=
+  const std::string SIP_REGISTER_EP =
       "REGISTER sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -263,7 +263,9 @@ TEST_F(SipDecoderTest, decodeRegister) {
       "Supported: 100rel,timer\x0d\x0a"
       "Content-Length:  0\x0d\x0a"
       "Require: Path\x0d\x0a"
-      "Path: <sip:10.177.8.232;ep=cfed;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip=192.169.110.53;lr;ottag=ue_term;bidx=563242011197570;access-type=ADSL;x-alu-prset-id>\x0d\x0a"
+      "Path: "
+      "<sip:10.177.8.232;ep=cfed;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip=192.169."
+      "110.53;lr;ottag=ue_term;bidx=563242011197570;access-type=ADSL;x-alu-prset-id>\x0d\x0a"
       "Record-Route: <sip:+16959000000:15306;role=anch;lr;transport=udp;ep=cfed>\x0d\x0a"
       "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
       "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
@@ -276,13 +278,13 @@ TEST_F(SipDecoderTest, decodeRegister) {
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
 
-  //buffer_.move(SIP_REGISTER_FULL);
+  // buffer_.move(SIP_REGISTER_FULL);
 }
 
 TEST_F(SipDecoderTest, decodeOK200) {
   initializeFilter(yaml);
 
-   const std::string SIP_OK200_FULL =
+  const std::string SIP_OK200_FULL =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -295,7 +297,7 @@ TEST_F(SipDecoderTest, decodeOK200) {
   buffer_.add(SIP_OK200_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_OK200_NOT_INVITE =
+  const std::string SIP_OK200_NOT_INVITE =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 BYE\x0d\x0a"
@@ -310,7 +312,7 @@ TEST_F(SipDecoderTest, decodeOK200) {
   buffer_.add(SIP_OK200_NOT_INVITE);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_OK200_EP =
+  const std::string SIP_OK200_EP =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -327,13 +329,13 @@ TEST_F(SipDecoderTest, decodeOK200) {
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
 
-  //buffer_.move(SIP_OK200_FULL);
+  // buffer_.move(SIP_OK200_FULL);
 }
 
 TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
   initializeFilter(yaml);
 
-   const std::string SIP_SUBSCRIBE_FULL =
+  const std::string SIP_SUBSCRIBE_FULL =
       "SUBSCRIBE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -348,8 +350,8 @@ TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
       "\x0d\x0a";
   buffer_.add(SIP_SUBSCRIBE_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-  
-   const std::string SIP_SUBSCRIBE_TAG =
+
+  const std::string SIP_SUBSCRIBE_TAG =
       "SUBSCRIBE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -365,7 +367,7 @@ TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
   buffer_.add(SIP_SUBSCRIBE_TAG);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_SUBSCRIBE_VIA_ROUTE =
+  const std::string SIP_SUBSCRIBE_VIA_ROUTE =
       "SUBSCRIBE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -386,19 +388,16 @@ TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
   EXPECT_EQ(3U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
-  
 }
 
 TEST_F(SipDecoderTest, decodeEMPTY) {
   initializeFilter(yaml);
 
-   const std::string SIP_EMPTY=
-      "\x0d\x0a";
+  const std::string SIP_EMPTY = "\x0d\x0a";
   buffer_.add(SIP_EMPTY);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-
-   const std::string SIP_WRONG_METHOD_TYPE =
+  const std::string SIP_WRONG_METHOD_TYPE =
       "WRONGMETHOD sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -414,7 +413,7 @@ TEST_F(SipDecoderTest, decodeEMPTY) {
 
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_NO_CONTENT_LENGTH =
+  const std::string SIP_NO_CONTENT_LENGTH =
       "ACK sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -429,7 +428,7 @@ TEST_F(SipDecoderTest, decodeEMPTY) {
 
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-   const std::string SIP_CONTENT_LENGTH_ZERO =
+  const std::string SIP_CONTENT_LENGTH_ZERO =
       "ACK sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -453,7 +452,7 @@ TEST_F(SipDecoderTest, decodeEMPTY) {
 TEST_F(SipDecoderTest, decodeACK) {
   initializeFilter(yaml);
 
-   const std::string SIP_ACK_FULL =
+  const std::string SIP_ACK_FULL =
       "ACK sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -476,7 +475,7 @@ TEST_F(SipDecoderTest, decodeACK) {
 TEST_F(SipDecoderTest, decodeBYE) {
   initializeFilter(yaml);
 
-   const std::string SIP_BYE_FULL =
+  const std::string SIP_BYE_FULL =
       "BYE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -499,7 +498,7 @@ TEST_F(SipDecoderTest, decodeBYE) {
 TEST_F(SipDecoderTest, decodeUPDATE) {
   initializeFilter(yaml);
 
-   const std::string SIP_UPDATE_FULL =
+  const std::string SIP_UPDATE_FULL =
       "UPDATE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -522,7 +521,7 @@ TEST_F(SipDecoderTest, decodeUPDATE) {
 TEST_F(SipDecoderTest, decodeREFER) {
   initializeFilter(yaml);
 
-   const std::string SIP_REFER_FULL =
+  const std::string SIP_REFER_FULL =
       "REFER sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -545,7 +544,7 @@ TEST_F(SipDecoderTest, decodeREFER) {
 TEST_F(SipDecoderTest, decodeNOTIFY) {
   initializeFilter(yaml);
 
-   const std::string SIP_NOTIFY_FULL =
+  const std::string SIP_NOTIFY_FULL =
       "NOTIFY sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
@@ -566,7 +565,7 @@ TEST_F(SipDecoderTest, decodeNOTIFY) {
 }
 
 TEST_F(SipDecoderTest, handleState) {
-  MessageMetadataSharedPtr metadata; 
+  MessageMetadataSharedPtr metadata;
   MockDecoderEventHandler handler;
   DecoderStateMachine machine(metadata, handler);
   /* TODO  panic:     not reached

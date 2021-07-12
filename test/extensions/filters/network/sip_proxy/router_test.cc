@@ -43,24 +43,24 @@ namespace Router {
 class SipRouterTestBase {
 public:
   SipRouterTestBase() {}
-  void initializeTrans(bool hasOption=true) {
+  void initializeTrans(bool hasOption = true) {
     if (hasOption == true) {
       const std::string yaml = R"EOF(
 session_affinity: true
 registration_affinity: true
 )EOF";
 
-    envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions config;
-    TestUtility::loadFromYaml(yaml, config);
+      envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions config;
+      TestUtility::loadFromYaml(yaml, config);
 
-    const auto options = std::make_shared<ProtocolOptionsConfigImpl>(config);
-    EXPECT_CALL(*context_.cluster_manager_.thread_local_cluster_.cluster_.info_,
-		    extensionProtocolOptions(_))
-	    .WillRepeatedly(Return(options));
+      const auto options = std::make_shared<ProtocolOptionsConfigImpl>(config);
+      EXPECT_CALL(*context_.cluster_manager_.thread_local_cluster_.cluster_.info_,
+                  extensionProtocolOptions(_))
+          .WillRepeatedly(Return(options));
     }
 
-   transaction_infos_ = std::make_shared<TransactionInfos>();
-	  context_.cluster_manager_.initializeThreadLocalClusters({"cluster"}); 
+    transaction_infos_ = std::make_shared<TransactionInfos>();
+    context_.cluster_manager_.initializeThreadLocalClusters({"cluster"});
   }
 
   void initializeRouter() {
@@ -86,80 +86,79 @@ registration_affinity: true
 
     EXPECT_EQ(nullptr, router_->downstreamConnection());
   }
-/*
-  //void initializeFilter(const std::string& yaml) {
-  void initializeFilter() {
-  const std::string yaml = R"EOF(
-stat_prefix: egress
-route_config:
-  name: local_route
-  routes:
-  - match:
-      domain: "test"
-    route:
-      cluster: "test"
-settings:
-  transaction_timeout: 32s
-)EOF";
+  /*
+    //void initializeFilter(const std::string& yaml) {
+    void initializeFilter() {
+    const std::string yaml = R"EOF(
+  stat_prefix: egress
+  route_config:
+    name: local_route
+    routes:
+    - match:
+        domain: "test"
+      route:
+        cluster: "test"
+  settings:
+    transaction_timeout: 32s
+  )EOF";
 
-    // Destroy any existing filter first.
-    filter_ = nullptr;
+      // Destroy any existing filter first.
+      filter_ = nullptr;
 
-    for (const auto& counter : store_.counters()) {
-      counter->reset();
-    }
+      for (const auto& counter : store_.counters()) {
+        counter->reset();
+      }
 
-    if (yaml.empty()) {
+      if (yaml.empty()) {
+        proto_config_.set_stat_prefix("test");
+      } else {
+        TestUtility::loadFromYaml(yaml, proto_config_);
+        TestUtility::validate(proto_config_);
+      }
+
       proto_config_.set_stat_prefix("test");
-    } else {
-      TestUtility::loadFromYaml(yaml, proto_config_);
-      TestUtility::validate(proto_config_);
+
+      decoder_filter_ = std::make_shared<NiceMock<SipFilters::MockDecoderFilter>>();
+
+      config_ = std::make_unique<TestConfigImpl>(proto_config_, context_, decoder_filter_, stats_);
+      if (custom_filter_) {
+        config_->custom_filter_ = custom_filter_;
+      }
+
+      ON_CALL(random_, random()).WillByDefault(Return(42));
+      filter_ = std::make_unique<ConnectionManager>(
+          *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(),
+          transaction_infos_);
+      filter_->initializeReadFilterCallbacks(filter_callbacks_);
+      filter_->onNewConnection();
+
+      // NOP currently.
+      filter_->onAboveWriteBufferHighWatermark();
+      filter_->onBelowWriteBufferLowWatermark();
     }
+  */
 
-    proto_config_.set_stat_prefix("test");
-
-    decoder_filter_ = std::make_shared<NiceMock<SipFilters::MockDecoderFilter>>();
-
-    config_ = std::make_unique<TestConfigImpl>(proto_config_, context_, decoder_filter_, stats_);
-    if (custom_filter_) {
-      config_->custom_filter_ = custom_filter_;
-    }
-
-    ON_CALL(random_, random()).WillByDefault(Return(42));
-    filter_ = std::make_unique<ConnectionManager>(
-        *config_, random_, filter_callbacks_.connection_.dispatcher_.timeSource(),
-        transaction_infos_);
-    filter_->initializeReadFilterCallbacks(filter_callbacks_);
-    filter_->onNewConnection();
-
-    // NOP currently.
-    filter_->onAboveWriteBufferHighWatermark();
-    filter_->onBelowWriteBufferLowWatermark();
-  }
-*/
-
-  void initializeMetadata(MsgType msg_type, MethodType method = MethodType::Invite, bool set_destination = true) {
+  void initializeMetadata(MsgType msg_type, MethodType method = MethodType::Invite,
+                          bool set_destination = true) {
 
     metadata_ = std::make_shared<MessageMetadata>();
     metadata_->setMethodType(method);
     metadata_->setMsgType(msg_type);
     metadata_->setTransactionId("test");
     if (set_destination) {
-    	metadata_->setDestination("127.0.0.1");
+      metadata_->setDestination("127.0.0.1");
     }
   }
 
   void initializeTransaction() {
     auto transaction_info_ptr = std::make_shared<TransactionInfo>(
-          "test", thread_local_,
-          static_cast<std::chrono::milliseconds>(4));
+        "test", thread_local_, static_cast<std::chrono::milliseconds>(4));
     transaction_info_ptr->init();
     transaction_infos_->emplace(cluster_name_, transaction_info_ptr);
   }
- 
 
   void startRequest(MsgType msg_type, MethodType method = MethodType::Invite) {
-                    //const bool strip_service_name = false)
+    // const bool strip_service_name = false)
     initializeMetadata(msg_type, method);
     EXPECT_EQ(FilterStatus::Continue, router_->transportBegin(metadata_));
 
@@ -188,7 +187,8 @@ settings:
     EXPECT_NE(nullptr, upstream_callbacks_);
   }
 
-  void startRequestWithExistingConnection(MsgType msg_type, MethodType method = MethodType::Invite) {
+  void startRequestWithExistingConnection(MsgType msg_type,
+                                          MethodType method = MethodType::Invite) {
     initializeMetadata(msg_type, method);
     EXPECT_EQ(FilterStatus::Continue, router_->transportBegin({}));
 
@@ -228,8 +228,8 @@ settings:
   NiceMock<Upstream::MockHostDescription>* host_{};
   Tcp::ConnectionPool::ConnectionStatePtr conn_state_;
   Buffer::OwnedImpl buffer_;
-  NiceMock<ThreadLocal::MockInstance> thread_local_;	
-  
+  NiceMock<ThreadLocal::MockInstance> thread_local_;
+
   std::shared_ptr<TransactionInfos> transaction_infos_;
 
   RouteConstSharedPtr route_ptr_;
@@ -270,7 +270,7 @@ TEST_F(SipRouterTest, Audit) {
 
   std::chrono::seconds TIMEOUT{5};
   std::this_thread::sleep_for(TIMEOUT);
-  
+
 } */
 
 TEST_F(SipRouterTest, CallWithNotify) {
@@ -287,7 +287,8 @@ TEST_F(SipRouterTest, CallWithNotify) {
 
   auto& transation_info_ptr = (*transaction_infos_)[cluster_name_];
   EXPECT_NE(nullptr, transation_info_ptr);
-  std::shared_ptr<UpstreamRequest> upstream_request_ptr = transation_info_ptr->getUpstreamRequest("10.0.0.1");
+  std::shared_ptr<UpstreamRequest> upstream_request_ptr =
+      transation_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
   upstream_request_ptr->resetStream();
 
@@ -453,14 +454,14 @@ TEST_F(SipRouterTest, NoHealthyHosts) {
   initializeTransaction();
   initializeMetadata(MsgType::Request);
 
- EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
+  EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
   EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
   EXPECT_CALL(route_entry_, clusterName()).WillOnce(ReturnRef(cluster_name_));
   EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_, tcpConnPool(_, _))
       .WillOnce(Return(nullptr));
 
   EXPECT_CALL(callbacks_, sendLocalReply(_, _))
-        .WillOnce(Invoke([&](const DirectResponse& response, bool end_stream) -> void {
+      .WillOnce(Invoke([&](const DirectResponse& response, bool end_stream) -> void {
         auto& app_ex = dynamic_cast<const AppException&>(response);
         EXPECT_EQ(AppExceptionType::InternalError, app_ex.type_);
         EXPECT_THAT(app_ex.what(), ContainsRegex(".*no healthy upstream.*"));
@@ -477,15 +478,14 @@ TEST_F(SipRouterTest, NoHost) {
   initializeTransaction();
   initializeMetadata(MsgType::Request);
 
- EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
+  EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
   EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
   EXPECT_CALL(route_entry_, clusterName()).WillOnce(ReturnRef(cluster_name_));
 
-
-  EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_, host()).WillOnce(Return(nullptr));
+  EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_, host())
+      .WillOnce(Return(nullptr));
   EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
   destroyRouter();
-
 }
 
 TEST_F(SipRouterTest, NoNewConnection) {
@@ -494,19 +494,16 @@ TEST_F(SipRouterTest, NoNewConnection) {
   initializeTransaction();
   initializeMetadata(MsgType::Request);
 
- EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
+  EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
   EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
   EXPECT_CALL(route_entry_, clusterName()).WillOnce(ReturnRef(cluster_name_));
 
-
   EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_, newConnection(_))
-	  .WillOnce(Return(nullptr));
+      .WillOnce(Return(nullptr));
 
   EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
   destroyRouter();
-
 }
-
 
 TEST_F(SipRouterTest, CallWithExistingConnection) {
   initializeTrans();
@@ -526,19 +523,20 @@ TEST_F(SipRouterTest, PoolFailure) {
   initializeRouter_callback();
   initializeTransaction();
   startRequest(MsgType::Request);
-  //connectUpstream();
+  // connectUpstream();
   context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.poolFailure(
       ConnectionPool::PoolFailureReason::RemoteConnectionFailure);
   completeRequest();
 
   auto& transation_info_ptr = (*transaction_infos_)[cluster_name_];
   EXPECT_NE(nullptr, transation_info_ptr);
-  std::shared_ptr<UpstreamRequest> upstream_request_ptr = transation_info_ptr->getUpstreamRequest("10.0.0.1");
+  std::shared_ptr<UpstreamRequest> upstream_request_ptr =
+      transation_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
 
   EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_, newConnection(_))
-	  .WillOnce(Return(nullptr));
-  upstream_request_ptr->start();  
+      .WillOnce(Return(nullptr));
+  upstream_request_ptr->start();
 }
 
 TEST_F(SipRouterTest, UpstreamCloseMidResponse) {
@@ -550,14 +548,14 @@ TEST_F(SipRouterTest, UpstreamCloseMidResponse) {
 
   upstream_callbacks_->onEvent(Network::ConnectionEvent::LocalClose);
   upstream_callbacks_->onEvent(Network::ConnectionEvent::RemoteClose);
-  //Panic: NOT_REACHED_GCOVR_EXCL_LINE
-  //upstream_callbacks_->onEvent(static_cast<Network::ConnectionEvent>(9999));
+  // Panic: NOT_REACHED_GCOVR_EXCL_LINE
+  // upstream_callbacks_->onEvent(static_cast<Network::ConnectionEvent>(9999));
 }
 
 TEST_F(SipRouterTest, RouteEntryImplBase) {
-  //initializeMetadata(MsgType::Request);
+  // initializeMetadata(MsgType::Request);
   const envoy::extensions::filters::network::sip_proxy::v3::Route route;
-  GeneralRouteEntryImpl *base = new GeneralRouteEntryImpl(route);
+  GeneralRouteEntryImpl* base = new GeneralRouteEntryImpl(route);
   EXPECT_EQ("", base->clusterName());
   EXPECT_EQ(base, base->routeEntry());
 }
@@ -586,15 +584,14 @@ TEST_F(SipRouterTest, RouteMatcher) {
   initializeMetadata(MsgType::Request);
   auto matcher_ptr = std::make_shared<RouteMatcher>(config);
 
-  //Match domain
+  // Match domain
   metadata_->setDomain("A");
   matcher_ptr->route(*metadata_);
 
-  //Not match domain
+  // Not match domain
   metadata_->setDomain("B");
   matcher_ptr->route(*metadata_);
-  
-} 
+}
 
 TEST_F(SipRouterTest, HandlePendingRequest) {
   initializeTrans();
@@ -606,7 +603,8 @@ TEST_F(SipRouterTest, HandlePendingRequest) {
 
   auto& transation_info_ptr = (*transaction_infos_)[cluster_name_];
   EXPECT_NE(nullptr, transation_info_ptr);
-  std::shared_ptr<UpstreamRequest> upstream_request_ptr = transation_info_ptr->getUpstreamRequest("10.0.0.1");
+  std::shared_ptr<UpstreamRequest> upstream_request_ptr =
+      transation_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
   upstream_request_ptr->addIntoPendingRequest(metadata_);
   upstream_request_ptr->onRequestStart();
@@ -623,17 +621,19 @@ TEST_F(SipRouterTest, ResponseDecoderTransportBegin) {
   initializeMetadata(MsgType::Request);
   auto& transation_info_ptr = (*transaction_infos_)[cluster_name_];
   EXPECT_NE(nullptr, transation_info_ptr);
-  std::shared_ptr<UpstreamRequest> upstream_request_ptr = transation_info_ptr->getUpstreamRequest("10.0.0.1");
+  std::shared_ptr<UpstreamRequest> upstream_request_ptr =
+      transation_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
-  std::shared_ptr<ResponseDecoder> response_decoder_ptr = std::make_shared<ResponseDecoder>(*upstream_request_ptr);
+  std::shared_ptr<ResponseDecoder> response_decoder_ptr =
+      std::make_shared<ResponseDecoder>(*upstream_request_ptr);
   response_decoder_ptr->transportBegin(metadata_);
 
- //No active trans
- metadata_->setTransactionId(nullptr);
- response_decoder_ptr->transportBegin(metadata_);
- //No transid 
- metadata_->resetTransactionId();
- response_decoder_ptr->transportBegin(metadata_);
+  // No active trans
+  metadata_->setTransactionId(nullptr);
+  response_decoder_ptr->transportBegin(metadata_);
+  // No transid
+  metadata_->resetTransactionId();
+  response_decoder_ptr->transportBegin(metadata_);
 }
 
 } // namespace Router

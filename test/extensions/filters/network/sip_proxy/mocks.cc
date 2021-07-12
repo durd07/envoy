@@ -40,16 +40,16 @@ MockConfig::~MockConfig() = default;
 //}
 // MockProtocol::~MockProtocol() = default;
 
- MockDecoderCallbacks::MockDecoderCallbacks() = default;
- MockDecoderCallbacks::~MockDecoderCallbacks() = default;
+MockDecoderCallbacks::MockDecoderCallbacks() = default;
+MockDecoderCallbacks::~MockDecoderCallbacks() = default;
 
- MockDecoderEventHandler::MockDecoderEventHandler() {
+MockDecoderEventHandler::MockDecoderEventHandler() {
   ON_CALL(*this, transportBegin(_)).WillByDefault(Return(FilterStatus::Continue));
   ON_CALL(*this, transportEnd()).WillByDefault(Return(FilterStatus::Continue));
   ON_CALL(*this, messageBegin(_)).WillByDefault(Return(FilterStatus::Continue));
   ON_CALL(*this, messageEnd()).WillByDefault(Return(FilterStatus::Continue));
 }
- MockDecoderEventHandler::~MockDecoderEventHandler() = default;
+MockDecoderEventHandler::~MockDecoderEventHandler() = default;
 //
 MockDirectResponse::MockDirectResponse() = default;
 MockDirectResponse::~MockDirectResponse() = default;
@@ -87,7 +87,7 @@ MockDecoderFilter::MockDecoderFilter() {
 }
 MockDecoderFilter::~MockDecoderFilter() = default;
 
- MockDecoderFilterCallbacks::MockDecoderFilterCallbacks() {
+MockDecoderFilterCallbacks::MockDecoderFilterCallbacks() {
 
   ON_CALL(*this, streamId()).WillByDefault(Return(stream_id_));
   ON_CALL(*this, transactionInfos()).WillByDefault(Return(transaction_infos_));
@@ -128,13 +128,13 @@ namespace Router {
 //}
 // MockRateLimitPolicy::~MockRateLimitPolicy() = default;
 //
- MockRouteEntry::MockRouteEntry() {
+MockRouteEntry::MockRouteEntry() {
   ON_CALL(*this, clusterName()).WillByDefault(ReturnRef(cluster_name_));
 }
- MockRouteEntry::~MockRouteEntry() = default;
+MockRouteEntry::~MockRouteEntry() = default;
 
- MockRoute::MockRoute() { ON_CALL(*this, routeEntry()).WillByDefault(Return(&route_entry_)); }
- MockRoute::~MockRoute() = default;
+MockRoute::MockRoute() { ON_CALL(*this, routeEntry()).WillByDefault(Return(&route_entry_)); }
+MockRoute::~MockRoute() = default;
 
 } // namespace Router
 } // namespace SipProxy

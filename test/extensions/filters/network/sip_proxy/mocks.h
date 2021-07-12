@@ -120,8 +120,8 @@ public:
 ////  ProtocolType type_{ProtocolType::Auto};
 ////};
 //
- class MockDecoderEventHandler : public DecoderEventHandler {
- public:
+class MockDecoderEventHandler : public DecoderEventHandler {
+public:
   MockDecoderEventHandler();
   ~MockDecoderEventHandler() override;
 
@@ -132,8 +132,8 @@ public:
   MOCK_METHOD(FilterStatus, messageEnd, ());
 };
 
- class MockDecoderCallbacks : public DecoderCallbacks {
- public:
+class MockDecoderCallbacks : public DecoderCallbacks {
+public:
   MockDecoderCallbacks();
   ~MockDecoderCallbacks() override;
 
@@ -141,14 +141,14 @@ public:
   MOCK_METHOD(DecoderEventHandler&, newDecoderEventHandler, (MessageMetadataSharedPtr));
 };
 
- class MockDirectResponse : public DirectResponse {
- public:
+class MockDirectResponse : public DirectResponse {
+public:
   MockDirectResponse();
   ~MockDirectResponse() override;
 
   // SipProxy::DirectResponse
   MOCK_METHOD(DirectResponse::ResponseType, encode,
-              (MessageMetadata& metadata, Buffer::Instance& buffer), (const));
+              (MessageMetadata & metadata, Buffer::Instance& buffer), (const));
 };
 //
 ////class MockSipObject : public SipObject {
@@ -161,7 +161,7 @@ public:
 ////};
 //
 namespace Router {
- class MockRoute;
+class MockRoute;
 } // namespace Router
 //
 namespace SipFilters {
@@ -212,8 +212,8 @@ public:
   //  MOCK_METHOD(FilterStatus, setEnd, ());
 };
 
- class MockDecoderFilterCallbacks : public DecoderFilterCallbacks {
- public:
+class MockDecoderFilterCallbacks : public DecoderFilterCallbacks {
+public:
   MockDecoderFilterCallbacks();
   ~MockDecoderFilterCallbacks() override;
 
@@ -222,12 +222,12 @@ public:
   MOCK_METHOD(std::string, transactionId, (), (const));
   MOCK_METHOD(const Network::Connection*, connection, (), (const));
   MOCK_METHOD(Router::RouteConstSharedPtr, route, ());
-  //MOCK_METHOD(std::shared_ptr<Router::TransactionInfos>, transaction_infos, ());
-//  MOCK_METHOD(Event::Dispatcher&, dispatcher, ());
-//  MOCK_METHOD(void, continueDecoding, ());
-//  MOCK_METHOD(Router::RouteConstSharedPtr, route, ());
-////  MOCK_METHOD(TransportType, downstreamTransportType, (), (const));
-////  MOCK_METHOD(ProtocolType, downstreamProtocolType, (), (const));
+  // MOCK_METHOD(std::shared_ptr<Router::TransactionInfos>, transaction_infos, ());
+  //  MOCK_METHOD(Event::Dispatcher&, dispatcher, ());
+  //  MOCK_METHOD(void, continueDecoding, ());
+  //  MOCK_METHOD(Router::RouteConstSharedPtr, route, ());
+  ////  MOCK_METHOD(TransportType, downstreamTransportType, (), (const));
+  ////  MOCK_METHOD(ProtocolType, downstreamProtocolType, (), (const));
   MOCK_METHOD(void, sendLocalReply, (const DirectResponse&, bool));
   MOCK_METHOD(void, startUpstreamResponse, ());
   MOCK_METHOD(ResponseStatus, upstreamData, (MessageMetadataSharedPtr));
@@ -243,9 +243,9 @@ public:
   std::string transaction_id_{"test"};
   NiceMock<Network::MockConnection> connection_;
   NiceMock<StreamInfo::MockStreamInfo> stream_info_;
-//  MessageMetadataSharedPtr metadata_;
+  //  MessageMetadataSharedPtr metadata_;
   std::shared_ptr<Router::MockRoute> route_;
-  //using MockTransactionInfos = std::map<std::string, std::shared_ptr<MockTransactionInfo>>;
+  // using MockTransactionInfos = std::map<std::string, std::shared_ptr<MockTransactionInfo>>;
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
 };
 
@@ -274,7 +274,8 @@ private:
 };
 /*
 struct MockResponseDecoder : public ConnectionManager::ResponseDecoder {
-	 FilterStatus messageBegin(MessageMetadataSharedPtr metadata) { return FilterStatus::StopIteration};
+         FilterStatus messageBegin(MessageMetadataSharedPtr metadata) { return
+FilterStatus::StopIteration};
 }
 using MockResponseDecoderPtr = std::unique_ptr<MockResponseDecoder>;
 */
@@ -310,27 +311,27 @@ namespace Router {
 ////  std::vector<std::reference_wrapper<const RateLimitPolicyEntry>> rate_limit_policy_entry_;
 ////};
 //
- class MockRouteEntry : public RouteEntry {
- public:
+class MockRouteEntry : public RouteEntry {
+public:
   MockRouteEntry();
   ~MockRouteEntry() override;
 
-//  // SipProxy::Router::RouteEntry
+  //  // SipProxy::Router::RouteEntry
   MOCK_METHOD(const std::string&, clusterName, (), (const));
   MOCK_METHOD(const Envoy::Router::MetadataMatchCriteria*, metadataMatchCriteria, (), (const));
-//  MOCK_METHOD(const Envoy::Router::TlsContextMatchCriteria*, tlsContextMatchCriteria, (),
-//  (const));
-//  //MOCK_METHOD(RateLimitPolicy&, rateLimitPolicy, (), (const));
-//  MOCK_METHOD(bool, stripServiceName, (), (const));
-//  MOCK_METHOD(const Http::LowerCaseString&, clusterHeader, (), (const));
-//
+  //  MOCK_METHOD(const Envoy::Router::TlsContextMatchCriteria*, tlsContextMatchCriteria, (),
+  //  (const));
+  //  //MOCK_METHOD(RateLimitPolicy&, rateLimitPolicy, (), (const));
+  //  MOCK_METHOD(bool, stripServiceName, (), (const));
+  //  MOCK_METHOD(const Http::LowerCaseString&, clusterHeader, (), (const));
+  //
   std::string cluster_name_{"fake_cluster"};
-//  Http::LowerCaseString cluster_header_{""};
-//  //NiceMock<MockRateLimitPolicy> rate_limit_policy_;
+  //  Http::LowerCaseString cluster_header_{""};
+  //  //NiceMock<MockRateLimitPolicy> rate_limit_policy_;
 };
 //
- class MockRoute : public Route {
- public:
+class MockRoute : public Route {
+public:
   MockRoute();
   ~MockRoute() override;
 

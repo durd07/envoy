@@ -241,9 +241,9 @@ envoy_extension_cc_test(
     deps = [
         ":mocks",
         ":utility_lib",
+        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
         "//source/extensions/filters/network/sip_proxy:config",
         "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
-        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
         "//source/extensions/filters/network/sip_proxy:decoder_lib",
         "//source/extensions/filters/network/sip_proxy/filters:filter_interface",
         "//source/extensions/filters/network/sip_proxy/router:config",
@@ -282,7 +282,6 @@ envoy_extension_cc_test(
         "//test/mocks/upstream:host_mocks",
         "//test/test_common:printers_lib",
         "//test/test_common:registry_lib",
-        "@envoy_api//envoy/extensions/filters/network/sip_proxy/v3:pkg_cc_proto",
     ],
 )
 
