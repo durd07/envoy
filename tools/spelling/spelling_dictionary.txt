@@ -35,6 +35,7 @@ HEXDIG
 HEXDIGIT
 OWS
 Preconnecting
+RCVBUF
 RTCP
 RTP
 SCTP
@@ -446,6 +447,8 @@ benchmarked
 bidi
 bignum
 bitfield
+bitmask
+bitmasks
 bitset
 bitwise
 blackhole
@@ -682,6 +685,7 @@ hackery
 hacky
 handshaker
 hardcoded
+hardcodes
 hardcoding
 hasher
 hashtagging
@@ -797,6 +801,7 @@ megamiss
 mem
 memcmp
 memcpy
+memoize
 mergeable
 messagename
 metadata
@@ -937,6 +942,8 @@ preorder
 prepend
 prepended
 prepends
+preresolve
+preresolved
 prev
 probabilistically
 proc
@@ -1244,6 +1251,7 @@ virtualize
 vptr
 wakeup
 wakeups
+wamr
 wasmtime
 websocket
 wepoll
