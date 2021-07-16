@@ -6,7 +6,7 @@
 
 #include "envoy/router/router.h"
 
-#include "extensions/filters/network/sip_proxy/metadata.h"
+#include "source/extensions/filters/network/sip_proxy/metadata.h"
 
 namespace Envoy {
 namespace Extensions {

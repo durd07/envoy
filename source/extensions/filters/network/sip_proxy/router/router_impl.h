@@ -11,15 +11,16 @@
 #include "envoy/tcp/conn_pool.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/load_balancer.h"
+#include "envoy/upstream/thread_local_cluster.h"
 
-#include "common/common/logger.h"
-#include "common/http/header_utility.h"
-#include "common/upstream/load_balancer_impl.h"
+#include "source/common/common/logger.h"
+#include "source/common/http/header_utility.h"
+#include "source/common/upstream/load_balancer_impl.h"
 
-#include "extensions/filters/network/sip_proxy/conn_manager.h"
-#include "extensions/filters/network/sip_proxy/decoder_events.h"
-#include "extensions/filters/network/sip_proxy/filters/filter.h"
-#include "extensions/filters/network/sip_proxy/router/router.h"
+#include "source/extensions/filters/network/sip_proxy/conn_manager.h"
+#include "source/extensions/filters/network/sip_proxy/decoder_events.h"
+#include "source/extensions/filters/network/sip_proxy/filters/filter.h"
+#include "source/extensions/filters/network/sip_proxy/router/router.h"
 
 #include "absl/types/optional.h"
 
@@ -331,18 +332,17 @@ class UpstreamRequest : public Tcp::ConnectionPool::Callbacks,
                         public std::enable_shared_from_this<UpstreamRequest>,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
-  UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
-                  std::shared_ptr<TransactionInfo> transaction_info);
+  UpstreamRequest(Upstream::TcpPoolData& pool_data, std::shared_ptr<TransactionInfo> transaction_info);
   ~UpstreamRequest() override;
   FilterStatus start();
   void resetStream();
   void releaseConnection(bool close);
 
   SipFilters::DecoderFilterCallbacks* getTransaction(std::string&& transaction_id);
-  std::shared_ptr<Tcp::ConnectionPool::ConnectionData> connData() { return conn_data_; }
 
   // Tcp::ConnectionPool::Callbacks
   void onPoolFailure(ConnectionPool::PoolFailureReason reason,
+                     absl::string_view transport_failure_reason,
                      Upstream::HostDescriptionConstSharedPtr host) override;
   void onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn,
                    Upstream::HostDescriptionConstSharedPtr host) override;
@@ -380,10 +380,10 @@ public:
   }
 
 private:
-  Tcp::ConnectionPool::Instance& conn_pool_;
+  Upstream::TcpPoolData& conn_pool_data_;
 
   Tcp::ConnectionPool::Cancellable* conn_pool_handle_{};
-  std::shared_ptr<Tcp::ConnectionPool::ConnectionData> conn_data_;
+  Tcp::ConnectionPool::ConnectionDataPtr conn_data_;
   Upstream::HostDescriptionConstSharedPtr upstream_host_;
   ConnectionState conn_state_{ConnectionState::NotConnected};
 

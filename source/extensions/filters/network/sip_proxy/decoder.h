@@ -2,12 +2,12 @@
 
 #include "envoy/buffer/buffer.h"
 
-#include "common/buffer/buffer_impl.h"
-#include "common/common/assert.h"
-#include "common/common/logger.h"
+#include "source/common/buffer/buffer_impl.h"
+#include "source/common/common/assert.h"
+#include "source/common/common/logger.h"
 
-#include "extensions/filters/network/sip_proxy/filters/filter.h"
-#include "extensions/filters/network/sip_proxy/protocol.h"
+#include "source/extensions/filters/network/sip_proxy/filters/filter.h"
+#include "source/extensions/filters/network/sip_proxy/protocol.h"
 
 namespace Envoy {
 namespace Extensions {

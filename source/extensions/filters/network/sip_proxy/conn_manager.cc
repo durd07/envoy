@@ -1,11 +1,11 @@
-#include "extensions/filters/network/sip_proxy/conn_manager.h"
+#include "source/extensions/filters/network/sip_proxy/conn_manager.h"
 
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
 
-#include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/encoder.h"
-#include "extensions/filters/network/sip_proxy/protocol.h"
+#include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
+#include "source/extensions/filters/network/sip_proxy/encoder.h"
+#include "source/extensions/filters/network/sip_proxy/protocol.h"
 
 namespace Envoy {
 namespace Extensions {

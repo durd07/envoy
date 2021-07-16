@@ -2,9 +2,9 @@
 
 #include "envoy/common/exception.h"
 
-#include "extensions/filters/network/sip_proxy/metadata.h"
-#include "extensions/filters/network/sip_proxy/protocol.h"
-#include "extensions/filters/network/sip_proxy/sip.h"
+#include "source/extensions/filters/network/sip_proxy/metadata.h"
+#include "source/extensions/filters/network/sip_proxy/protocol.h"
+#include "source/extensions/filters/network/sip_proxy/sip.h"
 
 namespace Envoy {
 namespace Extensions {

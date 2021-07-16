@@ -1,19 +1,18 @@
-#include "extensions/filters/network/sip_proxy/router/router_impl.h"
+#include "source/extensions/filters/network/sip_proxy/router/router_impl.h"
 
 #include <memory>
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
-#include "envoy/upstream/thread_local_cluster.h"
 
-#include "common/common/logger.h"
-#include "common/common/utility.h"
-#include "common/network/address_impl.h"
-#include "common/router/metadatamatchcriteria_impl.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
+#include "source/common/network/address_impl.h"
+#include "source/common/router/metadatamatchcriteria_impl.h"
 
-#include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/encoder.h"
-#include "extensions/filters/network/well_known_names.h"
+#include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
+#include "source/extensions/filters/network/sip_proxy/encoder.h"
+#include "source/extensions/filters/network/well_known_names.h"
 
 #include "absl/strings/match.h"
 
@@ -177,8 +176,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    Tcp::ConnectionPool::Instance* conn_pool =
-        cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+    auto conn_pool = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
       stats_.no_healthy_upstream_.inc();
       callbacks_->sendLocalReply(
@@ -282,10 +280,8 @@ const Network::Connection* Router::downstreamConnection() const {
 // void Router::cleanup() { /*upstream_request_.reset();*/
 //}
 
-UpstreamRequest::UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
-                                 std::shared_ptr<TransactionInfo> transaction_info)
-    : conn_pool_(pool), transaction_info_(transaction_info), /*request_complete_(false),*/
-      /*response_started_(false),*/ response_complete_(false) {}
+UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool_data, std::shared_ptr<TransactionInfo> transaction_info)
+      : conn_pool_data_(pool_data), transaction_info_(transaction_info), response_complete_(false) {}
 
 UpstreamRequest::~UpstreamRequest() {
   if (conn_pool_handle_) {
@@ -298,10 +294,10 @@ FilterStatus UpstreamRequest::start() {
     return FilterStatus::Continue;
   }
 
-  ENVOY_LOG(info, "connecting {}", conn_pool_.host()->address()->asString());
+  ENVOY_LOG(info, "connecting {}", conn_pool_data_.host()->address()->asString());
   conn_state_ = ConnectionState::Connecting;
 
-  Tcp::ConnectionPool::Cancellable* handle = conn_pool_.newConnection(*this);
+  Tcp::ConnectionPool::Cancellable* handle = conn_pool_data_.newConnection(*this);
   if (handle) {
     // Pause while we wait for a connection.
     conn_pool_handle_ = handle;
@@ -334,7 +330,8 @@ void UpstreamRequest::releaseConnection(const bool close) {
 void UpstreamRequest::resetStream() { releaseConnection(true); }
 
 void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
-                                    Upstream::HostDescriptionConstSharedPtr host) {
+                     absl::string_view,
+                     Upstream::HostDescriptionConstSharedPtr host) {
   ENVOY_LOG(info, "on pool failure");
   conn_state_ = ConnectionState::NotConnected;
   conn_pool_handle_ = nullptr;

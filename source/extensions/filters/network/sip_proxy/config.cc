@@ -1,4 +1,4 @@
-#include "extensions/filters/network/sip_proxy/config.h"
+#include "source/extensions/filters/network/sip_proxy/config.h"
 
 #include <string>
 
@@ -7,13 +7,13 @@
 #include "envoy/network/connection.h"
 #include "envoy/registry/registry.h"
 
-#include "common/config/utility.h"
+#include "source/common/config/utility.h"
 
-#include "extensions/filters/network/sip_proxy/decoder.h"
-#include "extensions/filters/network/sip_proxy/filters/filter_config.h"
-#include "extensions/filters/network/sip_proxy/filters/well_known_names.h"
-#include "extensions/filters/network/sip_proxy/router/router_impl.h"
-#include "extensions/filters/network/sip_proxy/stats.h"
+#include "source/extensions/filters/network/sip_proxy/decoder.h"
+#include "source/extensions/filters/network/sip_proxy/filters/filter_config.h"
+#include "source/extensions/filters/network/sip_proxy/filters/well_known_names.h"
+#include "source/extensions/filters/network/sip_proxy/router/router_impl.h"
+#include "source/extensions/filters/network/sip_proxy/stats.h"
 
 namespace Envoy {
 namespace Extensions {

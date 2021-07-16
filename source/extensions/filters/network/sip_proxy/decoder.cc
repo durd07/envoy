@@ -1,11 +1,11 @@
-#include "extensions/filters/network/sip_proxy/decoder.h"
+#include "source/extensions/filters/network/sip_proxy/decoder.h"
 
 #include "envoy/common/exception.h"
 
-#include "common/common/assert.h"
-#include "common/common/macros.h"
+#include "source/common/common/assert.h"
+#include "source/common/common/macros.h"
 
-#include "extensions/filters/network/sip_proxy/app_exception_impl.h"
+#include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 
 #include "re2/re2.h"
 
@@ -618,12 +618,13 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
   std::string domain = "";
   std::string pattern = "";
 
-  if (header_type == HeaderType::TopLine)
+  if (header_type == HeaderType::TopLine) {
     pattern = ".*@(.*?) .*";
-  else if (header_type == HeaderType::Route)
+  } else if (header_type == HeaderType::Route) {
     pattern = ".*sip:(.*?)[:;].*";
+  }
 
-  re2::RE2::FullMatch(sip_header, pattern, &domain);
+  re2::RE2::FullMatch(static_cast<std::string>(sip_header), pattern, &domain);
   return sip_header.substr(sip_header.find(domain), domain.length());
 }
 

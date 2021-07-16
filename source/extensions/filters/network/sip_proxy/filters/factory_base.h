@@ -1,8 +1,8 @@
 #pragma once
 
-#include "common/protobuf/utility.h"
+#include "source/common/protobuf/utility.h"
 
-#include "extensions/filters/network/sip_proxy/filters/filter_config.h"
+#include "source/extensions/filters/network/sip_proxy/filters/filter_config.h"
 
 namespace Envoy {
 namespace Extensions {

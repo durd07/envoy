@@ -17,7 +17,7 @@ envoy_extension_cc_mock(
     name = "mocks",
     srcs = ["mocks.cc"],
     hdrs = ["mocks.h"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         "//source/extensions/filters/network/sip_proxy:conn_manager_lib",
         "//source/extensions/filters/network/sip_proxy:protocol_interface",
@@ -50,7 +50,7 @@ envoy_extension_cc_mock(
 envoy_extension_cc_test_library(
     name = "utility_lib",
     hdrs = ["utility.h"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         "//source/common/buffer:buffer_lib",
         "//source/common/common:byte_order_lib",
@@ -203,7 +203,7 @@ envoy_extension_cc_test_library(
 envoy_extension_cc_test(
     name = "config_test",
     srcs = ["config_test.cc"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         ":mocks",
         "//source/extensions/filters/network/sip_proxy:config",
@@ -217,7 +217,7 @@ envoy_extension_cc_test(
 envoy_extension_cc_test(
     name = "conn_manager_test",
     srcs = ["conn_manager_test.cc"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         ":mocks",
         ":utility_lib",
@@ -237,7 +237,7 @@ envoy_extension_cc_test(
 envoy_extension_cc_test(
     name = "decoder_test",
     srcs = ["decoder_test.cc"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         ":mocks",
         ":utility_lib",
@@ -258,7 +258,7 @@ envoy_extension_cc_test(
 envoy_extension_cc_test(
     name = "metadata_test",
     srcs = ["metadata_test.cc"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         "//source/extensions/filters/network/sip_proxy:metadata_lib",
         "//test/test_common:printers_lib",
@@ -269,7 +269,7 @@ envoy_extension_cc_test(
 envoy_extension_cc_test(
     name = "router_test",
     srcs = ["router_test.cc"],
-    extension_name = "envoy.filters.network.sip_proxy",
+    extension_names = ["envoy.filters.network.sip_proxy"],
     deps = [
         ":mocks",
         ":utility_lib",

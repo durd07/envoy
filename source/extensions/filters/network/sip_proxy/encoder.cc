@@ -1,4 +1,4 @@
-#include "extensions/filters/network/sip_proxy/encoder.h"
+#include "source/extensions/filters/network/sip_proxy/encoder.h"
 
 namespace Envoy {
 namespace Extensions {

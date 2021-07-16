@@ -13,11 +13,9 @@ envoy_cc_extension(
     name = "config",
     srcs = ["config.cc"],
     hdrs = ["config.h"],
-    category = "envoy.sip_proxy.filters",
-    security_posture = "requires_trusted_downstream_and_upstream",
     deps = [
         ":router_lib",
-        "//include/envoy/registry",
+        "//envoy/registry",
         "//source/extensions/filters/network/sip_proxy/filters:factory_base_lib",
         "//source/extensions/filters/network/sip_proxy/filters:filter_config_interface",
         "//source/extensions/filters/network/sip_proxy/filters:well_known_names",
@@ -30,7 +28,7 @@ envoy_cc_library(
     hdrs = ["router.h"],
     external_deps = ["abseil_optional"],
     deps = [
-        "//include/envoy/router:router_interface",
+        "//envoy/router:router_interface",
         "//source/extensions/filters/network/sip_proxy:metadata_lib",
     ],
 )
@@ -41,10 +39,10 @@ envoy_cc_library(
     hdrs = ["router_impl.h"],
     deps = [
         ":router_interface",
-        "//include/envoy/tcp:conn_pool_interface",
-        "//include/envoy/upstream:cluster_manager_interface",
-        "//include/envoy/upstream:load_balancer_interface",
-        "//include/envoy/upstream:thread_local_cluster_interface",
+        "//envoy/tcp:conn_pool_interface",
+        "//envoy/upstream:cluster_manager_interface",
+        "//envoy/upstream:load_balancer_interface",
+        "//envoy/upstream:thread_local_cluster_interface",
         "//source/common/common:logger_lib",
         "//source/common/http:header_utility_lib",
         "//source/common/router:metadatamatchcriteria_lib",

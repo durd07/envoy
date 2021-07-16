@@ -2,8 +2,8 @@
 
 #include "envoy/buffer/buffer.h"
 
-#include "extensions/filters/network/sip_proxy/conn_state.h"
-#include "extensions/filters/network/sip_proxy/metadata.h"
+#include "source/extensions/filters/network/sip_proxy/conn_state.h"
+#include "source/extensions/filters/network/sip_proxy/metadata.h"
 
 namespace Envoy {
 namespace Extensions {
