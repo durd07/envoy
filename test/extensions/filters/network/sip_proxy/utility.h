@@ -4,10 +4,10 @@
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.h"
 
-#include "common/buffer/buffer_impl.h"
-#include "common/common/byte_order.h"
+#include "source/common/buffer/buffer_impl.h"
+#include "source/common/common/byte_order.h"
 
-#include "extensions/filters/network/sip_proxy/sip.h"
+#include "source/extensions/filters/network/sip_proxy/sip.h"
 
 #include "test/common/buffer/utility.h"
 

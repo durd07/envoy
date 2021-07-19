@@ -110,7 +110,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       ssize_t content_length_end = remaining_data.search(
           "\r\n", strlen("\r\n"), content_length_start + strlen("Content-Length:"), content_pos);
-      /* The "\n\r\n" is alway included in remaining_data, so could not return -1
+      /* The "\n\r\n" is always included in remaining_data, so could not return -1
       if (content_length_end == -1) {
         break;
       }
@@ -332,7 +332,7 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
     metadata()->setRespMethodType(MethodType::Invite);
   } else {
     /* need to set a value, else when processRecordRoute,
-     *(metadata()->respMethodType() != MethodType::Invite) alway false
+     *(metadata()->respMethodType() != MethodType::Invite) always false
      * TODO: need to handle non-invite 200OK
      */
     metadata()->setRespMethodType(MethodType::NullMethod);

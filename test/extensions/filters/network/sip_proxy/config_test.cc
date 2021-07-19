@@ -3,8 +3,8 @@
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.validate.h"
 
-#include "extensions/filters/network/sip_proxy/config.h"
-#include "extensions/filters/network/sip_proxy/filters/factory_base.h"
+#include "source/extensions/filters/network/sip_proxy/config.h"
+#include "source/extensions/filters/network/sip_proxy/filters/factory_base.h"
 
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
 #include "test/mocks/server/factory_context.h"

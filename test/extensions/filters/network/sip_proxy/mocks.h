@@ -2,13 +2,13 @@
 
 #include "envoy/router/router.h"
 
-#include "extensions/filters/network/sip_proxy/conn_manager.h"
-#include "extensions/filters/network/sip_proxy/conn_state.h"
-#include "extensions/filters/network/sip_proxy/filters/factory_base.h"
-#include "extensions/filters/network/sip_proxy/filters/filter.h"
-#include "extensions/filters/network/sip_proxy/metadata.h"
-#include "extensions/filters/network/sip_proxy/protocol.h"
-#include "extensions/filters/network/sip_proxy/router/router.h"
+#include "source/extensions/filters/network/sip_proxy/conn_manager.h"
+#include "source/extensions/filters/network/sip_proxy/conn_state.h"
+#include "source/extensions/filters/network/sip_proxy/filters/factory_base.h"
+#include "source/extensions/filters/network/sip_proxy/filters/filter.h"
+#include "source/extensions/filters/network/sip_proxy/metadata.h"
+#include "source/extensions/filters/network/sip_proxy/protocol.h"
+#include "source/extensions/filters/network/sip_proxy/router/router.h"
 
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/stream_info/mocks.h"

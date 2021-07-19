@@ -1,7 +1,7 @@
 #include <memory>
 #include <string>
 
-#include "extensions/filters/network/sip_proxy/filters/pass_through_filter.h"
+#include "source/extensions/filters/network/sip_proxy/filters/pass_through_filter.h"
 
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
 #include "test/test_common/printers.h"

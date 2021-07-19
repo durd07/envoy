@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "extensions/filters/network/sip_proxy/sip.h"
+#include "source/extensions/filters/network/sip_proxy/sip.h"
 
 #include "test/integration/integration.h"
 

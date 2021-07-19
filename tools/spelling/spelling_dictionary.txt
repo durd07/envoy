@@ -33,6 +33,7 @@ ENOTCONN
 EPIPE
 HEXDIG
 HEXDIGIT
+Infos
 OWS
 Preconnecting
 RCVBUF
@@ -123,6 +124,7 @@ FQDN
 FREEBIND
 FUZZER
 FUZZERS
+clen
 ep
 guarddog
 GC
@@ -719,6 +721,7 @@ indices
 inflater
 inflight
 -ing
+infos
 init
 initializer
 initializers
@@ -816,6 +819,7 @@ misconfigured
 mixin
 mkdir
 mmap
+mmc
 mmsg
 mmsghdr
 mongo

@@ -1,6 +1,6 @@
 #include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 
-#include "extensions/filters/network/sip_proxy/buffer_helper.h"
+#include "source/extensions/filters/network/sip_proxy/buffer_helper.h"
 
 #include "test/extensions/filters/network/sip_proxy/integration.h"
 #include "test/extensions/filters/network/sip_proxy/utility.h"

@@ -1,9 +1,9 @@
-#include "common/buffer/buffer_impl.h"
+#include "source/common/buffer/buffer_impl.h"
 
-#include "extensions/filters/network/sip_proxy/app_exception_impl.h"
-#include "extensions/filters/network/sip_proxy/config.h"
-#include "extensions/filters/network/sip_proxy/conn_manager.h"
-#include "extensions/filters/network/sip_proxy/decoder.h"
+#include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
+#include "source/extensions/filters/network/sip_proxy/config.h"
+#include "source/extensions/filters/network/sip_proxy/conn_manager.h"
+#include "source/extensions/filters/network/sip_proxy/decoder.h"
 
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
 #include "test/extensions/filters/network/sip_proxy/utility.h"

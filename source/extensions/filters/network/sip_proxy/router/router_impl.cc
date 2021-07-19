@@ -176,8 +176,8 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    auto conn_pool = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
-    if (!conn_pool) {
+    auto pool_data = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+    if (!pool_data) {
       stats_.no_healthy_upstream_.inc();
       callbacks_->sendLocalReply(
           AppException(AppExceptionType::InternalError,
@@ -188,7 +188,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
     ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
 
-    Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
+    Upstream::HostDescriptionConstSharedPtr host = pool_data->host();
     if (!host) {
       return FilterStatus::StopIteration;
     }
@@ -207,7 +207,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
                                             callbacks_, upstream_request_);
       }
     } else {
-      upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
+      upstream_request_ = std::make_shared<UpstreamRequest>(*pool_data, transaction_info);
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
       transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(),
                                               upstream_request_);

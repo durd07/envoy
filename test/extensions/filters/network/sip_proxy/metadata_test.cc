@@ -1,4 +1,4 @@
-#include "extensions/filters/network/sip_proxy/metadata.h"
+#include "source/extensions/filters/network/sip_proxy/metadata.h"
 
 #include "test/test_common/printers.h"
 #include "test/test_common/utility.h"
@@ -16,11 +16,11 @@ TEST(MessageMetadataTest, Fields) {
   metadata.setRespMethodType(MethodType::Invite);
   EXPECT_EQ(MethodType::Invite, metadata.respMethodType());
 
-  metadata.setInsertEPLocation(100);
-  EXPECT_EQ(100, metadata.insertEPLocation());
+  metadata.setInsertEPLocation(100u);
+  EXPECT_EQ(100u, metadata.insertEPLocation());
 
-  metadata.setInsertTagLocation(200);
-  EXPECT_EQ(200, metadata.insertTagLocation());
+  metadata.setInsertTagLocation(200u);
+  EXPECT_EQ(200u, metadata.insertTagLocation());
 }
 
 } // namespace SipProxy
