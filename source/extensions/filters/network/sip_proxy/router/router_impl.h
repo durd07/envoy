@@ -52,6 +52,7 @@ protected:
   bool headersMatch(const Http::HeaderMap& headers) const;
 
 private:
+  /* Not used
   class DynamicRouteEntry : public RouteEntry, public Route {
   public:
     DynamicRouteEntry(const RouteEntryImplBase& parent, absl::string_view cluster_name)
@@ -69,7 +70,7 @@ private:
   private:
     const RouteEntryImplBase& parent_;
     const std::string cluster_name_;
-  };
+  }; */
 
   const std::string cluster_name_;
   Envoy::Router::MetadataMatchCriteriaConstPtr metadata_match_criteria_;
@@ -142,8 +143,8 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
                              std::chrono::milliseconds transaction_timeout)
       : parent_(parent), dispatcher_(dispatcher),
-        audit_timer_(dispatcher.createTimer([this]() -> void { auditTimerAction(); })),
         transaction_timeout_(transaction_timeout) {
+    audit_timer_ = dispatcher.createTimer([this]() -> void { auditTimerAction(); });
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
   absl::flat_hash_map<std::string, std::shared_ptr<TransactionInfoItem>> transaction_info_map_{};
@@ -169,11 +170,14 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
         // transaction_info_map_.erase(it++);
       }
 
+      ++it;
+      /* In single thread, this condition should be cover in line 160
+       * And Envoy should be single thread
       if (it->second->deleted()) {
         transaction_info_map_.erase(it++);
       } else {
         ++it;
-      }
+      }*/
     }
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
@@ -371,6 +375,7 @@ public:
   }
 
   ConnectionState connectionState() { return conn_state_; }
+  void setConnectionState(ConnectionState state) { conn_state_ = state; }
   void write(Buffer::Instance& data, bool end_stream) {
     return conn_data_->connection().write(data, end_stream);
   }

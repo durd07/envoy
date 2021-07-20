@@ -77,6 +77,7 @@ public:
   void setCurrentState(State state) { state_ = state; }
 
 private:
+  friend class SipDecoderTest;
   struct DecoderStatus {
     DecoderStatus(State next_state) : next_state_(next_state){};
     DecoderStatus(State next_state, FilterStatus filter_status)
@@ -138,6 +139,7 @@ protected:
 
 private:
   friend class SipConnectionManagerTest;
+  friend class SipDecoderTest;
   struct ActiveRequest {
     ActiveRequest(DecoderEventHandler& handler) : handler_(handler) {}
 

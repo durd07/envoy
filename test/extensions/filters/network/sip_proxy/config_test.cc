@@ -169,15 +169,6 @@ registration_affinity: true
   EXPECT_EQ(true, options->sessionAffinity());
   EXPECT_EQ(true, options->registrationAffinity());
 }
-/*
-TEST_F(SipFilterConfigTest, createFilterChain) {
-  SipFilters::FilterChainFactoryCallbacks callbacks;
-  envoy::extensions::filters::network::sip_proxy::v3::SipProxy proto_config_;
-  NiceMock<Server::Configuration::MockFactoryContext> context_;
-  ConfigImpl configImpl_(proto_config_m, context_);
-  configImpl_.createFilterChain(callbacks);
-}
-*/
 
 } // namespace SipProxy
 } // namespace NetworkFilters

@@ -60,17 +60,17 @@ envoy_extension_cc_test_library(
     ],
 )
 
-#envoy_extension_cc_test(
-#    name = "app_exception_impl_test",
-#    srcs = ["app_exception_impl_test.cc"],
-#    extension_name = "envoy.filters.network.sip_proxy",
-#    deps = [
-#        ":mocks",
-#        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
-#        "//test/test_common:printers_lib",
-#        "//test/test_common:utility_lib",
-#    ],
-#)
+envoy_extension_cc_test(
+    name = "app_exception_impl_test",
+    srcs = ["app_exception_impl_test.cc"],
+    extension_names = ["envoy.filters.network.sip_proxy"],
+    deps = [
+        ":mocks",
+        "//source/extensions/filters/network/sip_proxy:app_exception_lib",
+        "//test/test_common:printers_lib",
+        "//test/test_common:utility_lib",
+    ],
+)
 
 #envoy_extension_cc_test(
 #    name = "buffer_helper_test",

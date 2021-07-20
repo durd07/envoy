@@ -223,7 +223,7 @@ public:
   MOCK_METHOD(const Network::Connection*, connection, (), (const));
   MOCK_METHOD(Router::RouteConstSharedPtr, route, ());
   // MOCK_METHOD(std::shared_ptr<Router::TransactionInfos>, transaction_infos, ());
-  //  MOCK_METHOD(Event::Dispatcher&, dispatcher, ());
+  MOCK_METHOD(Event::Dispatcher&, dispatcher, ());
   //  MOCK_METHOD(void, continueDecoding, ());
   //  MOCK_METHOD(Router::RouteConstSharedPtr, route, ());
   ////  MOCK_METHOD(TransportType, downstreamTransportType, (), (const));
@@ -272,13 +272,6 @@ private:
   std::shared_ptr<MockDecoderFilter> mock_filter_;
   const std::string name_;
 };
-/*
-struct MockResponseDecoder : public ConnectionManager::ResponseDecoder {
-         FilterStatus messageBegin(MessageMetadataSharedPtr metadata) { return
-FilterStatus::StopIteration};
-}
-using MockResponseDecoderPtr = std::unique_ptr<MockResponseDecoder>;
-*/
 
 } // namespace SipFilters
 //

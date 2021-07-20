@@ -565,9 +565,10 @@ int Decoder::decode() {
 
   while (!msg.empty()) {
     std::string::size_type crlf = msg.find("\r\n");
+    /* After message reassemble, this condition could not be true
     if (crlf == absl::string_view::npos) {
       break;
-    }
+    }*/
 
     if (current_header_ == HeaderType::TopLine) {
       // Sip Request Line
@@ -618,10 +619,15 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
   std::string domain = "";
   std::string pattern = "";
 
-  if (header_type == HeaderType::TopLine) {
+  switch (header_type) {
+  case HeaderType::TopLine:
     pattern = ".*@(.*?) .*";
-  } else if (header_type == HeaderType::Route) {
+    break;
+  case HeaderType::Route:
     pattern = ".*sip:(.*?)[:;].*";
+    break;
+  default:
+    NOT_REACHED_GCOVR_EXCL_LINE;
   }
 
   re2::RE2::FullMatch(static_cast<std::string>(sip_header), pattern, &domain);

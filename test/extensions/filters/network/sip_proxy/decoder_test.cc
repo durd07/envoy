@@ -105,6 +105,25 @@ public:
     filter_->onBelowWriteBufferLowWatermark();
   }
 
+  
+  void headerHandlerTest() {
+    MockDecoderCallbacks callback;
+    Decoder decoder(callback);
+    decoder.setCurrentHeader(HeaderType::Via);
+    Decoder::REGISTERHandler msgHandler(decoder);
+    Decoder::HeaderHandler headerHandler(msgHandler);
+    EXPECT_EQ(HeaderType::Via, headerHandler.currentHeader());
+    absl::string_view str("");
+    headerHandler.processPath(str);
+    headerHandler.processEvent(str);
+    headerHandler.processRoute(str);
+    headerHandler.processContact(str);
+    headerHandler.processCseq(str);
+    headerHandler.processRecordRoute(str);
+
+    DecoderStateMachine::DecoderStatus status(State::MessageBegin);
+  }
+
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_;
   Stats::TestUtil::TestStore store_;
@@ -580,6 +599,10 @@ TEST_F(SipDecoderTest, handleState) {
 TEST_F(SipDecoderTest, headerTest) {
   StateNameValues stateNameValues_;
   EXPECT_EQ("Done", stateNameValues_.name(State::Done));
+}
+
+TEST_F(SipDecoderTest, HeaderHandlerTest) {
+	headerHandlerTest();
 }
 
 } // namespace SipProxy

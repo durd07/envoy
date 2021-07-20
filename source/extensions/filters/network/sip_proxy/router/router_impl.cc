@@ -290,12 +290,12 @@ UpstreamRequest::~UpstreamRequest() {
 }
 
 FilterStatus UpstreamRequest::start() {
-  if (conn_state_ != ConnectionState::NotConnected) {
+  if (connectionState() != ConnectionState::NotConnected) {
     return FilterStatus::Continue;
   }
 
   ENVOY_LOG(info, "connecting {}", conn_pool_data_.host()->address()->asString());
-  conn_state_ = ConnectionState::Connecting;
+  setConnectionState(ConnectionState::Connecting);
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_data_.newConnection(*this);
   if (handle) {
@@ -317,7 +317,7 @@ void UpstreamRequest::releaseConnection(const bool close) {
     conn_pool_handle_ = nullptr;
   }
 
-  conn_state_ = ConnectionState::NotConnected;
+  setConnectionState(ConnectionState::NotConnected);
 
   // The event triggered by close will also release this connection so clear conn_data_ before
   // closing.
@@ -333,7 +333,7 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
                      absl::string_view,
                      Upstream::HostDescriptionConstSharedPtr host) {
   ENVOY_LOG(info, "on pool failure");
-  conn_state_ = ConnectionState::NotConnected;
+  setConnectionState(ConnectionState::NotConnected);
   conn_pool_handle_ = nullptr;
 
   // Mimic an upstream reset.
@@ -351,7 +351,7 @@ void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_
   conn_data_->addUpstreamCallbacks(*this);
   conn_pool_handle_ = nullptr;
 
-  conn_state_ = ConnectionState::Connected;
+  setConnectionState(ConnectionState::Connected);
 
   onRequestStart();
 }
