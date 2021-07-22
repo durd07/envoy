@@ -5,7 +5,6 @@
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
-
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
 #include "source/extensions/filters/network/sip_proxy/protocol.h"
 

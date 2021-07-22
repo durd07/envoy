@@ -9,7 +9,6 @@
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/router/metadatamatchcriteria_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/encoder.h"
 #include "source/extensions/filters/network/well_known_names.h"
@@ -280,8 +279,9 @@ const Network::Connection* Router::downstreamConnection() const {
 // void Router::cleanup() { /*upstream_request_.reset();*/
 //}
 
-UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool_data, std::shared_ptr<TransactionInfo> transaction_info)
-      : conn_pool_data_(pool_data), transaction_info_(transaction_info), response_complete_(false) {}
+UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool_data,
+                                 std::shared_ptr<TransactionInfo> transaction_info)
+    : conn_pool_data_(pool_data), transaction_info_(transaction_info), response_complete_(false) {}
 
 UpstreamRequest::~UpstreamRequest() {
   if (conn_pool_handle_) {
@@ -329,9 +329,8 @@ void UpstreamRequest::releaseConnection(const bool close) {
 
 void UpstreamRequest::resetStream() { releaseConnection(true); }
 
-void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
-                     absl::string_view,
-                     Upstream::HostDescriptionConstSharedPtr host) {
+void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason, absl::string_view,
+                                    Upstream::HostDescriptionConstSharedPtr host) {
   ENVOY_LOG(info, "on pool failure");
   setConnectionState(ConnectionState::NotConnected);
   conn_pool_handle_ = nullptr;

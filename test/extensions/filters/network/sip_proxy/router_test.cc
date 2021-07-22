@@ -3,7 +3,6 @@
 #include "envoy/tcp/conn_pool.h"
 
 #include "source/common/buffer/buffer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/config.h"
 #include "source/extensions/filters/network/sip_proxy/router/config.h"
@@ -40,7 +39,7 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace Router {
 
-class SipRouterTest : public testing::Test{
+class SipRouterTest : public testing::Test {
 public:
   SipRouterTest() {}
   void initializeTrans(bool hasOption = true) {
@@ -173,11 +172,11 @@ registration_affinity: true
     router_.reset();
   }
   void destroyRouterOutofRange() {
-    //std::out_of_range Exception
-    EXPECT_CALL(callbacks_, transactionId()).
-	    Times(2)
-	    .WillOnce(Return("test"))
-	    .WillOnce(Return("test1"));
+    // std::out_of_range Exception
+    EXPECT_CALL(callbacks_, transactionId())
+        .Times(2)
+        .WillOnce(Return("test"))
+        .WillOnce(Return("test1"));
 
     router_->onDestroy();
     router_.reset();
@@ -477,17 +476,18 @@ TEST_F(SipRouterTest, PoolFailure) {
   completeRequest();
 }
 
-
 TEST_F(SipRouterTest, NewConnectionFailure) {
   initializeTrans();
   initializeRouterWithCallback();
   initializeTransaction();
   EXPECT_CALL(context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_, newConnection(_))
-	  .WillOnce(Invoke([&](Tcp::ConnectionPool::Callbacks& cb) -> Tcp::ConnectionPool::Cancellable* {
-				  context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.newConnectionImpl(cb);
-				  context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.poolReady(upstream_connection_);
-				  return nullptr;
-  }));
+      .WillOnce(
+          Invoke([&](Tcp::ConnectionPool::Callbacks& cb) -> Tcp::ConnectionPool::Cancellable* {
+            context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.newConnectionImpl(cb);
+            context_.cluster_manager_.thread_local_cluster_.tcp_conn_pool_.poolReady(
+                upstream_connection_);
+            return nullptr;
+          }));
   startRequest(MsgType::Request);
 }
 
@@ -510,7 +510,6 @@ TEST_F(SipRouterTest, RouteEntryImplBase) {
   EXPECT_EQ("", base->clusterName());
   EXPECT_EQ(base, base->routeEntry());
   EXPECT_EQ(nullptr, base->metadataMatchCriteria());
-
 }
 
 envoy::extensions::filters::network::sip_proxy::v3::RouteConfiguration
@@ -560,7 +559,7 @@ TEST_F(SipRouterTest, HandlePendingRequest) {
       transaction_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
   upstream_request_ptr->addIntoPendingRequest(metadata_);
-  //trigger full
+  // trigger full
   upstream_request_ptr->onRequestStart();
 
   for (int i = 0; i < 1000003; i++) {
@@ -569,7 +568,7 @@ TEST_F(SipRouterTest, HandlePendingRequest) {
 
   upstream_request_ptr->resetStream();
 
-  //Other UpstreamRequest in definition
+  // Other UpstreamRequest in definition
   upstream_request_ptr->onAboveWriteBufferHighWatermark();
   upstream_request_ptr->onBelowWriteBufferLowWatermark();
 }
@@ -602,7 +601,7 @@ TEST_F(SipRouterTest, ResponseDecoder) {
   EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
 }
 
-TEST_F(SipRouterTest, TransactionInfoItem ) {
+TEST_F(SipRouterTest, TransactionInfoItem) {
   initializeTrans();
   initializeRouter();
   initializeTransaction();
@@ -615,8 +614,8 @@ TEST_F(SipRouterTest, TransactionInfoItem ) {
       transaction_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
 
-  std::shared_ptr<TransactionInfoItem> item = 
-	  std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
+  std::shared_ptr<TransactionInfoItem> item =
+      std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
   item->appendMessageList(metadata_);
   item->resetTrans();
   EXPECT_NE(nullptr, item->upstreamRequest());
@@ -636,12 +635,13 @@ TEST_F(SipRouterTest, Audit) {
       transaction_info_ptr->getUpstreamRequest("10.0.0.1");
   EXPECT_NE(nullptr, upstream_request_ptr);
 
-  std::shared_ptr<TransactionInfoItem> item = 
-	  std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
-  std::shared_ptr<TransactionInfoItem> itemToDelete = 
-	  std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
+  std::shared_ptr<TransactionInfoItem> item =
+      std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
+  std::shared_ptr<TransactionInfoItem> itemToDelete =
+      std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
   itemToDelete->toDelete();
-  ThreadLocalTransactionInfo threadInfo(transaction_info_ptr, dispatcher_, std::chrono::milliseconds(0));
+  ThreadLocalTransactionInfo threadInfo(transaction_info_ptr, dispatcher_,
+                                        std::chrono::milliseconds(0));
   threadInfo.transaction_info_map_.emplace(cluster_name_, item);
   threadInfo.transaction_info_map_.emplace("test1", itemToDelete);
   threadInfo.auditTimerAction();

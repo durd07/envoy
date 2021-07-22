@@ -17,8 +17,8 @@ enum class ConnectionState {
  * SipConnectionState tracks sip-related connection state for pooled
  * connections.
  */
-//class SipConnectionState : public Tcp::ConnectionPool::ConnectionState {
-//public:
+// class SipConnectionState : public Tcp::ConnectionPool::ConnectionState {
+// public:
 //  SipConnectionState(SipProxy::ConnectionState state, int32_t initial_sequence_id = 0)
 //      : state_(state), next_sequence_id_(initial_sequence_id) {}
 //
@@ -36,7 +36,7 @@ enum class ConnectionState {
 //
 //  SipProxy::ConnectionState state() { return state_; }
 //
-//private:
+// private:
 //  SipProxy::ConnectionState state_;
 //  int32_t next_sequence_id_;
 //};

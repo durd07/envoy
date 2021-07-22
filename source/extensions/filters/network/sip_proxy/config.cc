@@ -8,7 +8,6 @@
 #include "envoy/registry/registry.h"
 
 #include "source/common/config/utility.h"
-
 #include "source/extensions/filters/network/sip_proxy/decoder.h"
 #include "source/extensions/filters/network/sip_proxy/filters/filter_config.h"
 #include "source/extensions/filters/network/sip_proxy/filters/well_known_names.h"

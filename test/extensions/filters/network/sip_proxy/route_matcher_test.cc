@@ -2,7 +2,6 @@
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.validate.h"
 
 #include "source/common/config/metadata.h"
-
 #include "source/extensions/filters/network/sip_proxy/router/config.h"
 #include "source/extensions/filters/network/sip_proxy/router/router_impl.h"
 

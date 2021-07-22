@@ -4,7 +4,6 @@
 #include "envoy/extensions/filters/network/sip_proxy/v3/sip_proxy.pb.validate.h"
 
 #include "source/common/buffer/buffer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/config.h"
 #include "source/extensions/filters/network/sip_proxy/conn_manager.h"
@@ -96,7 +95,8 @@ public:
     filter_->onBelowWriteBufferLowWatermark();
   }
 
-  void sendLocalReply(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType type) {
+  void
+  sendLocalReply(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType type) {
     const std::string yaml = R"EOF(
 stat_prefix: egress
 route_config:
@@ -262,7 +262,7 @@ settings:
     trans2->sendLocalReply(AppException(AppExceptionType::ProtocolError, "End_stream is false"),
                            false);
 
-    //route() with metadata=nullptr;
+    // route() with metadata=nullptr;
     ConnectionManager::ActiveTransPtr trans3 =
         std::make_unique<ConnectionManager::ActiveTrans>(*filter_, filter_->decoder_->metadata());
     trans3->metadata_ = nullptr;
@@ -367,28 +367,30 @@ settings:
     };
 
     std::list<ConnectionManager::ActiveTransDecoderFilterPtr> decoder_filter_list;
-    ConnectionManager::ActiveTransDecoderFilterPtr wrapper=
-	    std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_);
+    ConnectionManager::ActiveTransDecoderFilterPtr wrapper =
+        std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_);
     decoder_filter_->setDecoderFilterCallbacks(*wrapper);
     LinkedList::moveIntoListBack(std::move(wrapper), decoder_filter_list);
 
-    std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_1 = std::make_shared<NiceMock<SipFilters::MockDecoderFilter>>();
-    ConnectionManager::ActiveTransDecoderFilterPtr wrapper2=
-	    std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_1);
+    std::shared_ptr<SipFilters::MockDecoderFilter> decoder_filter_1 =
+        std::make_shared<NiceMock<SipFilters::MockDecoderFilter>>();
+    ConnectionManager::ActiveTransDecoderFilterPtr wrapper2 =
+        std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_1);
     LinkedList::moveIntoListBack(std::move(wrapper2), decoder_filter_list);
 
     new_trans->applyDecoderFilters((*(decoder_filter_list.begin())).get());
 
-    //Other ActiveTransDecoderFilter  function cover
+    // Other ActiveTransDecoderFilter  function cover
     ConnectionManager::ActiveTransDecoderFilterPtr decoder =
-	    std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_);
+        std::make_unique<ConnectionManager::ActiveTransDecoderFilter>(*new_trans, decoder_filter_);
     EXPECT_EQ(decoder->streamId(), new_trans->streamId());
     EXPECT_EQ(decoder->connection(), new_trans->connection());
     decoder->startUpstreamResponse();
     decoder->streamInfo();
     decoder->upstreamData(metadata);
     decoder->resetDownstreamConnection();
-    filter_->transactions_.emplace(std::string(metadata->transactionId().value()), std::move(new_trans));
+    filter_->transactions_.emplace(std::string(metadata->transactionId().value()),
+                                   std::move(new_trans));
     decoder->onReset();
   }
 
@@ -454,7 +456,6 @@ settings:
   EXPECT_EQ(filter_->onData(buffer_, true), Network::FilterStatus::StopIteration);
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
-
 }
 
 TEST_F(SipConnectionManagerTest, OnDataHandlesSipCallEndStream) {
@@ -503,34 +504,35 @@ settings:
 }
 
 TEST_F(SipConnectionManagerTest, SendLocalReply_SuccessReply) {
-  sendLocalReply(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::SuccessReply);
+  sendLocalReply(
+      Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::SuccessReply);
 }
 
 TEST_F(SipConnectionManagerTest, SendLocalReply_ErrorReply) {
-  sendLocalReply(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::ErrorReply);
+  sendLocalReply(
+      Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::ErrorReply);
 }
 
 TEST_F(SipConnectionManagerTest, SendLocalReply_Exception) {
-  sendLocalReply(Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::Exception);
+  sendLocalReply(
+      Envoy::Extensions::NetworkFilters::SipProxy::DirectResponse::ResponseType::Exception);
 }
 
 TEST_F(SipConnectionManagerTest, UpstreamData) { upstreamDataTest(); }
 
-TEST_F(SipConnectionManagerTest, ResetLocalTrans) { 
-  resetAllTransTest(true); 
+TEST_F(SipConnectionManagerTest, ResetLocalTrans) {
+  resetAllTransTest(true);
   EXPECT_EQ(1U, store_.counter("test.cx_destroy_local_with_active_rq").value());
 }
 
-TEST_F(SipConnectionManagerTest, ResetRemoteTrans) { 
-  resetAllTransTest(false); 
+TEST_F(SipConnectionManagerTest, ResetRemoteTrans) {
+  resetAllTransTest(false);
   EXPECT_EQ(1U, store_.counter("test.cx_destroy_remote_with_active_rq").value());
 }
-TEST_F(SipConnectionManagerTest, ResumeResponse) { 
-  resumeResponseTest();
-}
+TEST_F(SipConnectionManagerTest, ResumeResponse) { resumeResponseTest(); }
 
-TEST_F(SipConnectionManagerTest, EncodeOK200WithEPTag) { 
-    const std::string SIP_OK200_FULL =
+TEST_F(SipConnectionManagerTest, EncodeOK200WithEPTag) {
+  const std::string SIP_OK200_FULL =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -541,23 +543,23 @@ TEST_F(SipConnectionManagerTest, EncodeOK200WithEPTag) {
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
-    buffer_.add(SIP_OK200_FULL);
+  buffer_.add(SIP_OK200_FULL);
 
-    metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
-    metadata_->setMsgType(MsgType::Response);
-    metadata_->setMethodType(MethodType::Ok200);
-    Buffer::OwnedImpl response_buffer;
-    metadata_->setInsertEPLocation(179);
-    metadata_->setEP("test");
-    metadata_->setInsertTagLocation(187);
+  metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  metadata_->setMsgType(MsgType::Response);
+  metadata_->setMethodType(MethodType::Ok200);
+  Buffer::OwnedImpl response_buffer;
+  metadata_->setInsertEPLocation(179);
+  metadata_->setEP("test");
+  metadata_->setInsertTagLocation(187);
 
-    std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
-    encoder->encode(metadata_, response_buffer);
-    EXPECT_EQ(response_buffer.length(), buffer_.length()+12);
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  encoder->encode(metadata_, response_buffer);
+  EXPECT_EQ(response_buffer.length(), buffer_.length() + 12);
 }
 
-TEST_F(SipConnectionManagerTest, EncodeOK200WithTagEP) { 
-    const std::string SIP_OK200_FULL =
+TEST_F(SipConnectionManagerTest, EncodeOK200WithTagEP) {
+  const std::string SIP_OK200_FULL =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -568,23 +570,23 @@ TEST_F(SipConnectionManagerTest, EncodeOK200WithTagEP) {
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
-    buffer_.add(SIP_OK200_FULL);
+  buffer_.add(SIP_OK200_FULL);
 
-    metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
-    metadata_->setMsgType(MsgType::Response);
-    metadata_->setMethodType(MethodType::Ok200);
-    Buffer::OwnedImpl response_buffer;
-    metadata_->setInsertTagLocation(179);
-    metadata_->setInsertEPLocation(183);
-    metadata_->setEP("test");
+  metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  metadata_->setMsgType(MsgType::Response);
+  metadata_->setMethodType(MethodType::Ok200);
+  Buffer::OwnedImpl response_buffer;
+  metadata_->setInsertTagLocation(179);
+  metadata_->setInsertEPLocation(183);
+  metadata_->setEP("test");
 
-    std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
-    encoder->encode(metadata_, response_buffer);
-    EXPECT_EQ(response_buffer.length(), buffer_.length()+12);
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  encoder->encode(metadata_, response_buffer);
+  EXPECT_EQ(response_buffer.length(), buffer_.length() + 12);
 }
 
-TEST_F(SipConnectionManagerTest, EncodeOK200WithEP) { 
-    const std::string SIP_OK200_FULL =
+TEST_F(SipConnectionManagerTest, EncodeOK200WithEP) {
+  const std::string SIP_OK200_FULL =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -595,22 +597,22 @@ TEST_F(SipConnectionManagerTest, EncodeOK200WithEP) {
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
-    buffer_.add(SIP_OK200_FULL);
+  buffer_.add(SIP_OK200_FULL);
 
-    metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
-    metadata_->setMsgType(MsgType::Response);
-    metadata_->setMethodType(MethodType::Ok200);
-    Buffer::OwnedImpl response_buffer;
-    metadata_->setInsertEPLocation(179);
-    metadata_->setEP("test");
+  metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  metadata_->setMsgType(MsgType::Response);
+  metadata_->setMethodType(MethodType::Ok200);
+  Buffer::OwnedImpl response_buffer;
+  metadata_->setInsertEPLocation(179);
+  metadata_->setEP("test");
 
-    std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
-    encoder->encode(metadata_, response_buffer);
-    EXPECT_EQ(response_buffer.length(), buffer_.length()+8);
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  encoder->encode(metadata_, response_buffer);
+  EXPECT_EQ(response_buffer.length(), buffer_.length() + 8);
 }
 
-TEST_F(SipConnectionManagerTest, EncodeOK200WithTag) { 
-    const std::string SIP_OK200_FULL =
+TEST_F(SipConnectionManagerTest, EncodeOK200WithTag) {
+  const std::string SIP_OK200_FULL =
       "SIP/2.0 200 OK\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -621,21 +623,21 @@ TEST_F(SipConnectionManagerTest, EncodeOK200WithTag) {
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
-    buffer_.add(SIP_OK200_FULL);
+  buffer_.add(SIP_OK200_FULL);
 
-    metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
-    metadata_->setMsgType(MsgType::Response);
-    metadata_->setMethodType(MethodType::Ok200);
-    Buffer::OwnedImpl response_buffer;
-    metadata_->setInsertTagLocation(179);
+  metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  metadata_->setMsgType(MsgType::Response);
+  metadata_->setMethodType(MethodType::Ok200);
+  Buffer::OwnedImpl response_buffer;
+  metadata_->setInsertTagLocation(179);
 
-    std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
-    encoder->encode(metadata_, response_buffer);
-    EXPECT_EQ(response_buffer.length(), buffer_.length()+4);
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  encoder->encode(metadata_, response_buffer);
+  EXPECT_EQ(response_buffer.length(), buffer_.length() + 4);
 }
 
-TEST_F(SipConnectionManagerTest, EncodeInviteWithEP) { 
-    const std::string SIP_INVITE_FULL =
+TEST_F(SipConnectionManagerTest, EncodeInviteWithEP) {
+  const std::string SIP_INVITE_FULL =
       "SIP/2.0 INVITE\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
@@ -646,18 +648,18 @@ TEST_F(SipConnectionManagerTest, EncodeInviteWithEP) {
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
-    buffer_.add(SIP_INVITE_FULL);
+  buffer_.add(SIP_INVITE_FULL);
 
-    metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
-    metadata_->setMsgType(MsgType::Request);
-    metadata_->setMethodType(MethodType::Invite);
-    Buffer::OwnedImpl response_buffer;
-    metadata_->setInsertEPLocation(179);
-    metadata_->setEP("test");
+  metadata_ = std::make_shared<MessageMetadata>(buffer_.toString());
+  metadata_->setMsgType(MsgType::Request);
+  metadata_->setMethodType(MethodType::Invite);
+  Buffer::OwnedImpl response_buffer;
+  metadata_->setInsertEPLocation(179);
+  metadata_->setEP("test");
 
-    std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
-    encoder->encode(metadata_, response_buffer);
-    EXPECT_EQ(response_buffer.length(), buffer_.length()+8);
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  encoder->encode(metadata_, response_buffer);
+  EXPECT_EQ(response_buffer.length(), buffer_.length() + 8);
 }
 
 // TEST_F(SipConnectionManagerTest, OnDataHandlesSipOneWay) {

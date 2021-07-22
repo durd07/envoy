@@ -5,7 +5,6 @@
 
 #include "source/common/common/macros.h"
 #include "source/common/protobuf/protobuf.h"
-
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
 
 namespace Envoy {

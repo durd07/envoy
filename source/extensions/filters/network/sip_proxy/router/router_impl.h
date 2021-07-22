@@ -16,7 +16,6 @@
 #include "source/common/common/logger.h"
 #include "source/common/http/header_utility.h"
 #include "source/common/upstream/load_balancer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/conn_manager.h"
 #include "source/extensions/filters/network/sip_proxy/decoder_events.h"
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
@@ -142,8 +141,7 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
                                     public Logger::Loggable<Logger::Id::sip> {
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
                              std::chrono::milliseconds transaction_timeout)
-      : parent_(parent), dispatcher_(dispatcher),
-        transaction_timeout_(transaction_timeout) {
+      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout) {
     audit_timer_ = dispatcher.createTimer([this]() -> void { auditTimerAction(); });
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
@@ -336,7 +334,8 @@ class UpstreamRequest : public Tcp::ConnectionPool::Callbacks,
                         public std::enable_shared_from_this<UpstreamRequest>,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
-  UpstreamRequest(Upstream::TcpPoolData& pool_data, std::shared_ptr<TransactionInfo> transaction_info);
+  UpstreamRequest(Upstream::TcpPoolData& pool_data,
+                  std::shared_ptr<TransactionInfo> transaction_info);
   ~UpstreamRequest() override;
   FilterStatus start();
   void resetStream();

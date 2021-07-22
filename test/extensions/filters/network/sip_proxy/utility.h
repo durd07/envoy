@@ -6,7 +6,6 @@
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/byte_order.h"
-
 #include "source/extensions/filters/network/sip_proxy/sip.h"
 
 #include "test/common/buffer/utility.h"

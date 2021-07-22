@@ -1,5 +1,4 @@
 #include "source/common/buffer/buffer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/config.h"
 #include "source/extensions/filters/network/sip_proxy/conn_manager.h"
@@ -105,7 +104,6 @@ public:
     filter_->onBelowWriteBufferLowWatermark();
   }
 
-  
   void headerHandlerTest() {
     MockDecoderCallbacks callback;
     Decoder decoder(callback);
@@ -154,7 +152,7 @@ settings:
   transaction_timeout: 32s
 )EOF";
 
-TEST_F(SipDecoderTest, decodeINVITE) {
+TEST_F(SipDecoderTest, DecodeINVITE) {
   initializeFilter(yaml);
 
   const std::string SIP_INVITE_FULL =
@@ -200,7 +198,7 @@ TEST_F(SipDecoderTest, decodeINVITE) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeCancel) {
+TEST_F(SipDecoderTest, DecodeCancel) {
   initializeFilter(yaml);
 
   const std::string SIP_CANCEL_FULL =
@@ -244,7 +242,7 @@ TEST_F(SipDecoderTest, decodeCancel) {
   // buffer_.move(SIP_CANCEL_FULL);
 }
 
-TEST_F(SipDecoderTest, decodeRegister) {
+TEST_F(SipDecoderTest, DecodeRegister) {
   initializeFilter(yaml);
 
   const std::string SIP_REGISTER_FULL =
@@ -300,7 +298,7 @@ TEST_F(SipDecoderTest, decodeRegister) {
   // buffer_.move(SIP_REGISTER_FULL);
 }
 
-TEST_F(SipDecoderTest, decodeOK200) {
+TEST_F(SipDecoderTest, DecodeOK200) {
   initializeFilter(yaml);
 
   const std::string SIP_OK200_FULL =
@@ -351,7 +349,7 @@ TEST_F(SipDecoderTest, decodeOK200) {
   // buffer_.move(SIP_OK200_FULL);
 }
 
-TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
+TEST_F(SipDecoderTest, DecodeSUBSCRIBE) {
   initializeFilter(yaml);
 
   const std::string SIP_SUBSCRIBE_FULL =
@@ -409,7 +407,7 @@ TEST_F(SipDecoderTest, decodeSUBSCRIBE) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeEMPTY) {
+TEST_F(SipDecoderTest, DecodeEMPTY) {
   initializeFilter(yaml);
 
   const std::string SIP_EMPTY = "\x0d\x0a";
@@ -468,7 +466,7 @@ TEST_F(SipDecoderTest, decodeEMPTY) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeACK) {
+TEST_F(SipDecoderTest, DecodeACK) {
   initializeFilter(yaml);
 
   const std::string SIP_ACK_FULL =
@@ -491,7 +489,7 @@ TEST_F(SipDecoderTest, decodeACK) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeBYE) {
+TEST_F(SipDecoderTest, DecodeBYE) {
   initializeFilter(yaml);
 
   const std::string SIP_BYE_FULL =
@@ -514,7 +512,7 @@ TEST_F(SipDecoderTest, decodeBYE) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeUPDATE) {
+TEST_F(SipDecoderTest, DecodeUPDATE) {
   initializeFilter(yaml);
 
   const std::string SIP_UPDATE_FULL =
@@ -537,7 +535,7 @@ TEST_F(SipDecoderTest, decodeUPDATE) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeREFER) {
+TEST_F(SipDecoderTest, DecodeREFER) {
   initializeFilter(yaml);
 
   const std::string SIP_REFER_FULL =
@@ -560,7 +558,7 @@ TEST_F(SipDecoderTest, decodeREFER) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, decodeNOTIFY) {
+TEST_F(SipDecoderTest, DecodeNOTIFY) {
   initializeFilter(yaml);
 
   const std::string SIP_NOTIFY_FULL =
@@ -583,7 +581,7 @@ TEST_F(SipDecoderTest, decodeNOTIFY) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, handleState) {
+TEST_F(SipDecoderTest, HandleState) {
   MessageMetadataSharedPtr metadata;
   MockDecoderEventHandler handler;
   DecoderStateMachine machine(metadata, handler);
@@ -596,14 +594,12 @@ TEST_F(SipDecoderTest, handleState) {
   EXPECT_EQ(State::TransportEnd, machine.currentState());
 }
 
-TEST_F(SipDecoderTest, headerTest) {
+TEST_F(SipDecoderTest, HeaderTest) {
   StateNameValues stateNameValues_;
   EXPECT_EQ("Done", stateNameValues_.name(State::Done));
 }
 
-TEST_F(SipDecoderTest, HeaderHandlerTest) {
-	headerHandlerTest();
-}
+TEST_F(SipDecoderTest, HeaderHandlerTest) { headerHandlerTest(); }
 
 } // namespace SipProxy
 } // namespace NetworkFilters

@@ -1,5 +1,4 @@
 #include "source/common/buffer/buffer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 
 #include "test/extensions/filters/network/sip_proxy/mocks.h"
