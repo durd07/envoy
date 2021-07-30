@@ -596,7 +596,7 @@ TEST_F(SipRouterTest, ResponseDecoder) {
   // No active trans
   metadata_->setTransactionId(nullptr);
   EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
-  // No transid
+  // No trans-id
   metadata_->resetTransactionId();
   EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
 }
