@@ -34,6 +34,7 @@ EPIPE
 HEXDIG
 HEXDIGIT
 Infos
+LRU
 OWS
 Preconnecting
 RCVBUF
