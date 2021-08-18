@@ -22,7 +22,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  // ENVOY_LOG(trace, "ConnectionManager received data {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(info, "ConnectionManager received data {}\n{}\n", data.length(), data.toString());
   request_buffer_.move(data);
   dispatch();
 

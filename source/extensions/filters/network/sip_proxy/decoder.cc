@@ -41,6 +41,7 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
   case State::TransportEnd:
     return transportEnd();
   default:
+    /* test failed report "panic:     not reached" if reach here */
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
@@ -103,15 +104,17 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       ssize_t content_length_start =
           remaining_data.search("Content-Length:", strlen("Content-Length:"), 0, content_pos);
-      if (content_pos == -1) {
+      if (content_length_start == -1) {
         break;
       }
 
       ssize_t content_length_end = remaining_data.search(
           "\r\n", strlen("\r\n"), content_length_start + strlen("Content-Length:"), content_pos);
+      /* The "\n\r\n" is always included in remaining_data, so could not return -1
       if (content_length_end == -1) {
         break;
       }
+      */
 
       char len[10]{}; // temporary storage
       remaining_data.copyOut(content_length_start + strlen("Content-Length:"),
@@ -122,9 +125,11 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       // Fail if Content-Length is less then zero
       //
+      /* atoi return value >= 0, could not < 0
       if (clen < static_cast<size_t>(0)) {
         break;
       }
+      */
 
       full_msg_len = content_pos + clen;
     }
@@ -138,12 +143,16 @@ int Decoder::reassemble(Buffer::Instance& data) {
       //
       Buffer::OwnedImpl message{};
       message.move(remaining_data, full_msg_len);
+      /* status not used
       auto status = onDataReady(message);
+      */
+      onDataReady(message);
       message.drain(message.length());
       full_msg_len = 0;
+      /* no handle for this if
       if (status != FilterStatus::StopIteration) {
         // break;
-      }
+      }*/
     }
   } // End of while (remaining_data_len > 0)
 
@@ -241,6 +250,11 @@ int Decoder::REGISTERHeaderHandler::processPath(absl::string_view& header) {
   }
 
   metadata()->setInsertEPLocation(rawOffset() + header.length());
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+  }
   return 0;
 }
 
@@ -249,10 +263,7 @@ int Decoder::REGISTERHeaderHandler::processVia(absl::string_view& header) {
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
+  metadata()->setTransactionId(header);
   setFirstVia(false);
   return 0;
 }
@@ -286,10 +297,7 @@ int Decoder::INVITEHeaderHandler::processVia(absl::string_view& header) {
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
+  metadata()->setTransactionId(header);
   setFirstVia(false);
   return 0;
 }
@@ -321,6 +329,12 @@ int Decoder::INVITEHeaderHandler::processRecordRoute(absl::string_view& header) 
 int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
   if (header.find("INVITE") != absl::string_view::npos) {
     metadata()->setRespMethodType(MethodType::Invite);
+  } else {
+    /* need to set a value, else when processRecordRoute,
+     *(metadata()->respMethodType() != MethodType::Invite) always false
+     * TODO: need to handle non-invite 200OK
+     */
+    metadata()->setRespMethodType(MethodType::NullMethod);
   }
   return 0;
 }
@@ -345,6 +359,11 @@ int Decoder::OK200HeaderHandler::processContact(absl::string_view& header) {
   }
 
   metadata()->setInsertTagLocation(rawOffset() + header.length());
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+  }
   return 0;
 }
 
@@ -372,10 +391,7 @@ int Decoder::GeneralHeaderHandler::processVia(absl::string_view& header) {
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
+  metadata()->setTransactionId(header);
   setFirstVia(false);
   return 0;
 }
@@ -387,6 +403,11 @@ int Decoder::GeneralHeaderHandler::processContact(absl::string_view& header) {
   }
 
   metadata()->setInsertTagLocation(rawOffset() + header.length());
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+  }
   return 0;
 }
 
@@ -395,7 +416,7 @@ int Decoder::GeneralHeaderHandler::processContact(absl::string_view& header) {
 //
 int Decoder::SUBSCRIBEHeaderHandler::processEvent(absl::string_view& header) {
   auto& parent = dynamic_cast<SUBSCRIBEHandler&>(this->parent_);
-  parent.setEventType(header);
+  parent.setEventType(StringUtil::trim(header.substr(header.find("Event:") + strlen("Event:"))));
   return 0;
 }
 
@@ -420,10 +441,7 @@ int Decoder::SUBSCRIBEHeaderHandler::processVia(absl::string_view& header) {
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
+  metadata()->setTransactionId(header);
   setFirstVia(false);
   return 0;
 }
@@ -435,12 +453,42 @@ int Decoder::SUBSCRIBEHeaderHandler::processContact(absl::string_view& header) {
   }
 
   metadata()->setInsertTagLocation(rawOffset() + header.length());
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+  }
   return 0;
+}
+
+void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& header) {
+  if (type == HeaderType::Route) {
+    handler_->processRoute(header);
+  }
+
+  if (type == HeaderType::Via) {
+    handler_->processVia(header);
+  }
+  /* No need
+    if (type == HeaderType::Contact) {
+      handler_->processContact(header);
+    }
+    */
+
+  if (type == HeaderType::Path) {
+    handler_->processPath(header);
+  }
+
+  if (type == HeaderType::RRoute) {
+    handler_->processRecordRoute(header);
+  }
 }
 
 void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& header) {
   if (type == HeaderType::Via) {
     handler_->processVia(header);
+  } else if (type == HeaderType::Contact) {
+    handler_->processContact(header);
   } else if (type == HeaderType::Route) {
     handler_->processRoute(header);
   } else if (type == HeaderType::RRoute) {
@@ -506,6 +554,10 @@ std::shared_ptr<Decoder::MessageHandler> Decoder::MessageFactory::create(MethodT
     return std::make_shared<INVITEHandler>(parent);
   case MethodType::Ok200:
     return std::make_shared<OK200Handler>(parent);
+  case MethodType::Register:
+    return std::make_shared<REGISTERHandler>(parent);
+  case MethodType::Subscribe:
+    return std::make_shared<SUBSCRIBEHandler>(parent);
   case MethodType::Ack:
   case MethodType::Bye:
   case MethodType::Cancel:
@@ -513,7 +565,6 @@ std::shared_ptr<Decoder::MessageHandler> Decoder::MessageFactory::create(MethodT
   default:
     return std::make_shared<OthersHandler>(parent);
   }
-  return nullptr;
 }
 
 int Decoder::decode() {
@@ -524,9 +575,10 @@ int Decoder::decode() {
 
   while (!msg.empty()) {
     std::string::size_type crlf = msg.find("\r\n");
+    /* After message reassemble, this condition could not be true
     if (crlf == absl::string_view::npos) {
       break;
-    }
+    }*/
 
     if (current_header_ == HeaderType::TopLine) {
       // Sip Request Line
@@ -575,21 +627,20 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
 
 absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType header_type) {
   std::string domain = "";
-  std::string pattern;
+  std::string pattern = "";
 
   switch (header_type) {
   case HeaderType::TopLine:
     pattern = ".*@(.*?) .*";
     break;
-  case HeaderType::Route: {
+  case HeaderType::Route:
     pattern = ".*sip:(.*?)[:;].*";
     break;
-  }
   default:
-    return "";
+    NOT_REACHED_GCOVR_EXCL_LINE;
   }
 
-  re2::RE2::FullMatch(sip_header, pattern, &domain);
+  re2::RE2::FullMatch(static_cast<std::string>(sip_header), pattern, &domain);
   return sip_header.substr(sip_header.find(domain), domain.length());
 }
 

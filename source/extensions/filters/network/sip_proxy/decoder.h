@@ -196,11 +196,8 @@ private:
         return 0;
       }
 
+      metadata()->setTransactionId(header);
       setFirstVia(false);
-
-      metadata()->setTransactionId(
-          header.substr(header.find("branch=") + strlen("branch="),
-                        header.find(";pep") - header.find("branch=") - strlen("branch=")));
       return 0;
     }
 
@@ -219,7 +216,11 @@ private:
       return 0;
     }
     virtual int processContact(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
+      if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+        metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+        auto xsuri = header.find("sip:pcsf-cfed");
+        metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+      }
       return 0;
     }
     virtual int processCseq(absl::string_view& header) {
