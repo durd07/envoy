@@ -11,6 +11,7 @@
 #include "envoy/tcp/conn_pool.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/load_balancer.h"
+#include "envoy/upstream/thread_local_cluster.h"
 
 #include "common/common/logger.h"
 #include "common/http/header_utility.h"
@@ -51,6 +52,7 @@ protected:
   bool headersMatch(const Http::HeaderMap& headers) const;
 
 private:
+  /* Not used
   class DynamicRouteEntry : public RouteEntry, public Route {
   public:
     DynamicRouteEntry(const RouteEntryImplBase& parent, absl::string_view cluster_name)
@@ -68,7 +70,7 @@ private:
   private:
     const RouteEntryImplBase& parent_;
     const std::string cluster_name_;
-  };
+  }; */
 
   const std::string cluster_name_;
   Envoy::Router::MetadataMatchCriteriaConstPtr metadata_match_criteria_;
@@ -139,10 +141,10 @@ private:
 struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
                                     public Logger::Loggable<Logger::Id::sip> {
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
-                             std::chrono::milliseconds transaction_timeout)
-      : parent_(parent), dispatcher_(dispatcher),
-        audit_timer_(dispatcher.createTimer([this]() -> void { auditTimerAction(); })),
-        transaction_timeout_(transaction_timeout) {
+                             std::chrono::milliseconds transaction_timeout, bool ep_insert)
+      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout), 
+        ep_insert_(ep_insert) {
+    audit_timer_ = dispatcher.createTimer([this]() -> void { auditTimerAction(); });
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
   absl::flat_hash_map<std::string, std::shared_ptr<TransactionInfoItem>> transaction_info_map_{};
@@ -152,6 +154,7 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
   Event::Dispatcher& dispatcher_;
   Event::TimerPtr audit_timer_;
   std::chrono::milliseconds transaction_timeout_;
+  bool ep_insert_;
 
   void auditTimerAction() {
     const auto p1 = dispatcher_.timeSource().systemTime();
@@ -168,11 +171,14 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
         // transaction_info_map_.erase(it++);
       }
 
+      ++it;
+      /* In single thread, this condition should be cover in line 160
+       * And Envoy should be single thread
       if (it->second->deleted()) {
         transaction_info_map_.erase(it++);
       } else {
         ++it;
-      }
+      }*/
     }
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
@@ -182,9 +188,10 @@ class TransactionInfo : public std::enable_shared_from_this<TransactionInfo>,
                         Logger::Loggable<Logger::Id::sip> {
 public:
   TransactionInfo(const std::string& cluster_name, ThreadLocal::SlotAllocator& tls,
-                  std::chrono::milliseconds transaction_timeout)
+                  std::chrono::milliseconds transaction_timeout,
+                  bool ep_insert)
       : cluster_name_(cluster_name), tls_(tls.allocateSlot()),
-        transaction_timeout_(transaction_timeout) {}
+        transaction_timeout_(transaction_timeout), ep_insert_(ep_insert) {}
 
   void init() {
     // Note: `this` and `cluster_name` have a a lifetime of the filter.
@@ -195,7 +202,8 @@ public:
         [this_weak_ptr](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
           if (auto this_shared_ptr = this_weak_ptr.lock()) {
             return std::make_shared<ThreadLocalTransactionInfo>(
-                this_shared_ptr, dispatcher, this_shared_ptr->transaction_timeout_);
+                this_shared_ptr, dispatcher, this_shared_ptr->transaction_timeout_, 
+		this_shared_ptr->ep_insert_);
           }
           return nullptr;
         });
@@ -239,10 +247,15 @@ public:
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.erase(host);
   }
 
+  bool epInsert() {
+    return ep_insert_;
+  }
+
 private:
   const std::string cluster_name_;
   ThreadLocal::SlotPtr tls_;
   std::chrono::milliseconds transaction_timeout_;
+  bool ep_insert_;
 };
 
 class Router : public Upstream::LoadBalancerContextBase,
@@ -318,6 +331,15 @@ public:
     UNREFERENCED_PARAMETER(metadata);
     return *this;
   }
+  absl::string_view getLocalIp() override;
+  /*
+    if (parent_.transactionInfo()->epInsert()) {
+      return parent_.localAddress();
+    } else {
+      return "";
+    }
+  } 
+  */
 
 private:
   UpstreamRequest& parent_;
@@ -378,6 +400,8 @@ public:
   absl::string_view localAddress() {
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
+
+  std::shared_ptr<TransactionInfo> transactionInfo() {return transaction_info_; }
 
 private:
   Tcp::ConnectionPool::Instance& conn_pool_;

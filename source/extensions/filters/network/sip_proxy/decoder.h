@@ -2,6 +2,7 @@
 
 #include "envoy/buffer/buffer.h"
 
+#include "common/common/base64.h"
 #include "common/buffer/buffer_impl.h"
 #include "common/common/assert.h"
 #include "common/common/logger.h"
@@ -77,6 +78,7 @@ public:
   void setCurrentState(State state) { state_ = state; }
 
 private:
+  friend class SipDecoderTest;
   struct DecoderStatus {
     DecoderStatus(State next_state) : next_state_(next_state){};
     DecoderStatus(State next_state, FilterStatus filter_status)
@@ -112,6 +114,7 @@ public:
    * @return DecoderEventHandler& a new DecoderEventHandler for a message.
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
+  virtual absl::string_view getLocalIp() PURE;
 };
 
 /**
@@ -137,6 +140,8 @@ protected:
   MessageMetadataSharedPtr metadata() { return metadata_; }
 
 private:
+  friend class SipConnectionManagerTest;
+  friend class SipDecoderTest;
   struct ActiveRequest {
     ActiveRequest(DecoderEventHandler& handler) : handler_(handler) {}
 
@@ -198,11 +203,27 @@ private:
 
       metadata()->setTransactionId(header);
       setFirstVia(false);
+
       return 0;
     }
 
     virtual int processPath(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
+      if (header.find(";ep=") != absl::string_view::npos) {
+        // Already has ep in Path
+        return 0;
+      }
+      auto pos = header.find(">");
+      if (pos == absl::string_view::npos) {
+        // No url
+        return 0;
+      }
+      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+        Buffer::OwnedImpl buffer;
+        buffer.add(metadata()->EP().value());
+        metadata()->setOperation(
+            Operation(OperationType::Insert, rawOffset() + pos,
+                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+      }
       return 0;
     };
 
@@ -212,15 +233,54 @@ private:
     };
 
     virtual int processRoute(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
+      if (!isFirstRoute()) {
+        return 0;
+      }
+      setFirstRoute(false);
+
+      if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
+        // already have ep
+        auto start = loc + 4;
+        if (auto end = header.find(">", start); end != absl::string_view::npos) {
+          Buffer::OwnedImpl buffer;
+          buffer.add(header.substr(start, end - start));
+          metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+        }
+      }
+
+      metadata()->setTopRoute(header);
+      metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+
       return 0;
     }
     virtual int processContact(absl::string_view& header) {
-      if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
-        metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + pos, DeleteOperationValue(header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
-        auto xsuri = header.find("sip:pcsf-cfed");
-        metadata()->operation_list.emplace_back(Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+      if (header.find(";ep=") != absl::string_view::npos) {
+        // Already has ep in Path
+        return 0;
       }
+      auto pos = header.find(">");
+      if (pos == absl::string_view::npos) {
+        // No url
+        return 0;
+      }
+      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+        Buffer::OwnedImpl buffer;
+        buffer.add(metadata()->EP().value());
+        metadata()->setOperation(
+            Operation(OperationType::Insert, rawOffset() + pos,
+                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+      }
+
+      if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+        metadata()->setOperation(
+            Operation(OperationType::Delete, rawOffset() + pos,
+                      DeleteOperationValue(
+                          header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+        auto xsuri = header.find("sip:pcsf-cfed");
+        metadata()->setOperation(
+            Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+      }
+
       return 0;
     }
     virtual int processCseq(absl::string_view& header) {
@@ -228,7 +288,65 @@ private:
       return 0;
     }
     virtual int processRecordRoute(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
+      if (header.find(";ep=") != absl::string_view::npos) {
+        // Already has ep in Path
+        return 0;
+      }
+      auto pos = header.find(">");
+      if (pos == absl::string_view::npos) {
+        // No url
+        return 0;
+      }
+      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+        Buffer::OwnedImpl buffer;
+        buffer.add(metadata()->EP().value());
+        metadata()->setOperation(
+            Operation(OperationType::Insert, rawOffset() + pos,
+                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+      }
+      return 0;
+    }
+    virtual int processServiceRoute(absl::string_view& header) {
+      if (header.find(";ep=") != absl::string_view::npos) {
+        // Already has ep in Path
+        return 0;
+      }
+      auto pos = header.find(">");
+      if (pos == absl::string_view::npos) {
+        // No url
+        return 0;
+      }
+      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+        Buffer::OwnedImpl buffer;
+        buffer.add(metadata()->EP().value());
+        metadata()->setOperation(
+            Operation(OperationType::Insert, rawOffset() + pos,
+                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+      }
+      return 0;
+    }
+    virtual int processWwwAuth(absl::string_view& header) {
+      if (header.find(";opaque=") != absl::string_view::npos) {
+        // already WwwAuth have opaque
+        return 0;
+      }
+
+      if (metadata()->opaque().has_value() && metadata()->opaque().value().length() > 0) {
+        Buffer::OwnedImpl buffer;
+        buffer.add(metadata()->opaque().value());
+        metadata()->setOperation(
+            Operation(OperationType::Insert, rawOffset() + header.length(),
+                      InsertOperationValue(";opaque=" + Base64::encode(buffer, buffer.length()))));
+      }
+      return 0;
+    }
+
+    virtual int processAuth(absl::string_view& header) {
+      if (auto loc = header.find(";opaque="); loc != absl::string_view::npos) {
+        // already R have ep
+        metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(loc + 8))));
+        // already R have ep
+      }
       return 0;
     }
 
@@ -273,6 +391,8 @@ private:
     int processRoute(absl::string_view& header) override;
     int processRecordRoute(absl::string_view& header) override;
     int processPath(absl::string_view& header) override;
+    //int processAuth(absl::string_view& header) override;
+    // int processContact(absl::string_view& header) override;
   };
 
   class INVITEHeaderHandler : public HeaderHandler {
@@ -288,6 +408,7 @@ private:
     using HeaderHandler::HeaderHandler;
     int processCseq(absl::string_view& header) override;
     int processRecordRoute(absl::string_view& header) override;
+    int processServiceRoute(absl::string_view& header) override;
     int processContact(absl::string_view& header) override;
   };
 
@@ -306,6 +427,13 @@ private:
     int processVia(absl::string_view& header) override;
     int processRoute(absl::string_view& header) override;
     int processContact(absl::string_view& header) override;
+  };
+
+  class FAILURE4XXHeaderHandler : public HeaderHandler {
+  public:
+    using HeaderHandler::HeaderHandler;
+    // int processWwwAuth(absl::string_view& header) PURE;
+    // int processWwwAuth(absl::string_view& header) override;
   };
 
   class REGISTERHandler : public MessageHandler {
@@ -377,6 +505,15 @@ private:
         handler_->processVia(header);
       }
     };
+  };
+
+  class FAILURE4XXHandler : public MessageHandler {
+  public:
+    FAILURE4XXHandler(Decoder& parent)
+        : MessageHandler(std::make_shared<HeaderHandler>(*this), parent) {}
+    ~FAILURE4XXHandler() override = default;
+
+    void parseHeader(HeaderType& type, absl::string_view& header) override;
   };
 
   class MessageFactory {

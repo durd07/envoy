@@ -4,7 +4,6 @@
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
-#include "envoy/upstream/thread_local_cluster.h"
 
 #include "common/common/logger.h"
 #include "common/common/utility.h"
@@ -147,32 +146,21 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
           NetworkFilterNames::get().SipProxy);
 
   auto handle_affinity = [&](const std::shared_ptr<const ProtocolOptionsConfig> options) {
-    if (options == nullptr) {
+    if (options == nullptr || metadata->msgType() == MsgType::Response) {
       return;
     }
 
-    if (options->sessionAffinity()) {
-      switch (metadata->methodType()) {
-      case SipProxy::MethodType::Invite: {
-        break;
-      }
-      case SipProxy::MethodType::Ack: {
-        if (metadata->EP().has_value()) {
-          auto host = metadata->EP().value();
-          metadata->setDestination(host);
-        }
-        break;
-      }
-      default:
-        if (metadata->EP().has_value()) {
-          auto host = metadata->EP().value();
-          metadata->setDestination(host);
-        }
-        break;
+    if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
+      if (metadata->routeEP().has_value()) {
+        auto host = metadata->routeEP().value();
+        metadata->setDestination(host);
       }
     }
-
-    if (options->registrationAffinity()) {
+    if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
+      if (metadata->routeOpaque().has_value()) {
+        auto host = metadata->routeOpaque().value();
+        metadata->setDestination(host);
+      }
     }
   };
   handle_affinity(options);
@@ -262,7 +250,6 @@ FilterStatus Router::messageEnd() {
 
   Buffer::OwnedImpl transport_buffer;
 
-  metadata_->setEP(upstream_request_->localAddress());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
 
@@ -281,8 +268,9 @@ const Network::Connection* Router::downstreamConnection() const {
   return nullptr;
 }
 
-void Router::cleanup() { /*upstream_request_.reset();*/
-}
+// Not used
+// void Router::cleanup() { /*upstream_request_.reset();*/
+//}
 
 UpstreamRequest::UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
                                  std::shared_ptr<TransactionInfo> transaction_info)
@@ -366,7 +354,10 @@ void UpstreamRequest::onRequestStart() {
     for (const auto& metadata : pending_request_) {
       Buffer::OwnedImpl transport_buffer;
 
-      metadata->setEP(localAddress());
+      if (transaction_info_->epInsert()) {
+        metadata->setEP(localAddress());
+      }
+
       std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
       encoder->encode(metadata, transport_buffer);
 
@@ -382,6 +373,8 @@ void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstShare
   upstream_host_ = host;
 }
 
+/*TODO: not called in current phase */
+/*
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
@@ -415,6 +408,7 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
+*/
 
 SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&& transaction_id) {
   try {
@@ -478,6 +472,15 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
   return FilterStatus::Continue;
 }
+
+absl::string_view ResponseDecoder::getLocalIp() {
+  if (parent_.transactionInfo()->epInsert()) {
+    return parent_.localAddress();
+  } else {
+    return "";
+  }
+}
+
 } // namespace Router
 } // namespace SipProxy
 } // namespace NetworkFilters

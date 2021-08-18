@@ -75,8 +75,18 @@ public:
 
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override;
+  
+  absl::string_view getLocalIp() override {
+    if (config_.settings()->epInsert()) {
+      return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
+    } else {
+      return "";
+    }
+  }
+
 
 private:
+  friend class SipConnectionManagerTest;
   struct ActiveTrans;
 
   struct ResponseDecoder : public DecoderCallbacks, public DecoderEventHandler {
@@ -97,6 +107,14 @@ private:
     DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override {
       UNREFERENCED_PARAMETER(metadata);
       return *this;
+    }
+
+    absl::string_view getLocalIp() override {
+      if (parent_.settings()->epInsert()) {
+        return parent_.parent_.read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
+      } else {
+        return "";
+      }
     }
 
     ActiveTrans& parent_;

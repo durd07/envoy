@@ -1,12 +1,5 @@
 #pragma once
 
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <string>
-#include <variant>
-#include <vector>
-
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -24,6 +17,9 @@ enum class HeaderType {
   Cseq,
   Path,
   Event,
+  SRoute,
+  WAuth,
+  Auth,
   Other,
   InvalidFormat
 };
@@ -41,6 +37,7 @@ enum class MethodType {
   Bye,
   Cancel,
   Ok200,
+  Failure4xx,
   NullMethod
 };
 
@@ -63,49 +60,6 @@ enum class AppExceptionType {
   InjectedFailure = 13,
   ChecksumMismatch = 14,
   Interruption = 15,
-};
-
-enum class OperationType {
-  Invalid = 0,
-  Insert = 1,
-  Delete = 2,
-  Modify = 3,
-  Query = 4, // not used yet.
-};
-
-struct InsertOperationValue {
-  InsertOperationValue(std::string&& value) : value_(value) {}
-  std::string value_;
-};
-struct DeleteOperationValue {
-  DeleteOperationValue(size_t length) : length_(length) {}
-  size_t length_;
-};
-struct ModifyOperationValue {
-  ModifyOperationValue(size_t src_length, std::string&& dest)
-      : src_length_(src_length), dest_(dest) {}
-  size_t src_length_;
-  std::string dest_;
-};
-
-class Operation {
-public:
-  Operation(OperationType type, size_t position,
-            std::variant<InsertOperationValue, DeleteOperationValue, ModifyOperationValue> value)
-      : type_(type), position_(position), value_(value) {}
-
-  // constexpr bool operator<(const Operation& other) { return this->position_ < other.position_; }
-  // constexpr bool operator>(const Operation& other) { return this->position_ > other.position_; }
-  // constexpr bool operator==(const Operation& other) { return this->position_ == other.position_; }
-  // constexpr bool operator!=(const Operation& other) { return this->position_ != other.position_; }
-  // constexpr bool operator<=(const Operation& other) { return this->position_ <= other.position_; }
-  // constexpr bool operator>=(const Operation& other) { return this->position_ >= other.position_; }
-  // constexpr bool operator<=>(Operation &other) { return this->position_ <=> other.position_; }
-
-  // private:
-  OperationType type_;
-  size_t position_;
-  std::variant<InsertOperationValue, DeleteOperationValue, ModifyOperationValue> value_;
 };
 
 } // namespace SipProxy
