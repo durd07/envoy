@@ -17,6 +17,9 @@ enum class HeaderType {
   Cseq,
   Path,
   Event,
+  SRoute,
+  WAuth,
+  Auth,
   Other,
   InvalidFormat
 };
@@ -34,6 +37,7 @@ enum class MethodType {
   Bye,
   Cancel,
   Ok200,
+  Failure4xx,
   NullMethod
 };
 

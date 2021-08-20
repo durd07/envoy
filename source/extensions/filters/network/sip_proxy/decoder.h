@@ -2,6 +2,7 @@
 
 #include "envoy/buffer/buffer.h"
 
+#include "source/common/common/base64.h"
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
@@ -112,6 +113,7 @@ public:
    * @return DecoderEventHandler& a new DecoderEventHandler for a message.
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
+  virtual absl::string_view getLocalIp() PURE;
 };
 
 /**
@@ -193,45 +195,22 @@ private:
         absl::flat_hash_map<HeaderType,
                             std::function<int(HeaderHandler*, absl::string_view& header)>>;
 
-    virtual int processVia(absl::string_view& header) {
-      if (!isFirstVia()) {
-        return 0;
-      }
-
-      setFirstVia(false);
-
-      metadata()->setTransactionId(
-          header.substr(header.find("branch=") + strlen("branch="),
-                        header.find(";pep") - header.find("branch=") - strlen("branch=")));
-      return 0;
-    }
-
-    virtual int processPath(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
-      return 0;
-    };
-
+    virtual int processVia(absl::string_view& header);
+    virtual int processContact(absl::string_view& header);
+    virtual int processPath(absl::string_view& header);
     virtual int processEvent(absl::string_view& header) {
       UNREFERENCED_PARAMETER(header);
       return 0;
     };
-
-    virtual int processRoute(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
-      return 0;
-    }
-    virtual int processContact(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
-      return 0;
-    }
+    virtual int processRoute(absl::string_view& header);
     virtual int processCseq(absl::string_view& header) {
       UNREFERENCED_PARAMETER(header);
       return 0;
     }
-    virtual int processRecordRoute(absl::string_view& header) {
-      UNREFERENCED_PARAMETER(header);
-      return 0;
-    }
+    virtual int processRecordRoute(absl::string_view& header);
+    virtual int processServiceRoute(absl::string_view& header);
+    virtual int processWwwAuth(absl::string_view& header);
+    virtual int processAuth(absl::string_view& header);
 
     MessageMetadataSharedPtr metadata() { return parent_.metadata(); }
 
@@ -270,44 +249,33 @@ private:
   class REGISTERHeaderHandler : public HeaderHandler {
   public:
     using HeaderHandler::HeaderHandler;
-    int processVia(absl::string_view& header) override;
-    int processRoute(absl::string_view& header) override;
-    int processRecordRoute(absl::string_view& header) override;
-    int processPath(absl::string_view& header) override;
-    // int processContact(absl::string_view& header) override;
   };
 
   class INVITEHeaderHandler : public HeaderHandler {
   public:
     using HeaderHandler::HeaderHandler;
-    int processVia(absl::string_view& header) override;
-    int processRoute(absl::string_view& header) override;
-    int processRecordRoute(absl::string_view& header) override;
   };
 
   class OK200HeaderHandler : public HeaderHandler {
   public:
     using HeaderHandler::HeaderHandler;
     int processCseq(absl::string_view& header) override;
-    int processRecordRoute(absl::string_view& header) override;
-    int processContact(absl::string_view& header) override;
   };
 
   class GeneralHeaderHandler : public HeaderHandler {
   public:
     using HeaderHandler::HeaderHandler;
-    int processRoute(absl::string_view& header) override;
-    int processVia(absl::string_view& header) override;
-    int processContact(absl::string_view& header) override;
   };
 
   class SUBSCRIBEHeaderHandler : public HeaderHandler {
   public:
     using HeaderHandler::HeaderHandler;
     int processEvent(absl::string_view& header) override;
-    int processVia(absl::string_view& header) override;
-    int processRoute(absl::string_view& header) override;
-    int processContact(absl::string_view& header) override;
+  };
+
+  class FAILURE4XXHeaderHandler : public HeaderHandler {
+  public:
+    using HeaderHandler::HeaderHandler;
   };
 
   class REGISTERHandler : public MessageHandler {
@@ -374,11 +342,16 @@ private:
         : MessageHandler(std::make_shared<HeaderHandler>(*this), parent) {}
     ~OthersHandler() override = default;
 
-    void parseHeader(HeaderType& type, absl::string_view& header) override {
-      if (type == HeaderType::Via) {
-        handler_->processVia(header);
-      }
-    };
+    void parseHeader(HeaderType& type, absl::string_view& header) override;
+  };
+
+  class FAILURE4XXHandler : public MessageHandler {
+  public:
+    FAILURE4XXHandler(Decoder& parent)
+        : MessageHandler(std::make_shared<HeaderHandler>(*this), parent) {}
+    ~FAILURE4XXHandler() override = default;
+
+    void parseHeader(HeaderType& type, absl::string_view& header) override;
   };
 
   class MessageFactory {

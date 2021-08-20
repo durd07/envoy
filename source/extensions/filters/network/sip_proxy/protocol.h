@@ -12,12 +12,14 @@ namespace SipProxy {
 
 class SipSettings {
 public:
-  SipSettings(std::chrono::milliseconds transaction_timeout)
-      : transaction_timeout_(transaction_timeout) {}
+  SipSettings(std::chrono::milliseconds transaction_timeout, bool ep_insert)
+      : transaction_timeout_(transaction_timeout), ep_insert_(ep_insert) {}
   std::chrono::milliseconds transactionTimeout() { return transaction_timeout_; }
+  bool epInsert() { return ep_insert_; }
 
 private:
   std::chrono::milliseconds transaction_timeout_;
+  bool ep_insert_;
 };
 
 /**

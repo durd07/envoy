@@ -47,12 +47,11 @@ private:
   Network::FilterFactoryCb createFilterFactoryFromProtoTyped(
       const envoy::extensions::filters::network::sip_proxy::v3::SipProxy& proto_config,
       Server::Configuration::FactoryContext& context) override;
-  /*Not used currently
   Upstream::ProtocolOptionsConfigConstSharedPtr createProtocolOptionsTyped(
       const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& proto_config,
       Server::Configuration::ProtocolOptionsFactoryContext&) override {
     return std::make_shared<ProtocolOptionsConfigImpl>(proto_config);
-  }*/
+  }
 };
 
 class ConfigImpl : public Config,

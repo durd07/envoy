@@ -1,5 +1,7 @@
 #include "source/extensions/filters/network/sip_proxy/decoder.h"
 
+#include "source/common/buffer/buffer_impl.h"
+#include "envoy/buffer/buffer.h"
 #include "envoy/common/exception.h"
 
 #include "source/common/common/assert.h"
@@ -159,9 +161,10 @@ int Decoder::reassemble(Buffer::Instance& data) {
 }
 
 FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
-  ENVOY_LOG(debug, "onDataReady {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
+  metadata_->setEP(callbacks_.getLocalIp());
 
   decode();
 
@@ -178,11 +181,19 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
 
 auto Decoder::sipHeaderType(absl::string_view sip_line) {
   static std::map<absl::string_view, HeaderType> sip_header_type_map{
-      {"Call-ID", HeaderType::CallId},  {"Via", HeaderType::Via},
-      {"To", HeaderType::To},           {"From", HeaderType::From},
-      {"Contact", HeaderType::Contact}, {"Record-Route", HeaderType::RRoute},
-      {"CSeq", HeaderType::Cseq},       {"Route", HeaderType::Route},
-      {"Path", HeaderType::Path},       {"Event", HeaderType::Event},
+      {"Call-ID", HeaderType::CallId},
+      {"Via", HeaderType::Via},
+      {"To", HeaderType::To},
+      {"From", HeaderType::From},
+      {"Contact", HeaderType::Contact},
+      {"Record-Route", HeaderType::RRoute},
+      {"CSeq", HeaderType::Cseq},
+      {"Route", HeaderType::Route},
+      {"Path", HeaderType::Path},
+      {"Event", HeaderType::Event},
+      {"Service-Route", HeaderType::SRoute},
+      {"WWW-Authenticate", HeaderType::WAuth},
+      {"Authorization", HeaderType::Auth},
       {"", HeaderType::Other}};
 
   auto header_type_str = sip_line.substr(0, sip_line.find_first_of(":"));
@@ -225,6 +236,8 @@ MethodType Decoder::sipMethod(absl::string_view top_line) {
     return MethodType::Bye;
   } else if (top_line.find("2.0 200") != absl::string_view::npos) {
     return MethodType::Ok200;
+  } else if (top_line.find("2.0 4") != absl::string_view::npos) {
+    return MethodType::Failure4xx;
   } else {
     return MethodType::NullMethod;
   }
@@ -237,89 +250,104 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
                            {HeaderType::Contact, &HeaderHandler::processContact},
                            {HeaderType::Cseq, &HeaderHandler::processCseq},
                            {HeaderType::RRoute, &HeaderHandler::processRecordRoute},
+                           {HeaderType::SRoute, &HeaderHandler::processServiceRoute},
+                           {HeaderType::WAuth, &HeaderHandler::processWwwAuth},
+                           {HeaderType::Auth, &HeaderHandler::processAuth},
                        } {}
 
-//
-// REGISTER Header Handler
-//
-int Decoder::REGISTERHeaderHandler::processPath(absl::string_view& header) {
+int Decoder::HeaderHandler::processPath(absl::string_view& header) {
+  // Delete inst-ip and remove "sip:" in x-suri
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->setOperation(
+        Operation(OperationType::Delete, rawOffset() + pos,
+                  DeleteOperationValue(
+                      header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->setOperation(
+        Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
+  }
+
   if (header.find(";ep=") != absl::string_view::npos) {
     // already Path have ep
     return 0;
   }
-
-  metadata()->setInsertEPLocation(rawOffset() + header.length());
-  return 0;
-}
-
-int Decoder::REGISTERHeaderHandler::processVia(absl::string_view& header) {
-  if (!isFirstVia()) {
+  auto pos = header.find_first_of(";>");
+  if (pos == absl::string_view::npos) {
+    // no url
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
+  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+    Buffer::OwnedImpl buffer;
+    buffer.add(metadata()->EP().value());
+    metadata()->setOperation(
+        Operation(OperationType::Insert, rawOffset() + pos,
+                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+  }
 
-  setFirstVia(false);
   return 0;
 }
 
-int Decoder::REGISTERHeaderHandler::processRoute(absl::string_view& header) {
+int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   if (!isFirstRoute()) {
     return 0;
   }
-
   setFirstRoute(false);
+
+  if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
+    // already have ep
+    auto start = loc + 4;
+    if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
+      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+    }
+  }
+
   metadata()->setTopRoute(header);
   metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
   return 0;
 }
 
-int Decoder::REGISTERHeaderHandler::processRecordRoute(absl::string_view& header) {
+int Decoder::HeaderHandler::processRecordRoute(absl::string_view& header) {
   if (header.find(";ep=") != absl::string_view::npos) {
     // already RR have ep
     return 0;
   }
-
-  metadata()->setInsertEPLocation(rawOffset() + header.length());
-  return 0;
-}
-
-//
-// INVITE Header Handler
-//
-int Decoder::INVITEHeaderHandler::processVia(absl::string_view& header) {
-  if (!isFirstVia()) {
+  auto pos = header.find_first_of(";>");
+  if (pos == absl::string_view::npos) {
+    // no url
     return 0;
   }
 
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
-  setFirstVia(false);
+  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+    Buffer::OwnedImpl buffer;
+    buffer.add(metadata()->EP().value());
+    metadata()->setOperation(
+        Operation(OperationType::Insert, rawOffset() + pos,
+                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+  }
   return 0;
 }
 
-int Decoder::INVITEHeaderHandler::processRoute(absl::string_view& header) {
-  if (!isFirstRoute()) {
+int Decoder::HeaderHandler::processWwwAuth(absl::string_view& header) {
+  if (header.find(";opaque=") != absl::string_view::npos) {
+    // already WwwAuth have opaque
     return 0;
   }
 
-  setFirstRoute(false);
-  metadata()->setTopRoute(header);
-  metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+    Buffer::OwnedImpl buffer;
+    buffer.add(metadata()->EP().value());
+    metadata()->setOperation(
+        Operation(OperationType::Insert, rawOffset() + header.length(),
+                  InsertOperationValue(";opaque=" + Base64::encode(buffer, buffer.length()))));
+  }
   return 0;
 }
 
-int Decoder::INVITEHeaderHandler::processRecordRoute(absl::string_view& header) {
-  if (header.find(";ep=") != absl::string_view::npos) {
-    // already RR have ep
-    return 0;
+int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
+  if (auto loc = header.find(";opaque="); loc != absl::string_view::npos) {
+    metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(loc + 8))));
   }
-
-  metadata()->setInsertEPLocation(rawOffset() + header.length());
   return 0;
 }
 
@@ -339,68 +367,56 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
   return 0;
 }
 
-int Decoder::OK200HeaderHandler::processRecordRoute(absl::string_view& header) {
-  if (metadata()->respMethodType() != MethodType::Invite) {
-    return 0;
+int Decoder::HeaderHandler::processContact(absl::string_view& header) {
+  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+    metadata()->setOperation(
+        Operation(OperationType::Delete, rawOffset() + pos,
+                  DeleteOperationValue(
+                      header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+    auto xsuri = header.find("sip:pcsf-cfed");
+    metadata()->setOperation(
+        Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
   }
 
   if (header.find(";ep=") != absl::string_view::npos) {
-    // already RR have ep
+    // already Contact have ep
+    return 0;
+  }
+  auto pos = header.find_first_of(";>");
+  if (pos == absl::string_view::npos) {
+    // no url
     return 0;
   }
 
-  metadata()->setInsertEPLocation(rawOffset() + header.length());
+  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+    Buffer::OwnedImpl buffer;
+    buffer.add(metadata()->EP().value());
+    metadata()->setOperation(
+        Operation(OperationType::Insert, rawOffset() + pos,
+                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
+  }
+
   return 0;
 }
 
-int Decoder::OK200HeaderHandler::processContact(absl::string_view& header) {
-  if (header.find("tag") != absl::string_view::npos) {
+int Decoder::HeaderHandler::processServiceRoute(absl::string_view& header) {
+  if (header.find(";ep=") != absl::string_view::npos) {
+    // already SR have ep
+    return 0;
+  }
+  auto pos = header.find(">");
+  if (pos == absl::string_view::npos) {
+    // no url
     return 0;
   }
 
-  metadata()->setInsertTagLocation(rawOffset() + header.length());
-  return 0;
-}
-
-//
-// ACK/BYE/CANCEL Header Handler
-//
-int Decoder::GeneralHeaderHandler::processRoute(absl::string_view& header) {
-  if (!isFirstRoute()) {
-    return 0;
+  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
+    Buffer::OwnedImpl buffer;
+    buffer.add(metadata()->EP().value());
+    metadata()->setOperation(
+        Operation(OperationType::Insert, rawOffset() + pos,
+                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
   }
-
-  setFirstRoute(false);
-
-  if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
-    // already R have ep
-    metadata()->setEP(header.substr(loc + 4));
-  }
-  metadata()->setTopRoute(header);
-  metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
-  return 0;
-}
-
-int Decoder::GeneralHeaderHandler::processVia(absl::string_view& header) {
-  if (!isFirstVia()) {
-    return 0;
-  }
-
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
-  setFirstVia(false);
-  return 0;
-}
-
-int Decoder::GeneralHeaderHandler::processContact(absl::string_view& header) {
-  if (header.find("tag") != absl::string_view::npos) {
-    // already contact have tag
-    return 0;
-  }
-
-  metadata()->setInsertTagLocation(rawOffset() + header.length());
   return 0;
 }
 
@@ -413,75 +429,47 @@ int Decoder::SUBSCRIBEHeaderHandler::processEvent(absl::string_view& header) {
   return 0;
 }
 
-int Decoder::SUBSCRIBEHeaderHandler::processRoute(absl::string_view& header) {
-  if (!isFirstRoute()) {
-    return 0;
-  }
-
-  setFirstRoute(false);
-
-  if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
-    // already R have ep
-    metadata()->setEP(header.substr(loc + 4));
-  }
-  metadata()->setTopRoute(header);
-  metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
-  return 0;
-}
-
-int Decoder::SUBSCRIBEHeaderHandler::processVia(absl::string_view& header) {
-  if (!isFirstVia()) {
-    return 0;
-  }
-
-  metadata()->setTransactionId(
-      header.substr(header.find("branch=") + strlen("branch="),
-                    header.find(";pep") - header.find("branch=") - strlen("branch=")));
-
-  setFirstVia(false);
-  return 0;
-}
-
-int Decoder::SUBSCRIBEHeaderHandler::processContact(absl::string_view& header) {
-  if (header.find("tag") != absl::string_view::npos) {
-    // already contact have tag
-    return 0;
-  }
-
-  metadata()->setInsertTagLocation(rawOffset() + header.length());
-  return 0;
-}
-
 void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& header) {
-  if (type == HeaderType::Route) {
+  switch (type) {
+  case HeaderType::Route:
     handler_->processRoute(header);
-  }
-
-  if (type == HeaderType::Via) {
+    break;
+  case HeaderType::Via:
     handler_->processVia(header);
-  }
-  /* No need
-    if (type == HeaderType::Contact) {
-      handler_->processContact(header);
-    }
-    */
-
-  if (type == HeaderType::Path) {
+    break;
+  case HeaderType::Contact:
+    handler_->processContact(header);
+    break;
+  case HeaderType::Path:
     handler_->processPath(header);
-  }
-
-  if (type == HeaderType::RRoute) {
+    break;
+  case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+    break;
+  case HeaderType::Auth:
+    handler_->processAuth(header);
+    break;
+  default:
+    break;
   }
 }
 
 void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& header) {
-  if (type == HeaderType::Via) {
+  switch (type) {
+  case HeaderType::Via:
     handler_->processVia(header);
-  } else if (type == HeaderType::Route) {
+    break;
+  case HeaderType::Route:
     handler_->processRoute(header);
-  } else if (type == HeaderType::RRoute) {
+    break;
+  case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+    break;
+  case HeaderType::Contact:
+    handler_->processContact(header);
+    break;
+  default:
+    break;
   }
 }
 
@@ -499,40 +487,96 @@ void Decoder::OK200Handler::parseHeader(HeaderType& type, absl::string_view& hea
   case HeaderType::Via:
     handler_->processVia(header);
     break;
+  case HeaderType::Path:
+    handler_->processPath(header);
+    break;
+  case HeaderType::SRoute:
+    handler_->processServiceRoute(header);
+    break;
   default:
     break;
   }
 }
 
 void Decoder::GeneralHandler::parseHeader(HeaderType& type, absl::string_view& header) {
-  if (type == HeaderType::Route) {
+  switch (type) {
+  case HeaderType::Route:
     handler_->processRoute(header);
-  }
-
-  if (type == HeaderType::Via) {
+    break;
+  case HeaderType::Via:
     handler_->processVia(header);
-  }
-
-  if (type == HeaderType::Contact) {
+    break;
+  case HeaderType::Contact:
     handler_->processContact(header);
+    break;
+  case HeaderType::Path:
+    handler_->processPath(header);
+    break;
+  case HeaderType::RRoute:
+    handler_->processRecordRoute(header);
+    break;
+  default:
+    break;
   }
 }
 
 void Decoder::SUBSCRIBEHandler::parseHeader(HeaderType& type, absl::string_view& header) {
-  if (type == HeaderType::Event) {
+  switch (type) {
+  case HeaderType::Event:
     handler_->processEvent(header);
-  }
-
-  if (type == HeaderType::Route) {
+    break;
+  case HeaderType::Route:
     handler_->processRoute(header);
-  }
-
-  if (type == HeaderType::Via) {
+    break;
+  case HeaderType::Via:
     handler_->processVia(header);
-  }
-
-  if (type == HeaderType::Contact) {
+    break;
+  case HeaderType::Contact:
     handler_->processContact(header);
+    break;
+  case HeaderType::RRoute:
+    handler_->processRecordRoute(header);
+    break;
+  default:
+    break;
+  }
+}
+
+void Decoder::FAILURE4XXHandler::parseHeader(HeaderType& type, absl::string_view& header) {
+  switch (type) {
+  case HeaderType::Contact:
+    handler_->processContact(header);
+    break;
+  case HeaderType::WAuth:
+    handler_->processWwwAuth(header);
+    break;
+  case HeaderType::Via:
+    handler_->processVia(header);
+    break;
+  default:
+    break;
+  }
+}
+
+void Decoder::OthersHandler::parseHeader(HeaderType& type, absl::string_view& header) {
+  switch (type) {
+  case HeaderType::Via:
+    handler_->processVia(header);
+    break;
+  case HeaderType::Contact:
+    handler_->processContact(header);
+    break;
+  case HeaderType::Path:
+    handler_->processPath(header);
+    break;
+  case HeaderType::RRoute:
+    handler_->processRecordRoute(header);
+    break;
+  case HeaderType::SRoute:
+    handler_->processServiceRoute(header);
+    break;
+  default:
+    break;
   }
 }
 
@@ -547,6 +591,8 @@ std::shared_ptr<Decoder::MessageHandler> Decoder::MessageFactory::create(MethodT
     return std::make_shared<REGISTERHandler>(parent);
   case MethodType::Subscribe:
     return std::make_shared<SUBSCRIBEHandler>(parent);
+  case MethodType::Failure4xx:
+    return std::make_shared<FAILURE4XXHandler>(parent);
   case MethodType::Ack:
   case MethodType::Bye:
   case MethodType::Cancel:
@@ -603,6 +649,17 @@ int Decoder::decode() {
   return 0;
 }
 
+int Decoder::HeaderHandler::processVia(absl::string_view& header) {
+  if (!isFirstVia()) {
+    return 0;
+  }
+
+  metadata()->setTransactionId(header);
+
+  setFirstVia(false);
+  return 0;
+}
+
 int Decoder::parseTopLine(absl::string_view& top_line) {
   auto metadata = metadata_;
   metadata->setMsgType(sipMsgType(top_line));
@@ -610,6 +667,14 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
 
   if (metadata->msgType() == MsgType::Request) {
     metadata->setRequestURI(top_line);
+  }
+
+  if (auto loc = top_line.find(";ep="); loc != absl::string_view::npos) {
+    // already have ep
+    auto start = loc + 4;
+    if (auto end = top_line.find(">", start); end != absl::string_view::npos) {
+      metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start))));
+    }
   }
   return 0;
 }
