@@ -105,7 +105,8 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "metadata_lib",
-    hdrs = ["metadata.h", 
+    hdrs = [
+        "metadata.h",
         "operation.h",
     ],
     external_deps = ["abseil_optional"],

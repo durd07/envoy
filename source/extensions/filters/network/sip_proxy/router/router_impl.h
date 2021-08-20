@@ -141,7 +141,7 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
                                     public Logger::Loggable<Logger::Id::sip> {
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
                              std::chrono::milliseconds transaction_timeout, bool ep_insert)
-      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout), 
+      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout),
         ep_insert_(ep_insert) {
     audit_timer_ = dispatcher.createTimer([this]() -> void { auditTimerAction(); });
     audit_timer_->enableTimer(std::chrono::seconds(2));
@@ -187,8 +187,7 @@ class TransactionInfo : public std::enable_shared_from_this<TransactionInfo>,
                         Logger::Loggable<Logger::Id::sip> {
 public:
   TransactionInfo(const std::string& cluster_name, ThreadLocal::SlotAllocator& tls,
-                  std::chrono::milliseconds transaction_timeout,
-                  bool ep_insert)
+                  std::chrono::milliseconds transaction_timeout, bool ep_insert)
       : cluster_name_(cluster_name), tls_(tls.allocateSlot()),
         transaction_timeout_(transaction_timeout), ep_insert_(ep_insert) {}
 
@@ -197,15 +196,15 @@ public:
     // That may be shorter than the tls callback if the listener is torn down shortly after it is
     // created. We use a weak pointer to make sure this object outlives the tls callbacks.
     std::weak_ptr<TransactionInfo> this_weak_ptr = this->shared_from_this();
-    tls_->set(
-        [this_weak_ptr](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
-          if (auto this_shared_ptr = this_weak_ptr.lock()) {
-            return std::make_shared<ThreadLocalTransactionInfo>(
-                this_shared_ptr, dispatcher, this_shared_ptr->transaction_timeout_, 
-		this_shared_ptr->ep_insert_);
-          }
-          return nullptr;
-        });
+    tls_->set([this_weak_ptr](
+                  Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+      if (auto this_shared_ptr = this_weak_ptr.lock()) {
+        return std::make_shared<ThreadLocalTransactionInfo>(this_shared_ptr, dispatcher,
+                                                            this_shared_ptr->transaction_timeout_,
+                                                            this_shared_ptr->ep_insert_);
+      }
+      return nullptr;
+    });
 
     (void)cluster_name_;
   }
@@ -246,9 +245,7 @@ public:
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.erase(host);
   }
 
-  bool epInsert() {
-    return ep_insert_;
-  }
+  bool epInsert() { return ep_insert_; }
 
 private:
   const std::string cluster_name_;
@@ -337,7 +334,7 @@ public:
     } else {
       return "";
     }
-  } 
+  }
   */
 
 private:
@@ -401,7 +398,7 @@ public:
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
-  std::shared_ptr<TransactionInfo> transactionInfo() {return transaction_info_; }
+  std::shared_ptr<TransactionInfo> transactionInfo() { return transaction_info_; }
 
 private:
   Upstream::TcpPoolData& conn_pool_data_;

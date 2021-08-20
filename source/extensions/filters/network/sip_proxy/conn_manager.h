@@ -74,18 +74,21 @@ public:
 
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override;
-  
+
   absl::string_view getLocalIp() override {
-	// should return local address ip
-	// But after ORIGINAL_DEST, the local address update to upstream local address
-	// So here get downstream remote IP, which should in same pod car with envoy
+    // should return local address ip
+    // But after ORIGINAL_DEST, the local address update to upstream local address
+    // So here get downstream remote IP, which should in same pod car with envoy
     if (config_.settings()->epInsert()) {
-      return read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString();
+      return read_callbacks_->connection()
+          .addressProvider()
+          .remoteAddress()
+          ->ip()
+          ->addressAsString();
     } else {
       return "";
     }
   }
-
 
 private:
   friend class SipConnectionManagerTest;
@@ -113,10 +116,14 @@ private:
 
     absl::string_view getLocalIp() override {
       if (parent_.settings()->epInsert()) {
-	// should return local address ip
-	// But after ORIGINAL_DEST, the local address update to upstream local address
-	// So here get downstream remote IP, which should in same pod car with envoy
-        return parent_.parent_.read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString();
+        // should return local address ip
+        // But after ORIGINAL_DEST, the local address update to upstream local address
+        // So here get downstream remote IP, which should in same pod car with envoy
+        return parent_.parent_.read_callbacks_->connection()
+            .addressProvider()
+            .remoteAddress()
+            ->ip()
+            ->addressAsString();
       } else {
         return "";
       }

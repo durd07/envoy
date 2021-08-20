@@ -1,12 +1,12 @@
 #pragma once
 
 #include <chrono>
-#include <memory>
-#include <list>
 #include <iostream>
+#include <list>
+#include <memory>
 
-#include "source/extensions/filters/network/sip_proxy/sip.h"
 #include "source/extensions/filters/network/sip_proxy/operation.h"
+#include "source/extensions/filters/network/sip_proxy/sip.h"
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"

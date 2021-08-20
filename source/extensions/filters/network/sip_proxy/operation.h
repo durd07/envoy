@@ -43,11 +43,12 @@ public:
 
   // constexpr bool operator<(const Operation& other) { return this->position_ < other.position_; }
   // constexpr bool operator>(const Operation& other) { return this->position_ > other.position_; }
-  // constexpr bool operator==(const Operation& other) { return this->position_ == other.position_; }
-  // constexpr bool operator!=(const Operation& other) { return this->position_ != other.position_; }
-  // constexpr bool operator<=(const Operation& other) { return this->position_ <= other.position_; }
-  // constexpr bool operator>=(const Operation& other) { return this->position_ >= other.position_; }
-  // constexpr bool operator<=>(Operation &other) { return this->position_ <=> other.position_; }
+  // constexpr bool operator==(const Operation& other) { return this->position_ == other.position_;
+  // } constexpr bool operator!=(const Operation& other) { return this->position_ !=
+  // other.position_; } constexpr bool operator<=(const Operation& other) { return this->position_
+  // <= other.position_; } constexpr bool operator>=(const Operation& other) { return
+  // this->position_ >= other.position_; } constexpr bool operator<=>(Operation &other) { return
+  // this->position_ <=> other.position_; }
 
   // private:
   OperationType type_;
@@ -55,7 +56,9 @@ public:
   std::variant<InsertOperationValue, DeleteOperationValue, ModifyOperationValue> value_;
 };
 
-static constexpr bool operator<(const Operation& o1, const Operation & o2) { return o1.position_ < o2.position_; }
+static constexpr bool operator<(const Operation& o1, const Operation& o2) {
+  return o1.position_ < o2.position_;
+}
 
 } // namespace SipProxy
 } // namespace NetworkFilters

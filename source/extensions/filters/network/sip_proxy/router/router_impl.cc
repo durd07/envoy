@@ -248,9 +248,9 @@ FilterStatus Router::messageEnd() {
 
   Buffer::OwnedImpl transport_buffer;
 
-      if (upstream_request_->transactionInfo()->epInsert()) {
-        metadata_->setEP(upstream_request_->localAddress());
-      }
+  if (upstream_request_->transactionInfo()->epInsert()) {
+    metadata_->setEP(upstream_request_->localAddress());
+  }
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);

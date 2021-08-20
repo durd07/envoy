@@ -5,7 +5,8 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
-//static constexpr bool operator<(const Operation& o1, const Operation & o2) { return o1.position_ < o2.position_; }
+// static constexpr bool operator<(const Operation& o1, const Operation & o2) { return o1.position_
+// < o2.position_; }
 
 void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Instance& out) {
   std::string output = "";

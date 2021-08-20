@@ -41,6 +41,8 @@ message SipProxy {
     //
     // transaction timeout timer [Timer B] unit is milliseconds, default value 64*T1.
     google.protobuf.Duration transaction_timeout = 1;
+
+    bool ep_insert = 2;
   }
 
   // The human readable prefix to use when emitting statistics.
