@@ -20,14 +20,14 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
 
     switch (operation.type_) {
     case OperationType::Insert:
-      output += std::get<InsertOperationValue>(operation.value_).value_;
+      output += absl::get<InsertOperationValue>(operation.value_).value_;
       break;
     case OperationType::Modify:
-      output += std::get<ModifyOperationValue>(operation.value_).dest_;
-      previous_position += std::get<ModifyOperationValue>(operation.value_).src_length_;
+      output += absl::get<ModifyOperationValue>(operation.value_).dest_;
+      previous_position += absl::get<ModifyOperationValue>(operation.value_).src_length_;
       break;
     case OperationType::Delete:
-      previous_position += std::get<DeleteOperationValue>(operation.value_).length_;
+      previous_position += absl::get<DeleteOperationValue>(operation.value_).length_;
       break;
     default:
       break;
