@@ -28,11 +28,7 @@ public:
   MsgType msgType() { return msg_type_; }
   MethodType methodType() { return method_type_; }
   MethodType respMethodType() { return resp_method_type_; }
-  // absl::optional<size_t> insertEPLocation() { return insert_ep_location_; }
-  // std::list<size_t> insertEPLocation() {return insert_ep_location_;}
-  // absl::optional<size_t> insertOpaqueLocation() { return insert_opaque_location_; }
   absl::optional<absl::string_view> EP() { return ep_; }
-  absl::optional<absl::string_view> opaque() { return opaque_; }
   std::vector<Operation>& operationList() { return operation_list_; }
   absl::optional<absl::string_view> routeEP() { return route_ep_; }
   absl::optional<absl::string_view> routeOpaque() { return route_opaque_; }
@@ -48,12 +44,8 @@ public:
   void setMsgType(MsgType data) { msg_type_ = data; }
   void setMethodType(MethodType data) { method_type_ = data; }
   void setRespMethodType(MethodType data) { resp_method_type_ = data; }
-  // void setInsertEPLocation(size_t data) { insert_ep_location_.push_back(data); }
-  // void setInsertOpaqueLocation(size_t data) { insert_opaque_location_ = data; }
   void setOperation(Operation op) { operation_list_.emplace_back(op); }
   void setEP(absl::string_view data) { ep_ = data; }
-  void setOpaque(absl::string_view data) { opaque_ = data; }
-  void setLocalIp(absl::string_view data) { opaque_ = data; }
   void setRouteEP(absl::string_view data) { route_ep_ = data; }
   void setRouteOpaque(absl::string_view data) { route_opaque_ = data; }
 
@@ -86,10 +78,7 @@ private:
   MethodType method_type_;
   MethodType resp_method_type_;
   std::vector<Operation> operation_list_;
-  // std::list<absl::optional<size_t>> insert_ep_location_{};
-  // absl::optional<size_t> insert_opaque_location_{};
   absl::optional<absl::string_view> ep_{};
-  absl::optional<absl::string_view> opaque_{};
   absl::optional<absl::string_view> pep_{};
   absl::optional<absl::string_view> route_ep_{};
   absl::optional<absl::string_view> route_opaque_{};

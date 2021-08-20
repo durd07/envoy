@@ -75,16 +75,35 @@ public:
 
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override;
-  
-  absl::string_view getLocalIp() override {
+
+  //absl::string_view getLocalIp() override {
+  void getLocalIp() override {
+    ENVOY_LOG(
+        error,
+        "DDD======================1,"
+        "directRemoteIP: {},"
+	"directLocalIP: {},"
+        "downstream-direct-remoteIP: {},"
+        "downstream-remoteIP: {},"
+        "downstream-localIP: {}",
+        read_callbacks_->connection().addressProvider().remoteAddress()->asString(),
+        read_callbacks_->connection().addressProvider().localAddress()->asString(),
+        read_callbacks_->connection()
+            .streamInfo()
+            .downstreamAddressProvider()
+            .directRemoteAddress()
+            ->asString(),
+        read_callbacks_->connection().streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
+        read_callbacks_->connection().streamInfo().downstreamAddressProvider().localAddress()->asString());
+
+	/*
     if (config_.settings()->epInsert()) {
       return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
     } else {
       return "";
-    }
+    }*/
   }
-
-
+  
 private:
   friend class SipConnectionManagerTest;
   struct ActiveTrans;
@@ -109,13 +128,25 @@ private:
       return *this;
     }
 
-    absl::string_view getLocalIp() override {
-      if (parent_.settings()->epInsert()) {
-        return parent_.parent_.read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
-      } else {
-        return "";
-      }
-    }
+  void getLocalIp() override {
+    ENVOY_LOG(
+        error,
+        "DDD======================2,"
+	"directRemoteIP: {},"
+	"directLocalIP: {},"
+        "downstream-direct-remoteIP: {},"
+        "downstream-remoteIP: {},"
+        "downstream-localIP: {}",
+        parent_.parent_.read_callbacks_->connection().addressProvider().remoteAddress()->asString(),
+        parent_.parent_.read_callbacks_->connection().addressProvider().localAddress()->asString(),
+        parent_.parent_.read_callbacks_->connection()
+            .streamInfo()
+            .downstreamAddressProvider()
+            .directRemoteAddress()
+            ->asString(),
+        parent_.parent_.read_callbacks_->connection().streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
+        parent_.parent_.read_callbacks_->connection().streamInfo().downstreamAddressProvider().localAddress()->asString());
+  }
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;

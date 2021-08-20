@@ -222,6 +222,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
+      ENVOY_STREAM_LOG(debug, "reuse upstream request from EP {}", *callbacks_, host);
       upstream_request_ = upstream_request;
 
       try {
@@ -249,6 +250,11 @@ FilterStatus Router::messageEnd() {
   }
 
   Buffer::OwnedImpl transport_buffer;
+
+  //set EP/Opaque, used in upstream
+  if (upstream_request_->transactionInfo()->epInsert()) {
+    metadata_->setEP(upstream_request_->localAddress());
+  }
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
@@ -354,10 +360,10 @@ void UpstreamRequest::onRequestStart() {
     for (const auto& metadata : pending_request_) {
       Buffer::OwnedImpl transport_buffer;
 
+      //set EP/Opaque, used in upstream
       if (transaction_info_->epInsert()) {
         metadata->setEP(localAddress());
       }
-
       std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
       encoder->encode(metadata, transport_buffer);
 
@@ -460,6 +466,10 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
       active_trans->startUpstreamResponse();
+      //set EP/Opaque, used in downstream
+      if (parent_.transactionInfo()->epInsert()) {
+        metadata->setEP(parent_.localAddress());
+      }
       active_trans->upstreamData(metadata);
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
@@ -471,14 +481,6 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
   }
 
   return FilterStatus::Continue;
-}
-
-absl::string_view ResponseDecoder::getLocalIp() {
-  if (parent_.transactionInfo()->epInsert()) {
-    return parent_.localAddress();
-  } else {
-    return "";
-  }
 }
 
 } // namespace Router

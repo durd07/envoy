@@ -114,7 +114,8 @@ public:
    * @return DecoderEventHandler& a new DecoderEventHandler for a message.
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
-  virtual absl::string_view getLocalIp() PURE;
+  //virtual absl::string_view getLocalIp() PURE;
+  virtual void getLocalIp() PURE;
 };
 
 /**
@@ -217,13 +218,8 @@ private:
         // No url
         return 0;
       }
-      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-        Buffer::OwnedImpl buffer;
-        buffer.add(metadata()->EP().value());
-        metadata()->setOperation(
-            Operation(OperationType::Insert, rawOffset() + pos,
-                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-      }
+      metadata()->setOperation(
+          Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
       return 0;
     };
 
@@ -244,7 +240,8 @@ private:
         if (auto end = header.find(">", start); end != absl::string_view::npos) {
           Buffer::OwnedImpl buffer;
           buffer.add(header.substr(start, end - start));
-          metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+          // metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+          metadata()->setRouteEP(header.substr(start, end - start));
         }
       }
 
@@ -263,13 +260,8 @@ private:
         // No url
         return 0;
       }
-      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-        Buffer::OwnedImpl buffer;
-        buffer.add(metadata()->EP().value());
-        metadata()->setOperation(
-            Operation(OperationType::Insert, rawOffset() + pos,
-                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-      }
+      metadata()->setOperation(
+          Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
 
       if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
         metadata()->setOperation(
@@ -297,13 +289,8 @@ private:
         // No url
         return 0;
       }
-      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-        Buffer::OwnedImpl buffer;
-        buffer.add(metadata()->EP().value());
-        metadata()->setOperation(
-            Operation(OperationType::Insert, rawOffset() + pos,
-                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-      }
+      metadata()->setOperation(
+          Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
       return 0;
     }
     virtual int processServiceRoute(absl::string_view& header) {
@@ -316,13 +303,8 @@ private:
         // No url
         return 0;
       }
-      if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-        Buffer::OwnedImpl buffer;
-        buffer.add(metadata()->EP().value());
-        metadata()->setOperation(
-            Operation(OperationType::Insert, rawOffset() + pos,
-                      InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-      }
+      metadata()->setOperation(
+          Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
       return 0;
     }
     virtual int processWwwAuth(absl::string_view& header) {
@@ -331,21 +313,15 @@ private:
         return 0;
       }
 
-      if (metadata()->opaque().has_value() && metadata()->opaque().value().length() > 0) {
-        Buffer::OwnedImpl buffer;
-        buffer.add(metadata()->opaque().value());
-        metadata()->setOperation(
-            Operation(OperationType::Insert, rawOffset() + header.length(),
-                      InsertOperationValue(";opaque=" + Base64::encode(buffer, buffer.length()))));
-      }
+      metadata()->setOperation(Operation(OperationType::Insert, rawOffset() + header.length(),
+                                         InsertOperationValue(";opaque=")));
       return 0;
     }
 
     virtual int processAuth(absl::string_view& header) {
       if (auto loc = header.find(";opaque="); loc != absl::string_view::npos) {
         // already R have ep
-        metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(loc + 8))));
-        // already R have ep
+        metadata()->setRouteOpaque(header.substr(loc + 8));
       }
       return 0;
     }
@@ -391,7 +367,7 @@ private:
     int processRoute(absl::string_view& header) override;
     int processRecordRoute(absl::string_view& header) override;
     int processPath(absl::string_view& header) override;
-    //int processAuth(absl::string_view& header) override;
+    // int processAuth(absl::string_view& header) override;
     // int processContact(absl::string_view& header) override;
   };
 

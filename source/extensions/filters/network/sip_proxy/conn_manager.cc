@@ -161,9 +161,6 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   Buffer::OwnedImpl buffer;
 
-  metadata_->setEP(
-      cm.read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
-
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);
 

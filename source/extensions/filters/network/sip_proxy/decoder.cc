@@ -163,9 +163,8 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
-  metadata_->setEP(callbacks_.getLocalIp());
-  metadata_->setOpaque(callbacks_.getLocalIp());
 
+  callbacks_.getLocalIp();
   decode();
 
   request_ = std::make_unique<ActiveRequest>(callbacks_.newDecoderEventHandler(metadata_));
@@ -268,13 +267,8 @@ int Decoder::REGISTERHeaderHandler::processPath(absl::string_view& header) {
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
 
   if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
     metadata()->setOperation(
@@ -310,7 +304,8 @@ int Decoder::REGISTERHeaderHandler::processRoute(absl::string_view& header) {
     // already have ep
     auto start = loc + 4;
     if (auto end = header.find(">", start); end != absl::string_view::npos) {
-      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      // metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      metadata()->setRouteEP(header.substr(start, end - start));
     }
   }
 
@@ -330,13 +325,8 @@ int Decoder::REGISTERHeaderHandler::processRecordRoute(absl::string_view& header
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
   return 0;
 }
 
@@ -364,7 +354,8 @@ int Decoder::INVITEHeaderHandler::processRoute(absl::string_view& header) {
     // already have ep
     auto start = loc + 4;
     if (auto end = header.find(">", start); end != absl::string_view::npos) {
-      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      // metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      metadata()->setRouteEP(header.substr(start, end - start));
     }
   }
 
@@ -384,13 +375,8 @@ int Decoder::INVITEHeaderHandler::processRecordRoute(absl::string_view& header) 
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
   return 0;
 }
 
@@ -421,13 +407,8 @@ int Decoder::OK200HeaderHandler::processRecordRoute(absl::string_view& header) {
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
   return 0;
 }
 
@@ -442,13 +423,8 @@ int Decoder::OK200HeaderHandler::processContact(absl::string_view& header) {
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
 
   if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
     metadata()->setOperation(
@@ -474,13 +450,8 @@ int Decoder::OK200HeaderHandler::processServiceRoute(absl::string_view& header) 
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
   return 0;
 }
 
@@ -497,7 +468,8 @@ int Decoder::GeneralHeaderHandler::processRoute(absl::string_view& header) {
     // already have ep
     auto start = loc + 4;
     if (auto end = header.find(">", start); end != absl::string_view::npos) {
-      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      // metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      metadata()->setRouteEP(header.substr(start, end - start));
     }
   }
 
@@ -528,13 +500,8 @@ int Decoder::GeneralHeaderHandler::processContact(absl::string_view& header) {
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
 
   if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
     metadata()->setOperation(
@@ -568,7 +535,8 @@ int Decoder::SUBSCRIBEHeaderHandler::processRoute(absl::string_view& header) {
     // already have ep
     auto start = loc + 4;
     if (auto end = header.find(">", start); end != absl::string_view::npos) {
-      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      // metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
+      metadata()->setRouteEP(header.substr(start, end - start));
     }
   }
 
@@ -599,13 +567,8 @@ int Decoder::SUBSCRIBEHeaderHandler::processContact(absl::string_view& header) {
     return 0;
   }
 
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-  }
+  metadata()->setOperation(
+      Operation(OperationType::Insert, rawOffset() + pos, InsertOperationValue(";ep=")));
 
   if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
     metadata()->setOperation(
@@ -656,7 +619,7 @@ void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& he
   } else if (type == HeaderType::Contact) {
     handler_->processContact(header);
   } else if (type == HeaderType::Path) {
-    handler_->processContact(header);
+    handler_->processPath(header);
   }
 }
 
@@ -836,7 +799,8 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     // already have ep
     auto start = loc + 4;
     if (auto end = top_line.find(">", start); end != absl::string_view::npos) {
-      metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start))));
+      // metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start))));
+      metadata->setRouteEP(top_line.substr(start, end - start));
     }
   }
   return 0;

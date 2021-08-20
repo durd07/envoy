@@ -331,15 +331,10 @@ public:
     UNREFERENCED_PARAMETER(metadata);
     return *this;
   }
-  absl::string_view getLocalIp() override;
-  /*
-    if (parent_.transactionInfo()->epInsert()) {
-      return parent_.localAddress();
-    } else {
-      return "";
-    }
-  } 
-  */
+
+  void getLocalIp() override {
+    ENVOY_LOG( error, "DDD======================2");
+  }
 
 private:
   UpstreamRequest& parent_;
@@ -398,6 +393,7 @@ public:
   }
 
   absl::string_view localAddress() {
+    ENVOY_LOG(error, "YYYYYYYYYYYYYYYYYYYYYYYY {}", conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
