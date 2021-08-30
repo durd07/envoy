@@ -115,6 +115,8 @@ public:
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
   virtual absl::string_view getLocalIp() PURE;
+  virtual std::string getOwnDomain() PURE;
+  virtual std::string getDomainMatchParamName() PURE;
 };
 
 /**
@@ -229,7 +231,7 @@ private:
   class MessageHandler {
   public:
     MessageHandler(std::shared_ptr<HeaderHandler> handler, Decoder& parent)
-        : handler_(std::move(handler)), parent_(parent) {}
+        : parent_(parent), handler_(std::move(handler)) {}
     virtual ~MessageHandler() = default;
 
     virtual void parseHeader(HeaderType& type, absl::string_view& header) PURE;
@@ -242,9 +244,10 @@ private:
     void setFirstVia(bool flag) { parent_.setFirstVia(flag); }
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
 
+    Decoder& parent_;
   protected:
     std::shared_ptr<HeaderHandler> handler_;
-    Decoder& parent_;
+    //Decoder& parent_;
   };
 
   class REGISTERHeaderHandler : public HeaderHandler {
@@ -365,6 +368,8 @@ private:
   MessageMetadataSharedPtr metadata_;
   DecoderStateMachinePtr state_machine_;
   bool start_new_message_{true};
+  std::string own_domain_{""};
+  std::string domain_match_parameter_name_{""};
 };
 
 using DecoderPtr = std::unique_ptr<Decoder>;

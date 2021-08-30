@@ -63,7 +63,10 @@ State DecoderStateMachine::run() {
   return state_;
 }
 
-Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
+Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {
+  own_domain_ = callbacks_.getOwnDomain();
+  domain_match_parameter_name_ = callbacks_.getDomainMatchParamName();
+}
 
 void Decoder::complete() {
   request_.reset();
@@ -163,7 +166,6 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
-  metadata_->setEP(callbacks_.getLocalIp());
 
   decode();
 
@@ -255,40 +257,9 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
                        } {}
 
 int Decoder::HeaderHandler::processPath(absl::string_view& header) {
-  // Delete inst-ip and remove "sip:" in x-suri
-  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
-    metadata()->setOperation(
-        Operation(OperationType::Delete, rawOffset() + pos,
-                  DeleteOperationValue(
-                      header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
-    auto xsuri = header.find("sip:pcsf-cfed");
-    metadata()->setOperation(
-        Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
-  }
-
-  if (header.find(";ep=") != absl::string_view::npos) {
-    // already Path have ep
-    return 0;
-  }
-  auto pos = header.find_first_of(";>");
-  if (pos == absl::string_view::npos) {
-    // no url
-    return 0;
-  }
-
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-	  /*
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-		  */
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + metadata()->EP().value())));
-  }
-
+  metadata()->deleteInstipOperation(rawOffset(), header);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
+                             parent_.parent_.domain_match_parameter_name_);
   return 0;
 }
 
@@ -299,11 +270,10 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   setFirstRoute(false);
 
   if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
-    // already have ep
-    auto start = loc + 4;
+    // Need to exclude the "" of ep string
+    auto start = loc + 5;
     if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
-      //metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start))));
-      metadata()->setRouteEP(header.substr(start, end - start));
+      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start - 1))));
     }
   }
 
@@ -313,55 +283,38 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processRecordRoute(absl::string_view& header) {
-  if (header.find(";ep=") != absl::string_view::npos) {
-    // already RR have ep
-    return 0;
-  }
-  auto pos = header.find_first_of(";>");
-  if (pos == absl::string_view::npos) {
-    // no url
-    return 0;
-  }
-
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-	  /*
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-		  */
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + metadata()->EP().value())));
-  }
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
+                             parent_.parent_.domain_match_parameter_name_);
   return 0;
 }
 
 int Decoder::HeaderHandler::processWwwAuth(absl::string_view& header) {
-  if (header.find(";opaque=") != absl::string_view::npos) {
-    // already WwwAuth have opaque
-    return 0;
-  }
-
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-	  /*
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + header.length(),
-                  InsertOperationValue(";opaque=" + Base64::encode(buffer, buffer.length()))));
-		  */
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + header.length(),
-                  InsertOperationValue(";opaque=" + metadata()->EP().value())));
-  }
+  metadata()->addOpaqueOperation(rawOffset(), header);
   return 0;
 }
 
 int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
-  if (auto loc = header.find(";opaque="); loc != absl::string_view::npos) {
-    metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(loc + 8))));
+  auto loc = header.find(",opaque=");
+  if (loc == absl::string_view::npos) {
+    return 0;
+  }
+  /*
+    //Need to exclude the "" of opaque string
+    auto start = loc + 9;
+    auto end = header.find(",", start);
+    if (end == absl::string_view::npos) {
+      metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(start, header.length() -
+    1)))); } else { metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(start, end -
+    start - 1))));
+    }
+    */
+  // No base64 and no ""
+  auto start = loc + strlen(",opaque");
+  auto end = header.find(",", start);
+  if (end == absl::string_view::npos) {
+    metadata()->setRouteOpaque(header.substr(start, header.length() - start));
+  } else {
+    metadata()->setRouteOpaque(header.substr(start, end - start));
   }
   return 0;
 }
@@ -383,65 +336,16 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processContact(absl::string_view& header) {
-  if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
-    metadata()->setOperation(
-        Operation(OperationType::Delete, rawOffset() + pos,
-                  DeleteOperationValue(
-                      header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
-    auto xsuri = header.find("sip:pcsf-cfed");
-    metadata()->setOperation(
-        Operation(OperationType::Delete, rawOffset() + xsuri, DeleteOperationValue(4)));
-  }
-
-  if (header.find(";ep=") != absl::string_view::npos) {
-    // already Contact have ep
-    return 0;
-  }
-  auto pos = header.find_first_of(";>");
-  if (pos == absl::string_view::npos) {
-    // no url
-    return 0;
-  }
-
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-	  /*
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-		  */
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + metadata()->EP().value())));
-  }
+  metadata()->deleteInstipOperation(rawOffset(), header);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
+                             parent_.parent_.domain_match_parameter_name_);
 
   return 0;
 }
 
 int Decoder::HeaderHandler::processServiceRoute(absl::string_view& header) {
-  if (header.find(";ep=") != absl::string_view::npos) {
-    // already SR have ep
-    return 0;
-  }
-  auto pos = header.find(">");
-  if (pos == absl::string_view::npos) {
-    // no url
-    return 0;
-  }
-
-  if (metadata()->EP().has_value() && metadata()->EP().value().length() > 0) {
-	  /*
-    Buffer::OwnedImpl buffer;
-    buffer.add(metadata()->EP().value());
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + Base64::encode(buffer, buffer.length()))));
-		  */
-    metadata()->setOperation(
-        Operation(OperationType::Insert, rawOffset() + pos,
-                  InsertOperationValue(";ep=" + metadata()->EP().value())));
-  }
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
+                             parent_.parent_.domain_match_parameter_name_);
   return 0;
 }
 
@@ -524,7 +428,8 @@ void Decoder::OK200Handler::parseHeader(HeaderType& type, absl::string_view& hea
 }
 
 void Decoder::GeneralHandler::parseHeader(HeaderType& type, absl::string_view& header) {
-  if (type == HeaderType::Route) {
+  switch (type) {
+  case HeaderType::Route:
     handler_->processRoute(header);
     break;
   case HeaderType::Via:
@@ -694,11 +599,10 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
   }
 
   if (auto loc = top_line.find(";ep="); loc != absl::string_view::npos) {
-    // already have ep
-    auto start = loc + 4;
-    if (auto end = top_line.find(">", start); end != absl::string_view::npos) {
-      // metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start))));
-      metadata->setRouteEP(top_line.substr(start, end - start));
+    // Need to exclude the "" of ep string
+    auto start = loc + 5;
+    if (auto end = top_line.find(";", start); end != absl::string_view::npos) {
+      metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start - 1))));
     }
   }
   return 0;

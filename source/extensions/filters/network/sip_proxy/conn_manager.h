@@ -76,34 +76,22 @@ public:
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override;
 
-  //absl::string_view getLocalIp() override {
-  void getLocalIp() override {
+  absl::string_view getLocalIp() override {
+    // should return local address ip
+    // But after ORIGINAL_DEST, the local address update to upstream local address
+    // So here get downstream remote IP, which should in same pod car with envoy
     ENVOY_LOG(
-        error,
-        "DDD======================1,"
-        "directRemoteIP: {},"
-	"directLocalIP: {},"
-        "downstream-direct-remoteIP: {},"
-        "downstream-remoteIP: {},"
-        "downstream-localIP: {}",
-        read_callbacks_->connection().addressProvider().remoteAddress()->asString(),
-        read_callbacks_->connection().addressProvider().localAddress()->asString(),
-        read_callbacks_->connection()
-            .streamInfo()
-            .downstreamAddressProvider()
-            .directRemoteAddress()
-            ->asString(),
-        read_callbacks_->connection().streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
-        read_callbacks_->connection().streamInfo().downstreamAddressProvider().localAddress()->asString());
-
-	/*
-    if (config_.settings()->epInsert()) {
-      return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
-    } else {
-      return "";
-    }*/
+        error, "XXXXXXXXXXXXXXXXXXXXX {}",
+        read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString());
+    return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
-  
+
+  std::string getOwnDomain() override { return config_.settings()->ownDomain(); }
+
+  std::string getDomainMatchParamName() override {
+    return config_.settings()->domainMatchParamName();
+  }
+
 private:
   friend class SipConnectionManagerTest;
   struct ActiveTrans;
@@ -128,25 +116,18 @@ private:
       return *this;
     }
 
-  void getLocalIp() override {
-    ENVOY_LOG(
-        error,
-        "DDD======================2,"
-	"directRemoteIP: {},"
-	"directLocalIP: {},"
-        "downstream-direct-remoteIP: {},"
-        "downstream-remoteIP: {},"
-        "downstream-localIP: {}",
-        parent_.parent_.read_callbacks_->connection().addressProvider().remoteAddress()->asString(),
-        parent_.parent_.read_callbacks_->connection().addressProvider().localAddress()->asString(),
-        parent_.parent_.read_callbacks_->connection()
-            .streamInfo()
-            .downstreamAddressProvider()
-            .directRemoteAddress()
-            ->asString(),
-        parent_.parent_.read_callbacks_->connection().streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
-        parent_.parent_.read_callbacks_->connection().streamInfo().downstreamAddressProvider().localAddress()->asString());
-  }
+    absl::string_view getLocalIp() override {
+      // should return local address ip
+      // But after ORIGINAL_DEST, the local address update to upstream local address
+      // So here get downstream remote IP, which should in same pod car with envoy
+      return parent_.parent_.getLocalIp();
+    }
+
+    std::string getOwnDomain() override { return parent_.parent_.getOwnDomain(); }
+
+    std::string getDomainMatchParamName() override {
+      return parent_.parent_.getDomainMatchParamName();
+    }
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;

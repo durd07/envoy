@@ -7,6 +7,7 @@
 
 #include "common/common/assert.h"
 #include "common/common/logger.h"
+#include "common/common/base64.h"
 
 #include "extensions/filters/network/sip_proxy/metadata.h"
 
@@ -14,7 +15,7 @@ namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
-class Encoder {
+class Encoder : public Logger::Loggable<Logger::Id::sip> {
 public:
   virtual ~Encoder() = default;
   virtual void encode(const MessageMetadataSharedPtr& metadata, Buffer::Instance& out) PURE;
