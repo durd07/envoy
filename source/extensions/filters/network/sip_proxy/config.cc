@@ -58,7 +58,8 @@ Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromPro
         cluster, context.threadLocal(),
         static_cast<std::chrono::milliseconds>(
             PROTOBUF_GET_MS_OR_DEFAULT(proto_config.settings(), transaction_timeout, 32000)),
-	proto_config.settings().ep_insert());
+        proto_config.settings().own_domain(),
+        proto_config.settings().domain_match_parameter_name());
     transaction_info_ptr->init();
     transaction_infos->emplace(cluster, transaction_info_ptr);
   }
@@ -82,9 +83,10 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
     : context_(context), stats_prefix_(fmt::format("sip.{}.", config.stat_prefix())),
       stats_(SipFilterStats::generateStats(stats_prefix_, context_.scope())),
       route_matcher_(new Router::RouteMatcher(config.route_config())),
-      settings_(std::make_shared<SipSettings>(static_cast<std::chrono::milliseconds>(
-          PROTOBUF_GET_MS_OR_DEFAULT(config.settings(), transaction_timeout, 32000)),
-			                      config.settings().ep_insert())) {
+      settings_(std::make_shared<SipSettings>(
+          static_cast<std::chrono::milliseconds>(
+              PROTOBUF_GET_MS_OR_DEFAULT(config.settings(), transaction_timeout, 32000)),
+          config.settings().own_domain(), config.settings().domain_match_parameter_name())) {
 
   if (config.sip_filters().empty()) {
     ENVOY_LOG(debug, "using default router filter");

@@ -4,7 +4,6 @@ namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
-
 void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Instance& out) {
   std::string output = "";
   std::string& raw_msg = metadata->rawMsg();
@@ -12,19 +11,39 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
 
   size_t previous_position = 0;
   for (auto& operation : metadata->operationList()) {
-    output += raw_msg.substr(previous_position, operation.position_ - previous_position);
-    previous_position = operation.position_;
-
     switch (operation.type_) {
-    case OperationType::Insert:
-      output += absl::get<InsertOperationValue>(operation.value_).value_;
+    case OperationType::Insert: {
+      std::string value = std::get<InsertOperationValue>(operation.value_).value_;
+      if (value == ";ep=" || value == ",opaque=") {
+        if (metadata->EP().has_value() && metadata->EP().value().length() > 0) {
+          output += raw_msg.substr(previous_position, operation.position_ - previous_position);
+          previous_position = operation.position_;
+
+          output += std::get<InsertOperationValue>(operation.value_).value_;
+          output += "\"";
+          output += Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
+          output += "\"";
+        }
+      } else {
+        output += raw_msg.substr(previous_position, operation.position_ - previous_position);
+        previous_position = operation.position_;
+
+        output += std::get<InsertOperationValue>(operation.value_).value_;
+      }
       break;
+    }
     case OperationType::Modify:
-      output += absl::get<ModifyOperationValue>(operation.value_).dest_;
-      previous_position += absl::get<ModifyOperationValue>(operation.value_).src_length_;
+      output += raw_msg.substr(previous_position, operation.position_ - previous_position);
+      previous_position = operation.position_;
+
+      output += std::get<ModifyOperationValue>(operation.value_).dest_;
+      previous_position += std::get<ModifyOperationValue>(operation.value_).src_length_;
       break;
     case OperationType::Delete:
-      previous_position += absl::get<DeleteOperationValue>(operation.value_).length_;
+      output += raw_msg.substr(previous_position, operation.position_ - previous_position);
+      previous_position = operation.position_;
+
+      previous_position += std::get<DeleteOperationValue>(operation.value_).length_;
       break;
     default:
       break;
@@ -32,7 +51,6 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
   }
 
   output += raw_msg.substr(previous_position);
-
   out.add(output);
 }
 

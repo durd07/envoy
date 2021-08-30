@@ -141,9 +141,10 @@ private:
 struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
                                     public Logger::Loggable<Logger::Id::sip> {
   ThreadLocalTransactionInfo(std::shared_ptr<TransactionInfo> parent, Event::Dispatcher& dispatcher,
-                             std::chrono::milliseconds transaction_timeout, bool ep_insert)
-      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout), 
-        ep_insert_(ep_insert) {
+                             std::chrono::milliseconds transaction_timeout, std::string own_domain,
+                             std::string domain_match_parameter_name)
+      : parent_(parent), dispatcher_(dispatcher), transaction_timeout_(transaction_timeout),
+        own_domain_(own_domain), domain_match_parameter_name_(domain_match_parameter_name) {
     audit_timer_ = dispatcher.createTimer([this]() -> void { auditTimerAction(); });
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
@@ -154,7 +155,8 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
   Event::Dispatcher& dispatcher_;
   Event::TimerPtr audit_timer_;
   std::chrono::milliseconds transaction_timeout_;
-  bool ep_insert_;
+  std::string own_domain_;
+  std::string domain_match_parameter_name_;
 
   void auditTimerAction() {
     const auto p1 = dispatcher_.timeSource().systemTime();
@@ -188,10 +190,11 @@ class TransactionInfo : public std::enable_shared_from_this<TransactionInfo>,
                         Logger::Loggable<Logger::Id::sip> {
 public:
   TransactionInfo(const std::string& cluster_name, ThreadLocal::SlotAllocator& tls,
-                  std::chrono::milliseconds transaction_timeout,
-                  bool ep_insert)
+                  std::chrono::milliseconds transaction_timeout, std::string own_domain,
+                  std::string domain_match_parameter_name)
       : cluster_name_(cluster_name), tls_(tls.allocateSlot()),
-        transaction_timeout_(transaction_timeout), ep_insert_(ep_insert) {}
+        transaction_timeout_(transaction_timeout), own_domain_(own_domain),
+        domain_match_parameter_name_(domain_match_parameter_name) {}
 
   void init() {
     // Note: `this` and `cluster_name` have a a lifetime of the filter.
@@ -202,8 +205,8 @@ public:
         [this_weak_ptr](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
           if (auto this_shared_ptr = this_weak_ptr.lock()) {
             return std::make_shared<ThreadLocalTransactionInfo>(
-                this_shared_ptr, dispatcher, this_shared_ptr->transaction_timeout_, 
-		this_shared_ptr->ep_insert_);
+                this_shared_ptr, dispatcher, this_shared_ptr->transaction_timeout_,
+                this_shared_ptr->own_domain_, this_shared_ptr->domain_match_parameter_name_);
           }
           return nullptr;
         });
@@ -247,15 +250,12 @@ public:
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.erase(host);
   }
 
-  bool epInsert() {
-    return ep_insert_;
-  }
-
 private:
   const std::string cluster_name_;
   ThreadLocal::SlotPtr tls_;
   std::chrono::milliseconds transaction_timeout_;
-  bool ep_insert_;
+  std::string own_domain_;
+  std::string domain_match_parameter_name_;
 };
 
 class Router : public Upstream::LoadBalancerContextBase,
@@ -284,6 +284,15 @@ public:
       return route_entry_->metadataMatchCriteria();
     }
     return nullptr;
+  }
+  
+  bool shouldSelectAnotherHost(const Upstream::Host& host) override {
+    ENVOY_LOG(trace, "DDD ip = {} ", host.address()->ip()->addressAsString());
+    if (!metadata_->destination().has_value()) {
+      return false;
+    }
+    ENVOY_LOG(trace, "DDD destination = {} ", metadata_->destination().value());
+    return host.address()->ip()->addressAsString() != metadata_->destination().value();
   }
 
 private:
@@ -331,9 +340,16 @@ public:
     UNREFERENCED_PARAMETER(metadata);
     return *this;
   }
+  absl::string_view getLocalIp() override;
 
-  void getLocalIp() override {
-    ENVOY_LOG( error, "DDD======================2");
+  std::string getOwnDomain() override {
+    ENVOY_LOG(error, "DDD Should not here!");
+    return "";
+  }
+
+  std::string getDomainMatchParamName() override {
+    ENVOY_LOG(error, "DDD Should not here!");
+    return "";
   }
 
 private:
@@ -393,11 +409,12 @@ public:
   }
 
   absl::string_view localAddress() {
-    ENVOY_LOG(error, "YYYYYYYYYYYYYYYYYYYYYYYY {}", conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString());
+    ENVOY_LOG(error, "YYYYYYYYYYYYYYYYYYYYYYYY {}",
+              conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
-  std::shared_ptr<TransactionInfo> transactionInfo() {return transaction_info_; }
+  std::shared_ptr<TransactionInfo> transactionInfo() { return transaction_info_; }
 
 private:
   Tcp::ConnectionPool::Instance& conn_pool_;

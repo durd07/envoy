@@ -168,22 +168,29 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    Tcp::ConnectionPool::Instance* conn_pool =
-        cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
-    if (!conn_pool) {
-      stats_.no_healthy_upstream_.inc();
-      callbacks_->sendLocalReply(
-          AppException(AppExceptionType::InternalError,
-                       fmt::format("no healthy upstream for '{}'", cluster_name)),
-          true);
-      return FilterStatus::StopIteration;
-    }
+    Tcp::ConnectionPool::Instance* conn_pool;
+    Upstream::HostDescriptionConstSharedPtr host;
+    for (int i = 0; i < 3; i++) {
+      // Tcp::ConnectionPool::Instance* conn_pool =
+      conn_pool = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+      if (!conn_pool) {
+        stats_.no_healthy_upstream_.inc();
+        callbacks_->sendLocalReply(
+            AppException(AppExceptionType::InternalError,
+                         fmt::format("no healthy upstream for '{}'", cluster_name)),
+            true);
+        return FilterStatus::StopIteration;
+      }
 
-    ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
+      ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
 
-    Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
-    if (!host) {
-      return FilterStatus::StopIteration;
+      // Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
+      host = conn_pool->host();
+      if (!host) {
+        return FilterStatus::StopIteration;
+      }
+      ENVOY_STREAM_LOG(debug, "DDD-1 host ip {} ", *callbacks_,
+                       host->address()->ip()->addressAsString());
     }
 
     if (auto upstream_request =
@@ -233,9 +240,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
+      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed.", *callbacks_, host);
       message_handler_with_loadbalancer();
     }
   } else {
+    ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
     message_handler_with_loadbalancer();
   }
 
@@ -251,10 +260,8 @@ FilterStatus Router::messageEnd() {
 
   Buffer::OwnedImpl transport_buffer;
 
-  //set EP/Opaque, used in upstream
-  if (upstream_request_->transactionInfo()->epInsert()) {
-    metadata_->setEP(upstream_request_->localAddress());
-  }
+  // set EP/Opaque, used in upstream
+  metadata_->setEP(upstream_request_->localAddress());
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
@@ -360,10 +367,9 @@ void UpstreamRequest::onRequestStart() {
     for (const auto& metadata : pending_request_) {
       Buffer::OwnedImpl transport_buffer;
 
-      //set EP/Opaque, used in upstream
-      if (transaction_info_->epInsert()) {
-        metadata->setEP(localAddress());
-      }
+      // set EP/Opaque, used in upstream
+      metadata->setEP(localAddress());
+
       std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
       encoder->encode(metadata, transport_buffer);
 
@@ -379,8 +385,6 @@ void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstShare
   upstream_host_ = host;
 }
 
-/*TODO: not called in current phase */
-/*
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
@@ -414,7 +418,6 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
-*/
 
 SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&& transaction_id) {
   try {
@@ -466,10 +469,6 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
       active_trans->startUpstreamResponse();
-      //set EP/Opaque, used in downstream
-      if (parent_.transactionInfo()->epInsert()) {
-        metadata->setEP(parent_.localAddress());
-      }
       active_trans->upstreamData(metadata);
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
@@ -482,6 +481,8 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
   return FilterStatus::Continue;
 }
+
+absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
 } // namespace Router
 } // namespace SipProxy

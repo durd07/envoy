@@ -49,6 +49,7 @@ void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectRe
 
   Buffer::OwnedImpl response_buffer;
 
+  metadata.setEP(getLocalIp());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(std::make_shared<MessageMetadata>(metadata), response_buffer);
 
@@ -161,6 +162,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   Buffer::OwnedImpl buffer;
 
+  metadata_->setEP(getLocalIp());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);
 

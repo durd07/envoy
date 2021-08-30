@@ -9,6 +9,9 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 
+#include "common/common/assert.h"
+#include "common/common/logger.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -20,7 +23,7 @@ namespace SipProxy {
  * otherwise noted, accessor methods throw absl::bad_optional_access if the corresponding value has
  * not been set.
  */
-class MessageMetadata {
+class MessageMetadata : public Logger::Loggable<Logger::Id::filter> {
 public:
   MessageMetadata(){};
   MessageMetadata(std::string&& raw_msg) : raw_msg_(std::move(raw_msg)) {}
@@ -52,6 +55,78 @@ public:
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
   void setDomain(absl::string_view data) { domain_ = data; }
+
+  void addEPOperation(size_t rawOffset, absl::string_view& header, std::string& ownDomain,
+                      std::string& domainMatchParamName) {
+    if (header.find(";ep=") != absl::string_view::npos) {
+      // already Contact have ep
+      return;
+    }
+    auto pos = header.find(">");
+    if (pos == absl::string_view::npos) {
+      // no url
+      return;
+    }
+
+    // Get domain
+    absl::string_view domain;
+    if (domainMatchParamName == "host") {
+      auto start = header.find("@");
+      if (start == absl::string_view::npos) {
+        return;
+      }
+      start += strlen("@");
+      // end is :port
+      auto end = header.find(":", start);
+      if (end == absl::string_view::npos) {
+        return;
+      }
+      domain = header.substr(start, end - start);
+
+    } else if (domainMatchParamName == "x-suri") {
+      auto start = header.find("x-suri:sip:");
+      if (start == absl::string_view::npos) {
+        return;
+      }
+      start += strlen("x-suri:sip:");
+      // end is :port
+      auto end = header.find(":", start);
+      if (end == absl::string_view::npos) {
+        return;
+      }
+      domain = header.substr(start, end - start);
+    }
+
+    // Compare the domain
+    if (domain != ownDomain) {
+      ENVOY_LOG(debug, "header domain:{} is not equal to own_domain:{}", domain, ownDomain);
+      return;
+    }
+
+    setOperation(Operation(OperationType::Insert, rawOffset + pos, InsertOperationValue(";ep=")));
+  }
+
+  void addOpaqueOperation(size_t rawOffset, absl::string_view& header) {
+    if (header.find(",opaque=") != absl::string_view::npos) {
+      // already Contact have ep
+      return;
+    }
+    auto pos = header.length();
+    setOperation(
+        Operation(OperationType::Insert, rawOffset + pos, InsertOperationValue(",opaque=")));
+  }
+
+  void deleteInstipOperation(size_t rawOffset, absl::string_view& header) {
+    // Delete inst-ip and remove "sip:" in x-suri
+    if (auto pos = header.find(";inst-ip="); pos != absl::string_view::npos) {
+      setOperation(
+          Operation(OperationType::Delete, rawOffset + pos,
+                    DeleteOperationValue(
+                        header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
+      auto xsuri = header.find("sip:pcsf-cfed");
+      setOperation(Operation(OperationType::Delete, rawOffset + xsuri, DeleteOperationValue(4)));
+    }
+  }
 
   // input is the full SIP header
   void setTransactionId(absl::string_view data) {

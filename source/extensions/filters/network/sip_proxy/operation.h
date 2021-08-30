@@ -45,11 +45,12 @@ public:
 
   // constexpr bool operator<(const Operation& other) { return this->position_ < other.position_; }
   // constexpr bool operator>(const Operation& other) { return this->position_ > other.position_; }
-  // constexpr bool operator==(const Operation& other) { return this->position_ == other.position_; }
-  // constexpr bool operator!=(const Operation& other) { return this->position_ != other.position_; }
-  // constexpr bool operator<=(const Operation& other) { return this->position_ <= other.position_; }
-  // constexpr bool operator>=(const Operation& other) { return this->position_ >= other.position_; }
-  // constexpr bool operator<=>(Operation &other) { return this->position_ <=> other.position_; }
+  // constexpr bool operator==(const Operation& other) { return this->position_ == other.position_;
+  // } constexpr bool operator!=(const Operation& other) { return this->position_ !=
+  // other.position_; } constexpr bool operator<=(const Operation& other) { return this->position_
+  // <= other.position_; } constexpr bool operator>=(const Operation& other) { return
+  // this->position_ >= other.position_; } constexpr bool operator<=>(Operation &other) { return
+  // this->position_ <=> other.position_; }
 
   // private:
   OperationType type_;

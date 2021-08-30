@@ -12,14 +12,18 @@ namespace SipProxy {
 
 class SipSettings {
 public:
-  SipSettings(std::chrono::milliseconds transaction_timeout, bool ep_insert)
-      : transaction_timeout_(transaction_timeout), ep_insert_(ep_insert) {}
+  SipSettings(std::chrono::milliseconds transaction_timeout, std::string own_domain,
+              std::string domain_match_parameter_name)
+      : transaction_timeout_(transaction_timeout), own_domain_(own_domain),
+        domain_match_parameter_name_(domain_match_parameter_name) {}
   std::chrono::milliseconds transactionTimeout() { return transaction_timeout_; }
-  bool epInsert() { return ep_insert_; }
+  std::string ownDomain() { return own_domain_; }
+  std::string domainMatchParamName() { return domain_match_parameter_name_; }
 
 private:
   std::chrono::milliseconds transaction_timeout_;
-  bool ep_insert_;
+  std::string own_domain_;
+  std::string domain_match_parameter_name_;
 };
 
 /**
