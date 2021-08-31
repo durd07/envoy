@@ -1,4 +1,5 @@
 #include "extensions/filters/network/sip_proxy/encoder.h"
+
 #include "algorithm"
 
 namespace Envoy {
@@ -22,7 +23,7 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
 
           output += std::get<InsertOperationValue>(operation.value_).value_;
           // output += "\"";
-	  auto str = Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
+          auto str = Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
           auto pos = str.find("=");
           while (pos != absl::string_view::npos) {
             str.replace(pos, strlen("="), "%3D");

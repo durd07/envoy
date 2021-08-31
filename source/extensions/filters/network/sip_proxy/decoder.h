@@ -2,9 +2,9 @@
 
 #include "envoy/buffer/buffer.h"
 
-#include "common/common/base64.h"
 #include "common/buffer/buffer_impl.h"
 #include "common/common/assert.h"
+#include "common/common/base64.h"
 #include "common/common/logger.h"
 
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
@@ -137,8 +137,8 @@ public:
    * @throw EnvoyException on Sip protocol errors
    */
   FilterStatus onData(Buffer::Instance& data);
-  std::string getOwnDomain() {return callbacks_.getOwnDomain();}
-  std::string getDomainMatchParamName() {return callbacks_.getDomainMatchParamName();}
+  std::string getOwnDomain() { return callbacks_.getOwnDomain(); }
+  std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
 
 protected:
   MessageMetadataSharedPtr metadata() { return metadata_; }
@@ -247,9 +247,10 @@ private:
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
 
     Decoder& parent_;
+
   protected:
     std::shared_ptr<HeaderHandler> handler_;
-    //Decoder& parent_;
+    // Decoder& parent_;
   };
 
   class REGISTERHeaderHandler : public HeaderHandler {

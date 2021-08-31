@@ -3,14 +3,14 @@
 #include <chrono>
 #include <memory>
 
-#include "extensions/filters/network/sip_proxy/sip.h"
+#include "common/common/assert.h"
+#include "common/common/logger.h"
+
 #include "extensions/filters/network/sip_proxy/operation.h"
+#include "extensions/filters/network/sip_proxy/sip.h"
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-
-#include "common/common/assert.h"
-#include "common/common/logger.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -58,7 +58,8 @@ public:
 
   void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
                       std::string domainMatchParamName) {
-  ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain, domainMatchParamName);
+    ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain,
+              domainMatchParamName);
     if (header.find(";ep=") != absl::string_view::npos) {
       // already Contact have ep
       return;
@@ -89,12 +90,11 @@ public:
       if (start == absl::string_view::npos) {
         return;
       }
-      //domainMatchParamName + "="
-      //start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
-      start = start + domainMatchParamName.length() + strlen("=") ;
-      if ("sip:" == header.substr(start, strlen("sip:")))
-      {
-         start += strlen("sip:");
+      // domainMatchParamName + "="
+      // start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
+      start = start + domainMatchParamName.length() + strlen("=");
+      if ("sip:" == header.substr(start, strlen("sip:"))) {
+        start += strlen("sip:");
       }
       // end is :port
       auto end = header.find_first_of(":;>", start);

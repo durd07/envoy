@@ -285,7 +285,7 @@ public:
     }
     return nullptr;
   }
-  
+
   bool shouldSelectAnotherHost(const Upstream::Host& host) override {
     ENVOY_LOG(trace, "DDD ip = {} ", host.address()->ip()->addressAsString());
     if (!metadata_->destination().has_value()) {
@@ -343,13 +343,11 @@ public:
   absl::string_view getLocalIp() override;
 
   std::string getOwnDomain() override {
-      ENVOY_LOG(error, "DDD getOwnDomain {}", decoder_->getOwnDomain());
+    ENVOY_LOG(error, "DDD getOwnDomain {}", decoder_->getOwnDomain());
     return decoder_->getOwnDomain();
   }
 
-  std::string getDomainMatchParamName() override {
-    return decoder_->getDomainMatchParamName();
-  }
+  std::string getDomainMatchParamName() override { return decoder_->getDomainMatchParamName(); }
 
 private:
   UpstreamRequest& parent_;
