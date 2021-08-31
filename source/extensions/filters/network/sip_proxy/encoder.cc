@@ -1,5 +1,7 @@
 #include "extensions/filters/network/sip_proxy/encoder.h"
 
+#include "algorithm"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -20,9 +22,15 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
           previous_position = operation.position_;
 
           output += std::get<InsertOperationValue>(operation.value_).value_;
-          output += "\"";
-          output += Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
-          output += "\"";
+          // output += "\"";
+          auto str = Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
+          auto pos = str.find("=");
+          while (pos != absl::string_view::npos) {
+            str.replace(pos, strlen("="), "%3D");
+            pos = str.find("=");
+          }
+          output += str;
+          // output += "\"";
         }
       } else {
         output += raw_msg.substr(previous_position, operation.position_ - previous_position);

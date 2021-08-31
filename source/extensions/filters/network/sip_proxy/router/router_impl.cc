@@ -169,29 +169,22 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    Tcp::ConnectionPool::Instance* conn_pool;
-    Upstream::HostDescriptionConstSharedPtr host;
-    for (int i = 0; i < 3; i++) {
-      // Tcp::ConnectionPool::Instance* conn_pool =
-      conn_pool = cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
-      if (!conn_pool) {
-        stats_.no_healthy_upstream_.inc();
-        callbacks_->sendLocalReply(
-            AppException(AppExceptionType::InternalError,
-                         fmt::format("no healthy upstream for '{}'", cluster_name)),
-            true);
-        return FilterStatus::StopIteration;
-      }
+    Tcp::ConnectionPool::Instance* conn_pool =
+        cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+    if (!conn_pool) {
+      stats_.no_healthy_upstream_.inc();
+      callbacks_->sendLocalReply(
+          AppException(AppExceptionType::InternalError,
+                       fmt::format("no healthy upstream for '{}'", cluster_name)),
+          true);
+      return FilterStatus::StopIteration;
+    }
 
-      ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
+    ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
 
-      // Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
-      host = conn_pool->host();
-      if (!host) {
-        return FilterStatus::StopIteration;
-      }
-      ENVOY_STREAM_LOG(debug, "DDD-1 host ip {} ", *callbacks_,
-                       host->address()->ip()->addressAsString());
+    Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
+    if (!host) {
+      return FilterStatus::StopIteration;
     }
 
     if (auto upstream_request =

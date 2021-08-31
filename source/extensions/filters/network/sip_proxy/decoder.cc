@@ -63,10 +63,7 @@ State DecoderStateMachine::run() {
   return state_;
 }
 
-Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {
-  own_domain_ = callbacks_.getOwnDomain();
-  domain_match_parameter_name_ = callbacks_.getDomainMatchParamName();
-}
+Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
 
 void Decoder::complete() {
   request_.reset();
@@ -258,8 +255,8 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
 
 int Decoder::HeaderHandler::processPath(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -270,10 +267,16 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   setFirstRoute(false);
 
   if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
-    // Need to exclude the "" of ep string
-    auto start = loc + 5;
+    // No "" of ep string
+    auto start = loc + strlen(";ep=");
     if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
-      metadata()->setRouteEP(Base64::decode(std::string(header.substr(start, end - start - 1))));
+      auto str = std::string(header.substr(start, end - start));
+      auto pos = str.find("%3D");
+      while (pos != absl::string_view::npos) {
+        str.replace(pos, strlen("%3D"), "=");
+        pos = str.find("%3D");
+      }
+      metadata()->setRouteEP(Base64::decode(str));
     }
   }
 
@@ -283,8 +286,8 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processRecordRoute(absl::string_view& header) {
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -298,24 +301,22 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  /*
-    //Need to exclude the "" of opaque string
-    auto start = loc + 9;
-    auto end = header.find(",", start);
-    if (end == absl::string_view::npos) {
-      metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(start, header.length() -
-    1)))); } else { metadata()->setRouteOpaque(Base64::decode(std::string(header.substr(start, end -
-    start - 1))));
-    }
-    */
-  // No base64 and no ""
+  // No ""
   auto start = loc + strlen(",opaque");
   auto end = header.find(",", start);
+  absl::string_view str;
   if (end == absl::string_view::npos) {
-    metadata()->setRouteOpaque(header.substr(start, header.length() - start));
+    str = header.substr(start, header.length() - start);
   } else {
-    metadata()->setRouteOpaque(header.substr(start, end - start));
+    str = header.substr(start, end - start);
   }
+  std::string str1 = std::string(str);
+  auto pos = str1.find("%3D");
+  while (pos != absl::string_view::npos) {
+    str1.replace(pos, strlen("%3D"), "=");
+    pos = str1.find("%3D");
+  }
+  metadata()->setRouteOpaque(Base64::decode(str1));
   return 0;
 }
 
@@ -337,15 +338,15 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
 
 int Decoder::HeaderHandler::processContact(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
 
   return 0;
 }
 
 int Decoder::HeaderHandler::processServiceRoute(absl::string_view& header) {
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -600,9 +601,16 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
 
   if (auto loc = top_line.find(";ep="); loc != absl::string_view::npos) {
     // Need to exclude the "" of ep string
-    auto start = loc + 5;
+    auto start = loc + strlen(";ep=");
+
     if (auto end = top_line.find(";", start); end != absl::string_view::npos) {
-      metadata->setRouteEP(Base64::decode(std::string(top_line.substr(start, end - start - 1))));
+      auto str = std::string(top_line.substr(start, end - start));
+      auto pos = str.find("%3D");
+      while (pos != absl::string_view::npos) {
+        str.replace(pos, strlen("%3D"), "=");
+        pos = str.find("%3D");
+      }
+      metadata->setRouteEP(Base64::decode(str));
     }
   }
   return 0;
