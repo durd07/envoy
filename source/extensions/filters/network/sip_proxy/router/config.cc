@@ -5,6 +5,7 @@
 #include "envoy/registry/registry.h"
 
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
+#include <iostream>
 
 namespace Envoy {
 namespace Extensions {
@@ -17,9 +18,11 @@ SipFilters::FilterFactoryCb RouterFilterConfig::createFilterFactoryFromProtoType
     const std::string& stat_prefix, Server::Configuration::FactoryContext& context) {
   UNREFERENCED_PARAMETER(proto_config);
 
+  std::cout << "FELIX 1" << std::endl;
   return [&context, stat_prefix](SipFilters::FilterChainFactoryCallbacks& callbacks) -> void {
+    std::cout << "FELIX 2" << std::endl;
     callbacks.addDecoderFilter(
-        std::make_shared<Router>(context.clusterManager(), stat_prefix, context.scope()));
+        std::make_shared<Router>(context.clusterManager(), stat_prefix, context.scope(), context));
   };
 }
 

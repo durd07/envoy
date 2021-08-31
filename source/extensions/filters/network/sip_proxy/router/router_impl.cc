@@ -4,6 +4,7 @@
 
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
+#include "common/tracing/http_tracer_impl.h"
 
 #include "common/common/logger.h"
 #include "common/common/utility.h"
@@ -223,6 +224,15 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     }
     return upstream_request_->start();
   };
+
+  const std::chrono::milliseconds timeout = std::chrono::milliseconds(
+      PROTOBUF_GET_MS_OR_DEFAULT(settings_->traServiceConfig(), timeout, 20));
+  ENVOY_LOG(debug, "FFFF {}", settings_->traServiceConfig().grpc_service().envoy_grpc().cluster_name());
+  static auto tra_client = SipProxy::TrafficRoutingAssistant::traClient(
+      this->context_, settings_->traServiceConfig().grpc_service(), timeout,
+      settings_->traServiceConfig().transport_api_version());
+  tra_client->updateLskpmc(*this, "XXXX:192.168.0.1", Tracing::NullSpan::instance(),
+                           callbacks_->streamInfo());
 
   if (metadata->destination().has_value()) {
     auto host = metadata->destination().value();

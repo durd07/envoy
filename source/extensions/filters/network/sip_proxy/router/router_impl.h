@@ -3,7 +3,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <iostream>
 
+#include "extensions/filters/network/sip_proxy/filters/factory_base.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/router/router.h"
 #include "envoy/stats/scope.h"
@@ -21,6 +23,7 @@
 #include "extensions/filters/network/sip_proxy/decoder_events.h"
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
 #include "extensions/filters/network/sip_proxy/router/router.h"
+#include "extensions/filters/network/sip_proxy/tra/tra_impl.h"
 
 #include "absl/types/optional.h"
 
@@ -261,11 +264,14 @@ private:
 class Router : public Upstream::LoadBalancerContextBase,
                public virtual DecoderEventHandler,
                public SipFilters::DecoderFilter,
+	       public TrafficRoutingAssistant::RequestCallbacks,
                Logger::Loggable<Logger::Id::sip> {
 public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
-         Stats::Scope& scope)
-      : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)) {}
+         Stats::Scope& scope, Server::Configuration::FactoryContext& context)
+      : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)), context_(context) {
+    std::cout << "FELIX 3" << std::endl;
+      }
 
   // SipFilters::DecoderFilter
   void onDestroy() override;
@@ -295,6 +301,11 @@ public:
     return host.address()->ip()->addressAsString() != metadata_->destination().value();
   }
 
+  // TrafficRoutingAssistant::RequestCallbacks
+  void complete() override {
+	  ENVOY_LOG(debug, "complete");
+  }
+
 private:
   void cleanup();
   RouterStats generateStats(const std::string& prefix, Stats::Scope& scope) {
@@ -315,6 +326,7 @@ private:
   Upstream::ClusterInfoConstSharedPtr cluster_;
   std::shared_ptr<TransactionInfos> transaction_infos_{};
   std::shared_ptr<SipSettings> settings_;
+  Server::Configuration::FactoryContext& context_;
 };
 
 class ThreadLocalActiveConn;

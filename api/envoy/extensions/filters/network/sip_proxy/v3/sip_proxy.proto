@@ -3,6 +3,7 @@ syntax = "proto3";
 package envoy.extensions.filters.network.sip_proxy.v3;
 
 import "envoy/extensions/filters/network/sip_proxy/v3/route.proto";
+import "envoy/extensions/filters/network/sip_proxy/tra/v3/tra.proto";
 
 import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
@@ -45,6 +46,8 @@ message SipProxy {
     string own_domain = 2;
 
     string domain_match_parameter_name = 3;
+
+    tra.v3.TraServiceConfig tra_service_config = 4;
   }
 
   // The human readable prefix to use when emitting statistics.

@@ -136,6 +136,7 @@ envoy_cc_library(
         "//source/common/common:assert_lib",
         "//source/common/config:utility_lib",
         "//source/common/singleton:const_singleton",
+        "@envoy_api//envoy/extensions/filters/network/sip_proxy/tra/v3:pkg_cc_proto",
     ],
 )
 

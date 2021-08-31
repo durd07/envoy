@@ -86,8 +86,10 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
       settings_(std::make_shared<SipSettings>(
           static_cast<std::chrono::milliseconds>(
               PROTOBUF_GET_MS_OR_DEFAULT(config.settings(), transaction_timeout, 32000)),
-          config.settings().own_domain(), config.settings().domain_match_parameter_name())) {
+          config.settings().own_domain(), config.settings().domain_match_parameter_name(),
+          config.settings().tra_service_config())) {
 
+  ENVOY_LOG(debug, "FFF {}", config.settings().tra_service_config().grpc_service().envoy_grpc().cluster_name());
   if (config.sip_filters().empty()) {
     ENVOY_LOG(debug, "using default router filter");
 
