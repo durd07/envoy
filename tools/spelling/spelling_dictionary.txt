@@ -26,6 +26,7 @@ CB
 CDN
 CDS
 CEL
+CRLF
 DSR
 EBADF
 ENOTCONN
@@ -34,6 +35,7 @@ HEXDIG
 HEXDIGIT
 OWS
 Preconnecting
+SCTP
 STATNAME
 SkyWalking
 TIDs
@@ -118,6 +120,8 @@ FQDN
 FREEBIND
 FUZZER
 FUZZERS
+clen
+ep
 guarddog
 GC
 GCC
@@ -1131,6 +1135,7 @@ subtypes
 subzone
 superclass
 superset
+suri
 symlink
 symlinked
 symlinks
