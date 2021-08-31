@@ -56,8 +56,9 @@ public:
   void setTopRoute(absl::string_view data) { top_route_ = data; }
   void setDomain(absl::string_view data) { domain_ = data; }
 
-  void addEPOperation(size_t rawOffset, absl::string_view& header, std::string& ownDomain,
-                      std::string& domainMatchParamName) {
+  void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
+                      std::string domainMatchParamName) {
+  ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain, domainMatchParamName);
     if (header.find(";ep=") != absl::string_view::npos) {
       // already Contact have ep
       return;
@@ -77,20 +78,26 @@ public:
       }
       start += strlen("@");
       // end is :port
-      auto end = header.find(":", start);
+      auto end = header.find_first_of(":;", start);
       if (end == absl::string_view::npos) {
         return;
       }
       domain = header.substr(start, end - start);
 
-    } else if (domainMatchParamName == "x-suri") {
-      auto start = header.find("x-suri:sip:");
+    } else {
+      auto start = header.find(domainMatchParamName);
       if (start == absl::string_view::npos) {
         return;
       }
-      start += strlen("x-suri:sip:");
+      //domainMatchParamName + "="
+      //start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
+      start = start + domainMatchParamName.length() + strlen("=") ;
+      if ("sip:" == header.substr(start, strlen("sip:")))
+      {
+         start += strlen("sip:");
+      }
       // end is :port
-      auto end = header.find(":", start);
+      auto end = header.find_first_of(":;>", start);
       if (end == absl::string_view::npos) {
         return;
       }
@@ -146,7 +153,6 @@ public:
   void setDestination(absl::string_view destination) { destination_ = destination; }
   /*only used in UT*/
   void resetTransactionId() { transaction_id_.reset(); }
-  // std::vector<Operation> operation_list_;
 
 private:
   MsgType msg_type_;

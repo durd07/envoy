@@ -137,6 +137,8 @@ public:
    * @throw EnvoyException on Sip protocol errors
    */
   FilterStatus onData(Buffer::Instance& data);
+  std::string getOwnDomain() {return callbacks_.getOwnDomain();}
+  std::string getDomainMatchParamName() {return callbacks_.getDomainMatchParamName();}
 
 protected:
   MessageMetadataSharedPtr metadata() { return metadata_; }
@@ -368,8 +370,6 @@ private:
   MessageMetadataSharedPtr metadata_;
   DecoderStateMachinePtr state_machine_;
   bool start_new_message_{true};
-  std::string own_domain_{""};
-  std::string domain_match_parameter_name_{""};
 };
 
 using DecoderPtr = std::unique_ptr<Decoder>;

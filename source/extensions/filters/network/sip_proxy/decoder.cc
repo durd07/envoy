@@ -63,10 +63,7 @@ State DecoderStateMachine::run() {
   return state_;
 }
 
-Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {
-  own_domain_ = callbacks_.getOwnDomain();
-  domain_match_parameter_name_ = callbacks_.getDomainMatchParamName();
-}
+Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
 
 void Decoder::complete() {
   request_.reset();
@@ -258,8 +255,8 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
 
 int Decoder::HeaderHandler::processPath(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -289,8 +286,8 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processRecordRoute(absl::string_view& header) {
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -307,18 +304,19 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
   // No ""
   auto start = loc + strlen(",opaque");
   auto end = header.find(",", start);
-  std::string str;
+  absl::string_view str;
   if (end == absl::string_view::npos) {
     str = header.substr(start, header.length() - start);
   } else {
     str = header.substr(start, end - start);
   }
-  auto pos = str.find("%3D");
+  std::string str1 = std::string(str);
+  auto pos = str1.find("%3D");
   while (pos != absl::string_view::npos) {
-    str.replace(pos, strlen("%3D"), "=");
-    pos = str.find("%3D");
+    str1.replace(pos, strlen("%3D"), "=");
+    pos = str1.find("%3D");
   }
-  metadata()->setRouteOpaque(Base64::decode(str));
+  metadata()->setRouteOpaque(Base64::decode(str1));
   return 0;
 }
 
@@ -340,15 +338,15 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
 
 int Decoder::HeaderHandler::processContact(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
 
   return 0;
 }
 
 int Decoder::HeaderHandler::processServiceRoute(absl::string_view& header) {
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.own_domain_,
-                             parent_.parent_.domain_match_parameter_name_);
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
+                             parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 

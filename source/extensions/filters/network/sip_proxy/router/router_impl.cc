@@ -168,7 +168,6 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   auto& transaction_info = (*transaction_infos_)[cluster_name];
 
   auto message_handler_with_loadbalancer = [&]() {
-    Upstream::HostDescriptionConstSharedPtr host;
     Tcp::ConnectionPool::Instance* conn_pool =
         cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
@@ -182,13 +181,10 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
     ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
 
-    // Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
-    host = conn_pool->host();
+    Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
     if (!host) {
       return FilterStatus::StopIteration;
     }
-    ENVOY_STREAM_LOG(debug, "DDD-1 host ip {} ", *callbacks_,
-                     host->address()->ip()->addressAsString());
 
     if (auto upstream_request =
             transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
