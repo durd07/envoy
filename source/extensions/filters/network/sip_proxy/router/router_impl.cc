@@ -435,6 +435,9 @@ void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
   auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
+  //TODO
+  //ConnectionManager::ActiveTransDecoderFilterPtr callbacks = callbacks_;
+  //response_decoder_->setPCookieIPMap(callbacks->parent_.parent_.pCookieIPMap());
   response_decoder_->onData(upstream_buffer_);
 }
 

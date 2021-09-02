@@ -268,14 +268,15 @@ private:
 class Router : public Upstream::LoadBalancerContextBase,
                public virtual DecoderEventHandler,
                public SipFilters::DecoderFilter,
-	       public TrafficRoutingAssistant::RequestCallbacks,
+               public TrafficRoutingAssistant::RequestCallbacks,
                Logger::Loggable<Logger::Id::sip> {
 public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
-      : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)), context_(context) {
+      : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
+        context_(context) {
     std::cout << "FELIX 3" << std::endl;
-      }
+  }
 
   // SipFilters::DecoderFilter
   void onDestroy() override;
@@ -306,9 +307,7 @@ public:
   }
 
   // TrafficRoutingAssistant::RequestCallbacks
-  void complete() override {
-	  ENVOY_LOG(debug, "complete");
-  }
+  void complete() override { ENVOY_LOG(debug, "complete"); }
 
 private:
   void cleanup();
@@ -360,9 +359,14 @@ public:
   std::string getOwnDomain() override;
   std::string getDomainMatchParamName() override;
 
+  std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
+
+  void setPCookieIPMap(std::shared_ptr<PCookieIPMap> map) { p_cookie_ip_map_ = map; }
+
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
+  std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
 };
 
 using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
@@ -436,6 +440,8 @@ private:
   SipFilters::DecoderFilterCallbacks* callbacks_{};
   std::list<MessageMetadataSharedPtr> pending_request_;
   Buffer::OwnedImpl upstream_buffer_;
+
+  // std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
 
   bool request_complete_ : 1;
   bool response_complete_ : 1;

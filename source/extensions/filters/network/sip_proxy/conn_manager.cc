@@ -17,7 +17,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
                                      std::shared_ptr<Router::TransactionInfos> transaction_infos)
     : config_(config), stats_(config_.stats()), decoder_(std::make_unique<Decoder>(*this)),
       random_generator_(random_generator), time_source_(time_source),
-      transaction_infos_(transaction_infos) {}
+      transaction_infos_(transaction_infos), p_cookie_ip_map_(std::make_shared<PCookieIPMap>()) {}
 
 ConnectionManager::~ConnectionManager() = default;
 

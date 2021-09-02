@@ -8,6 +8,7 @@
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 
 #include "re2/re2.h"
+#include <utility>
 
 namespace Envoy {
 namespace Extensions {
@@ -192,6 +193,7 @@ auto Decoder::sipHeaderType(absl::string_view sip_line) {
       {"Service-Route", HeaderType::SRoute},
       {"WWW-Authenticate", HeaderType::WAuth},
       {"Authorization", HeaderType::Auth},
+      {"P-Nokia-Cookie-IP-Mapping", HeaderType::PCookieIPMap},
       {"", HeaderType::Other}};
 
   auto header_type_str = sip_line.substr(0, sip_line.find_first_of(":"));
@@ -251,6 +253,7 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
                            {HeaderType::SRoute, &HeaderHandler::processServiceRoute},
                            {HeaderType::WAuth, &HeaderHandler::processWwwAuth},
                            {HeaderType::Auth, &HeaderHandler::processAuth},
+                           {HeaderType::PCookieIPMap, &HeaderHandler::processPCookieIPMap},
                        } {}
 
 int Decoder::HeaderHandler::processPath(absl::string_view& header) {
@@ -279,6 +282,13 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
       }
       metadata()->setRouteEP(Base64::decode(str)); */
       metadata()->setRouteEP(header.substr(start, end - start));
+    }
+  }
+
+  if (auto loc = header.find(";lskpmc="); loc != absl::string_view::npos) {
+    auto start = loc + strlen(";lskpmc=");
+    if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
+      metadata()->setLskpmc(header.substr(start, end - start));
     }
   }
 
@@ -340,6 +350,19 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
   return 0;
 }
 
+int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
+  auto loc = header.find("=");
+  if (loc == absl::string_view::npos) {
+    return 0;
+  }
+  auto lskpmc = header.substr(0, loc);
+  auto ip = header.substr(loc + 1, header.length() - loc - 1);
+  parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
+
+  // TODO: update grpc server
+
+  return 0;
+}
 //
 // 200 OK Header Handler
 //

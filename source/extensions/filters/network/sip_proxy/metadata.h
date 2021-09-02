@@ -35,6 +35,7 @@ public:
   std::vector<Operation>& operationList() { return operation_list_; }
   absl::optional<absl::string_view> routeEP() { return route_ep_; }
   absl::optional<absl::string_view> routeOpaque() { return route_opaque_; }
+  absl::optional<absl::string_view> lskpmc() { return lskpmc_; }
 
   absl::optional<absl::string_view> requestURI() { return request_uri_; }
   absl::optional<absl::string_view> topRoute() { return top_route_; }
@@ -51,6 +52,7 @@ public:
   void setEP(absl::string_view data) { ep_ = data; }
   void setRouteEP(absl::string_view data) { route_ep_ = data; }
   void setRouteOpaque(absl::string_view data) { route_opaque_ = data; }
+  void setLskpmc(absl::string_view data) { lskpmc_ = data; }
 
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
@@ -163,6 +165,7 @@ private:
   absl::optional<absl::string_view> pep_{};
   absl::optional<absl::string_view> route_ep_{};
   absl::optional<absl::string_view> route_opaque_{};
+  absl::optional<absl::string_view> lskpmc_{};
 
   absl::optional<absl::string_view> request_uri_{};
   absl::optional<absl::string_view> top_route_{};

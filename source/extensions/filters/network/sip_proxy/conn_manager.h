@@ -92,6 +92,10 @@ public:
     return config_.settings()->domainMatchParamName();
   }
 
+  std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
+    return p_cookie_ip_map_;
+  }
+
 private:
   friend class SipConnectionManagerTest;
   struct ActiveTrans;
@@ -127,6 +131,10 @@ private:
 
     std::string getDomainMatchParamName() override {
       return parent_.parent_.getDomainMatchParamName();
+    }
+
+    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
+      return parent_.parent_.pCookieIPMap();
     }
 
     ActiveTrans& parent_;
@@ -268,6 +276,7 @@ private:
   // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
+  std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
 };
 
 } // namespace SipProxy
