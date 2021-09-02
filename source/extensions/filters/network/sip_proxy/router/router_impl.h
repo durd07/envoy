@@ -253,6 +253,10 @@ public:
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.erase(host);
   }
 
+  std::string getOwnDomain() { return own_domain_; }
+
+  std::string getDomainMatchParamName() { return domain_match_parameter_name_; }
+
 private:
   const std::string cluster_name_;
   ThreadLocal::SlotPtr tls_;
@@ -353,13 +357,8 @@ public:
     return *this;
   }
   absl::string_view getLocalIp() override;
-
-  std::string getOwnDomain() override {
-    ENVOY_LOG(error, "DDD getOwnDomain {}", decoder_->getOwnDomain());
-    return decoder_->getOwnDomain();
-  }
-
-  std::string getDomainMatchParamName() override { return decoder_->getDomainMatchParamName(); }
+  std::string getOwnDomain() override;
+  std::string getDomainMatchParamName() override;
 
 private:
   UpstreamRequest& parent_;

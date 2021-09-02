@@ -22,7 +22,10 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
           previous_position = operation.position_;
 
           output += std::get<InsertOperationValue>(operation.value_).value_;
-          // output += "\"";
+	  /* Base64
+          if (value == ",opaque=") {
+            output += "\"";
+          }
           auto str = Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
           auto pos = str.find("=");
           while (pos != absl::string_view::npos) {
@@ -30,7 +33,16 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
             pos = str.find("=");
           }
           output += str;
-          // output += "\"";
+          if (value == ",opaque=") {
+            output += "\"";
+          }*/
+          if (value == ",opaque=") {
+            output += "\"";
+	  }
+          output +=  metadata->EP().value();
+          if (value == ",opaque=") {
+            output += "\"";
+	  }
         }
       } else {
         output += raw_msg.substr(previous_position, operation.position_ - previous_position);
