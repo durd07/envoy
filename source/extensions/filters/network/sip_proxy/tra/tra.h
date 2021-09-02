@@ -11,12 +11,19 @@
 #include "envoy/tracing/http_tracer.h"
 
 #include "absl/types/optional.h"
+#include "absl/types/any.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 namespace TrafficRoutingAssistant {
+
+enum class ResponseType {
+	UpdateLskpmcResp,
+	GetIpFromLskpmcRespr,
+	SubscribeResp,
+};
 
 /**
  * Async callbacks used during grpc calls.
@@ -25,7 +32,7 @@ class RequestCallbacks {
 public:
   virtual ~RequestCallbacks() = default;
 
-  virtual void complete() PURE;
+  virtual void complete(ResponseType type, absl::any resp) PURE;
 };
 
 /**

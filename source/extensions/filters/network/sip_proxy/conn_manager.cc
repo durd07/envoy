@@ -6,6 +6,7 @@
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
+#include <memory>
 
 namespace Envoy {
 namespace Extensions {
@@ -14,10 +15,20 @@ namespace SipProxy {
 
 ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
                                      TimeSource& time_source,
+                                     Server::Configuration::FactoryContext& context,
                                      std::shared_ptr<Router::TransactionInfos> transaction_infos)
     : config_(config), stats_(config_.stats()), decoder_(std::make_unique<Decoder>(*this)),
       random_generator_(random_generator), time_source_(time_source),
       transaction_infos_(transaction_infos), p_cookie_ip_map_(std::make_shared<PCookieIPMap>()) {}
+
+  if (config.settings()->traServiceConfig().has_grpc_service()) {
+    const std::chrono::milliseconds timeout = std::chrono::milliseconds(
+        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 20));
+    tra_client_ = TrafficRoutingAssistant::traClient(
+        this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
+        config.settings()->traServiceConfig().transport_api_version());
+  }
+}
 
 ConnectionManager::~ConnectionManager() = default;
 

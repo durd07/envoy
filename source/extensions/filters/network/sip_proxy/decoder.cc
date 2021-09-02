@@ -673,10 +673,10 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
 
   switch (header_type) {
   case HeaderType::TopLine:
-    pattern = ".*@(.*?) .*";
+    pattern = ".*sip.*[:@](.*?) .*";
     break;
   case HeaderType::Route:
-    pattern = ".*sip:(.*?)[:;].*";
+    pattern = ".*sip.*[:@](.*?)[:;].*";
     break;
   default:
     NOT_REACHED_GCOVR_EXCL_LINE;

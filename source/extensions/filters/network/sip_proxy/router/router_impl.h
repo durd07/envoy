@@ -307,7 +307,31 @@ public:
   }
 
   // TrafficRoutingAssistant::RequestCallbacks
-  void complete() override { ENVOY_LOG(debug, "complete"); }
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
+    switch (type) {
+    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcRespr: {
+      auto ip = absl::any_cast<std::string>(resp);
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
+      auto ret = absl::any_cast<int>(resp);
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
+      for (auto& item :
+           absl::any_cast<
+               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
+               .lskpmcs()) {
+	     ENVOY_LOG()
+        // update local cache
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    ENVOY_LOG(debug, "complete");
+  }
 
 private:
   void cleanup();

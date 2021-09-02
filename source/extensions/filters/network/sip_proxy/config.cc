@@ -68,7 +68,7 @@ Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromPro
           transaction_infos](Network::FilterManager& filter_manager) -> void {
     filter_manager.addReadFilter(
         std::make_shared<ConnectionManager>(*filter_config, context.api().randomGenerator(),
-                                            context.dispatcher().timeSource(), transaction_infos));
+                                            context.dispatcher().timeSource(), context, transaction_infos));
   };
 }
 
