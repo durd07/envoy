@@ -427,6 +427,9 @@ void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& 
   case HeaderType::Auth:
     handler_->processAuth(header);
     break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
+    break;
   default:
     break;
   }
@@ -445,6 +448,9 @@ void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& he
     break;
   case HeaderType::Contact:
     handler_->processContact(header);
+    break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
     break;
   default:
     break;
@@ -471,6 +477,9 @@ void Decoder::OK200Handler::parseHeader(HeaderType& type, absl::string_view& hea
   case HeaderType::SRoute:
     handler_->processServiceRoute(header);
     break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
+    break;
   default:
     break;
   }
@@ -492,6 +501,9 @@ void Decoder::GeneralHandler::parseHeader(HeaderType& type, absl::string_view& h
     break;
   case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
+    break;
     break;
   default:
     break;
@@ -514,6 +526,9 @@ void Decoder::SUBSCRIBEHandler::parseHeader(HeaderType& type, absl::string_view&
     break;
   case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+    break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
     break;
   default:
     break;
@@ -552,6 +567,9 @@ void Decoder::OthersHandler::parseHeader(HeaderType& type, absl::string_view& he
     break;
   case HeaderType::SRoute:
     handler_->processServiceRoute(header);
+    break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
     break;
   default:
     break;

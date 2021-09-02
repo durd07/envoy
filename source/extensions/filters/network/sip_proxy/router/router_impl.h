@@ -385,8 +385,6 @@ public:
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
 
-  void setPCookieIPMap(std::shared_ptr<PCookieIPMap> map) { p_cookie_ip_map_ = map; }
-
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
@@ -464,8 +462,6 @@ private:
   SipFilters::DecoderFilterCallbacks* callbacks_{};
   std::list<MessageMetadataSharedPtr> pending_request_;
   Buffer::OwnedImpl upstream_buffer_;
-
-  // std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
 
   bool request_complete_ : 1;
   bool response_complete_ : 1;

@@ -448,9 +448,6 @@ void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
   auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
-  //TODO
-  //ConnectionManager::ActiveTransDecoderFilterPtr callbacks = callbacks_;
-  //response_decoder_->setPCookieIPMap(callbacks->parent_.parent_.pCookieIPMap());
   response_decoder_->onData(upstream_buffer_);
 }
 
@@ -487,8 +484,10 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
+      p_cookie_ip_map_ = active_trans->parent_.pCookieIPMap();
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
+
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;
