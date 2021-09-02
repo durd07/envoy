@@ -10,6 +10,7 @@
 #include "common/buffer/buffer_impl.h"
 #include "common/common/linked_object.h"
 #include "common/common/logger.h"
+#include "common/config/utility.h"
 #include "common/stats/timespan_impl.h"
 #include "common/stream_info/stream_info_impl.h"
 
@@ -17,6 +18,7 @@
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
 #include "extensions/filters/network/sip_proxy/stats.h"
+#include "extensions/filters/network/sip_proxy/tra/tra_impl.h"
 
 #include "absl/types/any.h"
 
@@ -60,6 +62,7 @@ class ConnectionManager : public Network::ReadFilter,
 public:
   ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
                     TimeSource& time_system,
+		    Server::Configuration::FactoryContext& context,
                     std::shared_ptr<Router::TransactionInfos> transaction_infos);
   ~ConnectionManager() override;
 
@@ -264,10 +267,12 @@ private:
   Buffer::OwnedImpl request_buffer_;
   Random::RandomGenerator& random_generator_;
   TimeSource& time_source_;
+  Server::Configuration::FactoryContext& context_;
 
   // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
-  std::shared_ptr<SipSettings> sip_settings_;
+  //std::shared_ptr<SipSettings> sip_settings_;
+  TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 
 } // namespace SipProxy

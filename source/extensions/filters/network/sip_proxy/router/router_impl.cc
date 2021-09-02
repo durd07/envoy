@@ -1,7 +1,5 @@
 #include "extensions/filters/network/sip_proxy/router/router_impl.h"
 
-#include <memory>
-
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/upstream/cluster_manager.h"
 #include "common/tracing/http_tracer_impl.h"
@@ -77,7 +75,7 @@ RouteConstSharedPtr RouteMatcher::route(MessageMetadata& metadata) const {
 }
 
 void Router::onDestroy() {
-  if (!callbacks_->transactionId().empty())
+  if (!callbacks_->transactionId().empty()) {
     for (auto& kv : *transaction_infos_) {
       auto transaction_info = kv.second;
       try {
@@ -86,6 +84,7 @@ void Router::onDestroy() {
       } catch (std::out_of_range const&) {
       }
     }
+  }
 }
 
 void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks) {
@@ -152,13 +151,26 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     }
 
     if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
-      if (metadata->routeEP().has_value()) {
+      if (metadata->lskpmc().has_value()) {
+        callbacks_->traClient()->getIpFromLskpmc(*this, string(metadata->lskpmc().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        // async query, restore to context at complete
+
+      } else if (metadata->routeEP().has_value()) {
         auto host = metadata->routeEP().value();
         metadata->setDestination(host);
       }
     }
+
     if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
-      if (metadata->routeOpaque().has_value()) {
+      if (metadata->lskpmc().has_value()) {
+        callbacks_->traClient()->getIpFromLskpmc(*this, string(metadata->lskpmc().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        // async query, restore to context at complete
+
+      } else if (metadata->routeOpaque().has_value()) {
         auto host = metadata->routeOpaque().value();
         metadata->setDestination(host);
       }
@@ -218,14 +230,15 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     return upstream_request_->start();
   };
 
-  const std::chrono::milliseconds timeout = std::chrono::milliseconds(
-      PROTOBUF_GET_MS_OR_DEFAULT(settings_->traServiceConfig(), timeout, 20));
-  ENVOY_LOG(debug, "FFFF {}", settings_->traServiceConfig().grpc_service().envoy_grpc().cluster_name());
-  static auto tra_client = SipProxy::TrafficRoutingAssistant::traClient(
-      this->context_, settings_->traServiceConfig().grpc_service(), timeout,
-      settings_->traServiceConfig().transport_api_version());
-  tra_client->updateLskpmc(*this, "XXXX:192.168.0.1", Tracing::NullSpan::instance(),
-                           callbacks_->streamInfo());
+  //  const std::chrono::milliseconds timeout = std::chrono::milliseconds(
+  //      PROTOBUF_GET_MS_OR_DEFAULT(settings_->traServiceConfig(), timeout, 20));
+  //  ENVOY_LOG(debug, "FFFF {}",
+  //            settings_->traServiceConfig().grpc_service().envoy_grpc().cluster_name());
+  //  static auto tra_client = SipProxy::TrafficRoutingAssistant::traClient(
+  //      this->context_, settings_->traServiceConfig().grpc_service(), timeout,
+  //      settings_->traServiceConfig().transport_api_version());
+  //  tra_client->updateLskpmc(*this, "XXXX:192.168.0.1", Tracing::NullSpan::instance(),
+  //                           callbacks_->streamInfo());
 
   if (metadata->destination().has_value()) {
     auto host = metadata->destination().value();

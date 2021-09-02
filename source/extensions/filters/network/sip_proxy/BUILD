@@ -64,8 +64,10 @@ envoy_cc_library(
         "//source/common/common:linked_object",
         "//source/common/common:logger_lib",
         "//source/common/network:filter_lib",
+        "//source/common/config:utility_lib",
         "//source/common/stats:timespan_lib",
         "//source/common/stream_info:stream_info_lib",
+        "//source/extensions/filters/network/sip_proxy/tra:tra_lib",
         "//source/extensions/filters/network/sip_proxy/router:router_interface",
     ],
 )
