@@ -175,6 +175,10 @@ private:
   void setFirstVia(bool flag) { first_via_ = flag; }
   bool isFirstRoute() { return first_route_; }
   void setFirstRoute(bool flag) { first_route_ = flag; }
+  bool isFirstRecordRoute() { return first_record_route_; }
+  void setFirstRecordRoute(bool flag) { first_record_route_ = flag; }
+  bool isFirstServiceRoute() { return first_service_route_; }
+  void setFirstServiceRoute(bool flag) { first_service_route_ = flag; }
 
   auto sipHeaderType(absl::string_view sip_line);
   MsgType sipMsgType(absl::string_view top_line);
@@ -189,6 +193,8 @@ private:
 
   bool first_via_{true};
   bool first_route_{true};
+  bool first_record_route_{true};
+  bool first_service_route_{true};
 
   class MessageHandler;
   class HeaderHandler {
@@ -223,8 +229,12 @@ private:
     size_t rawOffset() { return parent_.rawOffset(); }
     bool isFirstVia() { return parent_.isFirstVia(); }
     bool isFirstRoute() { return parent_.isFirstRoute(); }
+    bool isFirstRecordRoute() { return parent_.isFirstRecordRoute(); }
+    bool isFirstServiceRoute() { return parent_.isFirstServiceRoute(); }
     void setFirstVia(bool flag) { parent_.setFirstVia(flag); }
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
+    void setFirstRecordRoute(bool flag) { parent_.setFirstRecordRoute(flag); }
+    void setFirstServiceRoute(bool flag) { parent_.setFirstServiceRoute(flag); }
 
     MessageHandler& parent_;
     HeaderProcessor header_processors_;
@@ -243,8 +253,12 @@ private:
     size_t rawOffset() { return parent_.rawOffset(); }
     bool isFirstVia() { return parent_.isFirstVia(); }
     bool isFirstRoute() { return parent_.isFirstRoute(); }
+    bool isFirstRecordRoute() { return parent_.isFirstRecordRoute(); }
+    bool isFirstServiceRoute() { return parent_.isFirstServiceRoute(); }
     void setFirstVia(bool flag) { parent_.setFirstVia(flag); }
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
+    void setFirstRecordRoute(bool flag) { parent_.setFirstRecordRoute(flag); }
+    void setFirstServiceRoute(bool flag) { parent_.setFirstServiceRoute(flag); }
 
     Decoder& parent_;
 
