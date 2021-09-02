@@ -477,6 +477,15 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
+std::string ResponseDecoder::getOwnDomain() {
+  ENVOY_LOG(error, "DDD getOwnDomain {}", parent_.transactionInfo()->getOwnDomain());
+  return parent_.transactionInfo()->getOwnDomain();
+}
+
+std::string ResponseDecoder::getDomainMatchParamName() {
+  return parent_.transactionInfo()->getDomainMatchParamName();
+}
+
 } // namespace Router
 } // namespace SipProxy
 } // namespace NetworkFilters
