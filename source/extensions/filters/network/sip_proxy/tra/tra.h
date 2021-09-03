@@ -23,6 +23,7 @@ enum class ResponseType {
 	UpdateLskpmcResp,
 	GetIpFromLskpmcRespr,
 	SubscribeResp,
+	FailureResp,
 };
 
 /**

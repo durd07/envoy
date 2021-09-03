@@ -123,7 +123,7 @@ void GrpcClientImpl::onSuccess(
 void GrpcClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::string&,
                                Tracing::Span&) {
   ASSERT(status != Grpc::Status::WellKnownGrpcStatus::Ok);
-  callbacks_->complete();
+  callbacks_->complete(ResponseType::FailureResp, status);
   callbacks_ = nullptr;
 }
 
@@ -131,7 +131,7 @@ void GrpcClientImpl::onReceiveMessage(
     std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
         message) {
   UNREFERENCED_PARAMETER(message);
-  callbacks_->complete();
+  callbacks_->complete(ResponseType::SubscribeResp, message->subscribe_response());
   callbacks_ = nullptr;
 }
 

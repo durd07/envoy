@@ -152,7 +152,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
     if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
       if (metadata->lskpmc().has_value()) {
-        callbacks_->traClient()->getIpFromLskpmc(*this, string(metadata->lskpmc().value()),
+        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
         // async query, restore to context at complete
@@ -165,7 +165,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
     if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
       if (metadata->lskpmc().has_value()) {
-        callbacks_->traClient()->getIpFromLskpmc(*this, string(metadata->lskpmc().value()),
+        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
         // async query, restore to context at complete
@@ -484,7 +484,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
-      p_cookie_ip_map_ = active_trans->parent_.pCookieIPMap();
+      p_cookie_ip_map_ = active_trans->pCookieIPMap();
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
 

@@ -26,6 +26,7 @@
 #include "extensions/filters/network/sip_proxy/tra/tra_impl.h"
 
 #include "absl/types/optional.h"
+#include "absl/types/any.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -314,7 +315,6 @@ public:
       break;
     }
     case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
-      auto ret = absl::any_cast<int>(resp);
       break;
     }
     case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
@@ -322,7 +322,7 @@ public:
            absl::any_cast<
                envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
                .lskpmcs()) {
-	     ENVOY_LOG()
+	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
         // update local cache
       }
       break;

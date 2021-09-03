@@ -40,6 +40,7 @@ envoy_cc_library(
         "//source/extensions/filters/network/sip_proxy:protocol_interface",
         "//source/extensions/filters/network/sip_proxy:sip_lib",
         "//source/extensions/filters/network/sip_proxy/router:router_interface",
+        "//source/extensions/filters/network/sip_proxy/tra:tra_lib",
     ],
 )
 

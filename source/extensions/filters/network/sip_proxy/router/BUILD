@@ -39,6 +39,7 @@ envoy_cc_library(
     name = "router_lib",
     srcs = ["router_impl.cc"],
     hdrs = ["router_impl.h"],
+    external_deps = ["abseil_any"],
     deps = [
         ":router_interface",
         "//include/envoy/tcp:conn_pool_interface",

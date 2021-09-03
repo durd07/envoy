@@ -58,11 +58,11 @@ public:
 class ConnectionManager : public Network::ReadFilter,
                           public Network::ConnectionCallbacks,
                           public DecoderCallbacks,
+                          public TrafficRoutingAssistant::RequestCallbacks,
                           Logger::Loggable<Logger::Id::sip> {
 public:
   ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
-                    TimeSource& time_system,
-		    Server::Configuration::FactoryContext& context,
+                    TimeSource& time_system, Server::Configuration::FactoryContext& context,
                     std::shared_ptr<Router::TransactionInfos> transaction_infos);
   ~ConnectionManager() override;
 
@@ -97,6 +97,26 @@ public:
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
     return p_cookie_ip_map_;
+  }
+
+  TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
+
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
+    switch (type) {
+    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
+      for (auto& item :
+           absl::any_cast<
+               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
+               .lskpmcs()) {
+        ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
+        // update local cache
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    ENVOY_LOG(debug, "complete");
   }
 
 private:
@@ -171,6 +191,10 @@ private:
     }
     std::shared_ptr<SipSettings> settings() override { return parent_.settings(); }
     void onReset() override { return parent_.onReset(); }
+    TrafficRoutingAssistant::ClientPtr & traClient() override { return parent_.traClient(); };
+    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
+      return parent_.pCookieIPMap();
+    }
 
     ActiveTrans& parent_;
     SipFilters::DecoderFilterSharedPtr handle_;
@@ -225,6 +249,10 @@ private:
     }
     std::shared_ptr<SipSettings> settings() override { return parent_.config_.settings(); }
     void onReset() override;
+    TrafficRoutingAssistant::ClientPtr & traClient() override { return parent_.traClient(); };
+    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
+      return parent_.pCookieIPMap();
+    }
 
     // Sip::FilterChainFactoryCallbacks
     void addDecoderFilter(SipFilters::DecoderFilterSharedPtr filter) override {
@@ -281,6 +309,7 @@ private:
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
   std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
+  // std::shared_ptr<SipSettings> sip_settings_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 

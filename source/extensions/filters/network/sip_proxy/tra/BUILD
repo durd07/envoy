@@ -31,7 +31,7 @@ envoy_cc_library(
 envoy_cc_library(
     name = "tra_client_interface",
     hdrs = ["tra.h"],
-    external_deps = ["abseil_optional"],
+    external_deps = ["abseil_optional", "abseil_any"],
     deps = [
         "//include/envoy/singleton:manager_interface",
         "//include/envoy/tracing:http_tracer_interface",

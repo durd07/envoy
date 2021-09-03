@@ -18,8 +18,8 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
                                      Server::Configuration::FactoryContext& context,
                                      std::shared_ptr<Router::TransactionInfos> transaction_infos)
     : config_(config), stats_(config_.stats()), decoder_(std::make_unique<Decoder>(*this)),
-      random_generator_(random_generator), time_source_(time_source),
-      transaction_infos_(transaction_infos), p_cookie_ip_map_(std::make_shared<PCookieIPMap>()) {}
+      random_generator_(random_generator), time_source_(time_source), context_(context),
+      transaction_infos_(transaction_infos), p_cookie_ip_map_(std::make_shared<PCookieIPMap>()) {
 
   if (config.settings()->traServiceConfig().has_grpc_service()) {
     const std::chrono::milliseconds timeout = std::chrono::milliseconds(

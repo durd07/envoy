@@ -12,6 +12,7 @@
 #include "extensions/filters/network/sip_proxy/protocol.h"
 #include "extensions/filters/network/sip_proxy/router/router.h"
 #include "extensions/filters/network/sip_proxy/sip.h"
+#include "extensions/filters/network/sip_proxy/tra/tra.h"
 
 //#include "extensions/filters/network/sip_proxy/config.h"
 //#include "extensions/filters/network/sip_proxy/transport.h"
@@ -21,6 +22,8 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 namespace SipFilters {
+
+using PCookieIPMap = std::map<std::string, std::string>;
 
 enum class ResponseStatus {
   MoreData = 0, // The upstream response requires more data.
@@ -89,6 +92,8 @@ public:
 
   virtual std::shared_ptr<Router::TransactionInfos> transactionInfos() PURE;
   virtual std::shared_ptr<SipProxy::SipSettings> settings() PURE;
+  virtual TrafficRoutingAssistant::ClientPtr & traClient() PURE;
+  virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
   virtual void onReset() PURE;
 };
 
