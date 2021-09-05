@@ -6,7 +6,6 @@
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
 #include "extensions/filters/network/sip_proxy/protocol.h"
-#include <memory>
 
 namespace Envoy {
 namespace Extensions {
@@ -33,7 +32,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(info, "ConnectionManager received data {}\n{}\n", data.length(), data.toString());
+  ENVOY_LOG(trace, "sip proxy received data {}\n{}\n", data.length(), data.toString());
   request_buffer_.move(data);
   dispatch();
 
@@ -46,6 +45,8 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
 
   return Network::FilterStatus::StopIteration;
 }
+
+void ConnectionManager::continueHanding() { dispatch(); }
 
 void ConnectionManager::dispatch() { decoder_->onData(request_buffer_); }
 

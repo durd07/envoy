@@ -11,6 +11,9 @@ enum class FilterStatus {
   // Continue filter chain iteration.
   Continue,
 
+  // Suspend this message handling, will Continue when continueHandling
+  Suspend,
+
   // Stop iterating over filters in the filter chain.
   StopIteration
 };

@@ -79,10 +79,20 @@ void Decoder::complete() {
   first_route_ = true;
 }
 
-FilterStatus Decoder::onData(Buffer::Instance& data) {
-  ENVOY_LOG(debug, "sip: {} bytes available", data.length());
+FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
+  ENVOY_LOG(trace, "sip: {} bytes available", data.length());
 
-  reassemble(data);
+  if (continue_handling) {
+    /* means previous handling suspended, continue handling last request,  */
+    State rv = state_machine_->run();
+
+    if (rv == State::Done || rv == State::StopIteration) {
+      complete();
+      reassemble(data);
+    }
+  } else {
+    reassemble(data);
+  }
   return FilterStatus::StopIteration;
 }
 

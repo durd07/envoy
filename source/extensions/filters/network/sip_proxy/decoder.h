@@ -140,7 +140,7 @@ public:
    *             Continue otherwise.
    * @throw EnvoyException on Sip protocol errors
    */
-  FilterStatus onData(Buffer::Instance& data);
+  FilterStatus onData(Buffer::Instance& data, bool continue_handling = false);
   std::string getOwnDomain() { return callbacks_.getOwnDomain(); }
   std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
 

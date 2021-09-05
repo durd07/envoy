@@ -195,6 +195,7 @@ private:
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.pCookieIPMap();
     }
+    void continueHanding() override { return parent_.continueHanding(); }
 
     ActiveTrans& parent_;
     SipFilters::DecoderFilterSharedPtr handle_;
@@ -253,6 +254,7 @@ private:
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.pCookieIPMap();
     }
+    void continueHanding() override { return parent_.continueHanding(); }
 
     // Sip::FilterChainFactoryCallbacks
     void addDecoderFilter(SipFilters::DecoderFilterSharedPtr filter) override {
@@ -292,6 +294,7 @@ private:
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
   void doDeferredTransDestroy(ActiveTrans& trans);
   void resetAllTrans(bool local_reset);
+  void continueHanding();
 
   Config& config_;
   SipFilterStats& stats_;

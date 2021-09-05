@@ -93,14 +93,56 @@ void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callb
   settings_ = callbacks_->settings();
 }
 
-FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
-  UNREFERENCED_PARAMETER(metadata);
+FilterStatus Router::handleAffinity() {
+  auto& metadata = metadata_;
+
+  const std::shared_ptr<const ProtocolOptionsConfig> options =
+      cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
+          NetworkFilterNames::get().SipProxy);
+
+  if (options == nullptr || metadata->msgType() == MsgType::Response) {
+    return FilterStatus::Continue;
+  }
+
+  if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
+    if (metadata->lskpmc().has_value()) {
+      if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
+          callbacks_->pCookieIPMap()->end()) {
+        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+      } else {
+        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        return FilterStatus::Suspend;
+      }
+
+    } else if (metadata->routeEP().has_value()) {
+      auto host = metadata->routeEP().value();
+      metadata->setDestination(host);
+    }
+  }
+
+  if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
+    if (metadata->lskpmc().has_value()) {
+      if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
+          callbacks_->pCookieIPMap()->end()) {
+        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+      } else {
+        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        return FilterStatus::Suspend;
+      }
+
+    } else if (metadata->routeOpaque().has_value()) {
+      auto host = metadata->routeOpaque().value();
+      metadata->setDestination(host);
+    }
+  }
   return FilterStatus::Continue;
 }
 
-FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
-
-FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
+FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   if (upstream_request_ != nullptr) {
     return FilterStatus::Continue;
   }
@@ -119,6 +161,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   const std::string& cluster_name = route_entry_->clusterName();
 
   Upstream::ThreadLocalCluster* cluster = cluster_manager_.getThreadLocalCluster(cluster_name);
+  thread_local_cluster_ = cluster;
   if (!cluster) {
     ENVOY_STREAM_LOG(debug, "unknown cluster '{}'", *callbacks_, cluster_name);
     stats_.unknown_cluster_.inc();
@@ -141,53 +184,28 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     return FilterStatus::StopIteration;
   }
 
-  const std::shared_ptr<const ProtocolOptionsConfig> options =
-      cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
-          NetworkFilterNames::get().SipProxy);
+  auto ret = handleAffinity();
+  if (ret == FilterStatus::Suspend || ret == FilterStatus::StopIteration) {
+    return ret;
+  }
 
-  auto handle_affinity = [&](const std::shared_ptr<const ProtocolOptionsConfig> options) {
-    if (options == nullptr || metadata->msgType() == MsgType::Response) {
-      return;
-    }
+  return FilterStatus::Continue;
+}
 
-    if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
-      if (metadata->lskpmc().has_value()) {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
-        // async query, restore to context at complete
+FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
-      } else if (metadata->routeEP().has_value()) {
-        auto host = metadata->routeEP().value();
-        metadata->setDestination(host);
-      }
-    }
+FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
-    if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
-      if (metadata->lskpmc().has_value()) {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
-        // async query, restore to context at complete
-
-      } else if (metadata->routeOpaque().has_value()) {
-        auto host = metadata->routeOpaque().value();
-        metadata->setDestination(host);
-      }
-    }
-  };
-  handle_affinity(options);
-
-  auto& transaction_info = (*transaction_infos_)[cluster_name];
+  auto& transaction_info = (*transaction_infos_)[cluster_->name()];
 
   auto message_handler_with_loadbalancer = [&]() {
     Tcp::ConnectionPool::Instance* conn_pool =
-        cluster->tcpConnPool(Upstream::ResourcePriority::Default, this);
+        thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
       stats_.no_healthy_upstream_.inc();
       callbacks_->sendLocalReply(
           AppException(AppExceptionType::InternalError,
-                       fmt::format("no healthy upstream for '{}'", cluster_name)),
+                       fmt::format("no healthy upstream for '{}'", cluster_->name())),
           true);
       return FilterStatus::StopIteration;
     }
@@ -230,16 +248,6 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     return upstream_request_->start();
   };
 
-  //  const std::chrono::milliseconds timeout = std::chrono::milliseconds(
-  //      PROTOBUF_GET_MS_OR_DEFAULT(settings_->traServiceConfig(), timeout, 20));
-  //  ENVOY_LOG(debug, "FFFF {}",
-  //            settings_->traServiceConfig().grpc_service().envoy_grpc().cluster_name());
-  //  static auto tra_client = SipProxy::TrafficRoutingAssistant::traClient(
-  //      this->context_, settings_->traServiceConfig().grpc_service(), timeout,
-  //      settings_->traServiceConfig().transport_api_version());
-  //  tra_client->updateLskpmc(*this, "XXXX:192.168.0.1", Tracing::NullSpan::instance(),
-  //                           callbacks_->streamInfo());
-
   if (metadata->destination().has_value()) {
     auto host = metadata->destination().value();
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
@@ -268,12 +276,6 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 }
 
 FilterStatus Router::messageEnd() {
-  // In case pool is not ready, save this into pending_request.
-  if (upstream_request_->connectionState() != ConnectionState::Connected) {
-    upstream_request_->addIntoPendingRequest(metadata_);
-    return FilterStatus::Continue;
-  }
-
   Buffer::OwnedImpl transport_buffer;
 
   // set EP/Opaque, used in upstream
@@ -313,18 +315,18 @@ UpstreamRequest::~UpstreamRequest() {
 }
 
 FilterStatus UpstreamRequest::start() {
-  if (conn_state_ != ConnectionState::NotConnected) {
-    return FilterStatus::Continue;
-  }
+  //if (conn_state_ != ConnectionState::NotConnected) {
+  //  return FilterStatus::StopIteration;
+  //}
 
-  ENVOY_LOG(info, "connecting {}", conn_pool_.host()->address()->asString());
-  conn_state_ = ConnectionState::Connecting;
+  ENVOY_LOG(info, "start connecting {}", conn_pool_.host()->address()->asString());
+  //conn_state_ = ConnectionState::Connecting;
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_.newConnection(*this);
   if (handle) {
     // Pause while we wait for a connection.
     conn_pool_handle_ = handle;
-    return FilterStatus::Continue;
+    return FilterStatus::StopIteration;
   }
 
   if (upstream_host_ == nullptr) {
@@ -366,6 +368,7 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
 void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_data,
                                   Upstream::HostDescriptionConstSharedPtr host) {
   ENVOY_STREAM_LOG(trace, "onPoolReady", *callbacks_);
+  bool continue_handling = conn_pool_handle_ != nullptr;
 
   conn_data_ = std::move(conn_data);
 
@@ -375,25 +378,12 @@ void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_
 
   conn_state_ = ConnectionState::Connected;
 
-  onRequestStart();
+  onRequestStart(continue_handling);
 }
 
-void UpstreamRequest::onRequestStart() {
-  if (!pending_request_.empty()) {
-    for (const auto& metadata : pending_request_) {
-      Buffer::OwnedImpl transport_buffer;
-
-      // set EP/Opaque, used in upstream
-      metadata->setEP(localAddress());
-
-      std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
-      encoder->encode(metadata, transport_buffer);
-
-      ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
-                       transport_buffer.toString());
-      conn_data_->connection().write(transport_buffer, false);
-    }
-    pending_request_.clear();
+void UpstreamRequest::onRequestStart(bool continue_handling) {
+  if (continue_handling) {
+    callbacks_->continueHanding();
   }
 }
 

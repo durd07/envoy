@@ -95,6 +95,7 @@ public:
   virtual TrafficRoutingAssistant::ClientPtr & traClient() PURE;
   virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
   virtual void onReset() PURE;
+  virtual void continueHanding() PURE;
 };
 
 /**

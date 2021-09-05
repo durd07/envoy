@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 
+#include "envoy/extensions/filters/network/sip_proxy/tra/v3/tra.pb.h"
 #include "extensions/filters/network/sip_proxy/filters/factory_base.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
 #include "envoy/router/router.h"
@@ -311,7 +312,10 @@ public:
   void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
     switch (type) {
     case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcRespr: {
-      auto ip = absl::any_cast<std::string>(resp);
+      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::Lskpmc>(resp);
+      metadata_->setDestination(lskpmc.val());
+      (*callbacks_->pCookieIPMap())[lskpmc.key()] = lskpmc.val();
+      callbacks_->continueHanding();
       break;
     }
     case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
@@ -340,6 +344,7 @@ private:
                                             POOL_GAUGE_PREFIX(scope, prefix),
                                             POOL_HISTOGRAM_PREFIX(scope, prefix))};
   }
+  FilterStatus handleAffinity();
 
   Upstream::ClusterManager& cluster_manager_;
   RouterStats stats_;
@@ -351,9 +356,11 @@ private:
   std::shared_ptr<UpstreamRequest> upstream_request_;
   SipFilters::DecoderFilterCallbacks* callbacks_{};
   Upstream::ClusterInfoConstSharedPtr cluster_;
+  Upstream::ThreadLocalCluster* thread_local_cluster_;
   std::shared_ptr<TransactionInfos> transaction_infos_{};
   std::shared_ptr<SipSettings> settings_;
   Server::Configuration::FactoryContext& context_;
+  bool continue_handling_;
 };
 
 class ThreadLocalActiveConn;
@@ -414,7 +421,7 @@ public:
   void onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn,
                    Upstream::HostDescriptionConstSharedPtr host) override;
 
-  void onRequestStart();
+  void onRequestStart(bool continue_handling = false);
   void onRequestComplete();
   void onResponseComplete();
   void onUpstreamHostSelected(Upstream::HostDescriptionConstSharedPtr host);
