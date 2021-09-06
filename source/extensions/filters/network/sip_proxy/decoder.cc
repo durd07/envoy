@@ -7,6 +7,7 @@
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 
+#include "extensions/filters/network/sip_proxy/decoder_events.h"
 #include "re2/re2.h"
 #include <utility>
 
@@ -86,7 +87,7 @@ FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
     State rv = state_machine_->run();
 
-    if (rv == State::Done || rv == State::StopIteration) {
+    if (rv == State::Done) {
       complete();
       reassemble(data);
     }
@@ -181,7 +182,7 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   state_machine_ = std::make_unique<DecoderStateMachine>(metadata_, request_->handler_);
   State rv = state_machine_->run();
 
-  if (rv == State::Done || rv == State::StopIteration) {
+  if (rv == State::Done) {
     complete();
   }
 

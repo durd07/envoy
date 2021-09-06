@@ -119,7 +119,7 @@ FilterStatus Router::handleAffinity() {
         callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
-        return FilterStatus::Suspend;
+        return FilterStatus::StopIteration;
       }
 
     } else if (metadata->routeEP().has_value()) {
@@ -137,7 +137,7 @@ FilterStatus Router::handleAffinity() {
         callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
-        return FilterStatus::Suspend;
+        return FilterStatus::StopIteration;
       }
 
     } else if (metadata->routeOpaque().has_value()) {
@@ -191,7 +191,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   }
 
   auto ret = handleAffinity();
-  if (ret == FilterStatus::Suspend || ret == FilterStatus::StopIteration) {
+  if (ret == FilterStatus::StopIteration) {
     return ret;
   }
 
