@@ -556,6 +556,9 @@ void Decoder::FAILURE4XXHandler::parseHeader(HeaderType& type, absl::string_view
   case HeaderType::Via:
     handler_->processVia(header);
     break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
+    break;
   default:
     break;
   }
