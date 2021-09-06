@@ -484,6 +484,14 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
 
+      if (metadata->pCookieIpMap().has_value()) {
+        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
+        active_trans->traClient()->updateLskpmc(*this, std::string(metadata->pCookieIpMap().value()),
+                                           Tracing::NullSpan::instance(),
+                                           active_trans->streamInfo());
+
+      }
+
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;

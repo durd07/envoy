@@ -90,7 +90,7 @@ public:
 
   void addOpaqueOperation(size_t rawOffset, absl::string_view& header) {
     if (header.find(",opaque=") != absl::string_view::npos) {
-      // already Contact have ep
+      // already has opaque
       return;
     }
     auto pos = header.length();

@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 
+#include "common/common/macros.h"
 #include "envoy/extensions/filters/network/sip_proxy/tra/v3/tra.pb.h"
 #include "extensions/filters/network/sip_proxy/filters/factory_base.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
@@ -366,6 +367,7 @@ private:
 class ThreadLocalActiveConn;
 class ResponseDecoder : public DecoderCallbacks,
                         public DecoderEventHandler,
+                        public TrafficRoutingAssistant::RequestCallbacks,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
   ResponseDecoder(UpstreamRequest& parent)
@@ -391,6 +393,10 @@ public:
   std::string getDomainMatchParamName() override;
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
+    UNREFERENCED_PARAMETER(type);
+    UNREFERENCED_PARAMETER(resp);
+  }
 
 private:
   UpstreamRequest& parent_;
