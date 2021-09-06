@@ -206,14 +206,14 @@ auto Decoder::sipHeaderType(absl::string_view sip_line) {
       {"P-Nokia-Cookie-IP-Mapping", HeaderType::PCookieIPMap},
       {"", HeaderType::Other}};
 
-  auto header_type_str = sip_line.substr(0, sip_line.find_first_of(":"));
+  auto header_type_str = sip_line.substr(0, sip_line.find_first_of(':'));
   if (auto result = sip_header_type_map.find(header_type_str);
       result != sip_header_type_map.end()) {
     return std::tuple<HeaderType, absl::string_view>{
-        result->second, sip_line.substr(sip_line.find_first_of(":") + 2)};
+        result->second, sip_line.substr(sip_line.find_first_of(':') + strlen(": "))};
   } else {
     return std::tuple<HeaderType, absl::string_view>{
-        HeaderType::Other, sip_line.substr(sip_line.find_first_of(":") + 2)};
+        HeaderType::Other, sip_line.substr(sip_line.find_first_of(':') + strlen(": "))};
   }
 }
 
@@ -366,12 +366,10 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  auto lskpmc = header.substr(0, loc);
+  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc);
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
   parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
-
-  // TODO: update grpc server
-
+  metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
   return 0;
 }
 //
@@ -617,10 +615,10 @@ int Decoder::decode() {
 
   while (!msg.empty()) {
     std::string::size_type crlf = msg.find("\r\n");
-    /* After message reassemble, this condition could not be true
-    if (crlf == absl::string_view::npos) {
-      break;
-    }*/
+    // After message reassemble, this condition could not be true
+    // if (crlf == absl::string_view::npos) {
+    //   break;
+    // }
 
     if (current_header_ == HeaderType::TopLine) {
       // Sip Request Line

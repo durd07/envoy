@@ -96,6 +96,12 @@ void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callb
 FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
 
+  if (metadata->pCookieIpMap().has_value()) {
+    callbacks_->traClient()->updateLskpmc(*this, std::string(metadata->pCookieIpMap().value()),
+                                           Tracing::NullSpan::instance(),
+                                           callbacks_->streamInfo());
+  }
+
   const std::shared_ptr<const ProtocolOptionsConfig> options =
       cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
           NetworkFilterNames::get().SipProxy);
@@ -268,7 +274,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       message_handler_with_loadbalancer();
     }
   } else {
-    ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
+    ENVOY_STREAM_LOG(debug, "no destination preset select with load balancer.", *callbacks_);
     message_handler_with_loadbalancer();
   }
 
