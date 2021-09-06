@@ -86,7 +86,7 @@ public:
     ENVOY_LOG(
         error, "XXXXXXXXXXXXXXXXXXXXX {}",
         read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString());
-    return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
+    return read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString();
   }
 
   std::string getOwnDomain() override { return config_.settings()->ownDomain(); }
