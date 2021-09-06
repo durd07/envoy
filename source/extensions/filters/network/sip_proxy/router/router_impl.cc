@@ -271,11 +271,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return upstream_request_->start();
     } else {
       ENVOY_STREAM_LOG(debug, "get upstream request for {} failed.", *callbacks_, host);
-      message_handler_with_loadbalancer();
+      return message_handler_with_loadbalancer();
     }
   } else {
     ENVOY_STREAM_LOG(debug, "no destination preset select with load balancer.", *callbacks_);
-    message_handler_with_loadbalancer();
+    return message_handler_with_loadbalancer();
   }
 
   return FilterStatus::Continue;
