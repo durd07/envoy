@@ -147,21 +147,40 @@ private:
   std::string raw_msg_{};
 
   absl::string_view getDomain(absl::string_view header, std::string domainMatchParamName) {
-    auto pos = header.find(">");
-    if (pos == absl::string_view::npos) {
-      // no url
-      return "";
-    }
+    ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
 
     // Get domain
-    absl::string_view domain;
-    if (domainMatchParamName == "host") {
+    absl::string_view domain = "";
+
+    if (domainMatchParamName != "host") {
+      auto start = header.find(domainMatchParamName);
+      if (start == absl::string_view::npos) {
+        domain = "";
+      } else {
+        // domainMatchParamName + "="
+        // start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
+        start = start + domainMatchParamName.length() + strlen("=");
+        if ("sip:" == header.substr(start, strlen("sip:"))) {
+          start += strlen("sip:");
+        }
+        // end
+        auto end = header.find_first_of(":;>", start);
+        if (end == absl::string_view::npos) {
+          domain = "";
+        } else {
+          domain = header.substr(start, end - start);
+        }
+      }
+    }
+
+    // Still get host if mapped domain is empty
+    if (domainMatchParamName == "host" || domain == "") {
       auto start = header.find("sip:");
       if (start == absl::string_view::npos) {
         return "";
       }
       start += strlen("sip:");
-      auto end = header.find_first_of(":;", start);
+      auto end = header.find_first_of(":;>", start);
       if (end == absl::string_view::npos) {
         return "";
       }
@@ -176,23 +195,6 @@ private:
         pos += strlen("@");
         domain = addr.substr(pos, addr.length() - pos);
       }
-    } else {
-      auto start = header.find(domainMatchParamName);
-      if (start == absl::string_view::npos) {
-        return "";
-      }
-      // domainMatchParamName + "="
-      // start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
-      start = start + domainMatchParamName.length() + strlen("=");
-      if ("sip:" == header.substr(start, strlen("sip:"))) {
-        start += strlen("sip:");
-      }
-      // end
-      auto end = header.find_first_of(":;>", start);
-      if (end == absl::string_view::npos) {
-        return "";
-      }
-      domain = header.substr(start, end - start);
     }
 
     return domain;
