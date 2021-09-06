@@ -46,7 +46,7 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
   return Network::FilterStatus::StopIteration;
 }
 
-void ConnectionManager::continueHanding() { dispatch(); }
+void ConnectionManager::continueHanding() { decoder_->onData(request_buffer_, true); }
 
 void ConnectionManager::dispatch() { decoder_->onData(request_buffer_); }
 
