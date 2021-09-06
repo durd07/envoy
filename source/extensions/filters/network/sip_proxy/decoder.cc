@@ -303,7 +303,8 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   }
 
   metadata()->setTopRoute(header);
-  metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  //metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -650,7 +651,8 @@ int Decoder::decode() {
   }
 
   if (!metadata->topRoute().has_value() && metadata->msgType() == MsgType::Request) {
-    metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
+    //metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
+    metadata->setDomain(metadata->requestURI().value(), getDomainMatchParamName());
   }
   return 0;
 }

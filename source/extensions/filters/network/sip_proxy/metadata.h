@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <memory>
+#include <utility>
 
 #include "common/common/assert.h"
 #include "common/common/logger.h"
@@ -56,7 +57,9 @@ public:
 
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
-  void setDomain(absl::string_view data) { domain_ = data; }
+  void setDomain(absl::string_view header, std::string domainMatchParamName) {
+    domain_ = getDomain(header, domainMatchParamName);
+  }
 
   void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
                       std::string domainMatchParamName) {
@@ -71,48 +74,8 @@ public:
       // no url
       return;
     }
-
     // Get domain
-    absl::string_view domain;
-    if (domainMatchParamName == "host") {
-      auto start = header.find("sip:");
-      if (start == absl::string_view::npos) {
-        return;
-      }
-      start += strlen("sip:");
-      auto end = header.find_first_of(":;", start);
-      if (end == absl::string_view::npos) {
-        return;
-      }
-
-      auto addr = header.substr(start, end - start);
-
-      // Remove name in format of sip:name@addr:pos
-      auto pos = addr.find("@");
-      if (pos == absl::string_view::npos) {
-        domain = header.substr(start, end - start);
-      } else {
-        pos += strlen("@");
-        domain = addr.substr(pos, addr.length() - pos);
-      }
-    } else {
-      auto start = header.find(domainMatchParamName);
-      if (start == absl::string_view::npos) {
-        return;
-      }
-      // domainMatchParamName + "="
-      // start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
-      start = start + domainMatchParamName.length() + strlen("=");
-      if ("sip:" == header.substr(start, strlen("sip:"))) {
-        start += strlen("sip:");
-      }
-      // end is :port
-      auto end = header.find_first_of(":;>", start);
-      if (end == absl::string_view::npos) {
-        return;
-      }
-      domain = header.substr(start, end - start);
-    }
+    absl::string_view domain = getDomain(header, domainMatchParamName);
 
     // Compare the domain
     if (domain != ownDomain) {
@@ -182,6 +145,58 @@ private:
   absl::optional<absl::string_view> destination_{};
 
   std::string raw_msg_{};
+
+  absl::string_view getDomain(absl::string_view header, std::string domainMatchParamName) {
+    auto pos = header.find(">");
+    if (pos == absl::string_view::npos) {
+      // no url
+      return "";
+    }
+
+    // Get domain
+    absl::string_view domain;
+    if (domainMatchParamName == "host") {
+      auto start = header.find("sip:");
+      if (start == absl::string_view::npos) {
+        return "";
+      }
+      start += strlen("sip:");
+      auto end = header.find_first_of(":;", start);
+      if (end == absl::string_view::npos) {
+        return "";
+      }
+
+      auto addr = header.substr(start, end - start);
+
+      // Remove name in format of sip:name@addr:pos
+      auto pos = addr.find("@");
+      if (pos == absl::string_view::npos) {
+        domain = header.substr(start, end - start);
+      } else {
+        pos += strlen("@");
+        domain = addr.substr(pos, addr.length() - pos);
+      }
+    } else {
+      auto start = header.find(domainMatchParamName);
+      if (start == absl::string_view::npos) {
+        return "";
+      }
+      // domainMatchParamName + "="
+      // start = start + strlen(domainMatchParamName.c_str()) + strlen("=") ;
+      start = start + domainMatchParamName.length() + strlen("=");
+      if ("sip:" == header.substr(start, strlen("sip:"))) {
+        start += strlen("sip:");
+      }
+      // end
+      auto end = header.find_first_of(":;>", start);
+      if (end == absl::string_view::npos) {
+        return "";
+      }
+      domain = header.substr(start, end - start);
+    }
+
+    return domain;
+  }
 };
 
 using MessageMetadataSharedPtr = std::shared_ptr<MessageMetadata>;

@@ -85,8 +85,8 @@ public:
     // So here get downstream remote IP, which should in same pod car with envoy
     ENVOY_LOG(
         error, "XXXXXXXXXXXXXXXXXXXXX {}",
-        read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString());
-    return read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString();
+        read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
+    return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
   std::string getOwnDomain() override { return config_.settings()->ownDomain(); }
