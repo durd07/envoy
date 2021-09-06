@@ -75,18 +75,26 @@ public:
     // Get domain
     absl::string_view domain;
     if (domainMatchParamName == "host") {
-      auto start = header.find("@");
+      auto start = header.find("sip:");
       if (start == absl::string_view::npos) {
         return;
       }
-      start += strlen("@");
-      // end is :port
+      start += strlen("sip:");
       auto end = header.find_first_of(":;", start);
       if (end == absl::string_view::npos) {
         return;
       }
-      domain = header.substr(start, end - start);
 
+      auto addr = header.substr(start, end - start);
+
+      // Remove name in format of sip:name@addr:pos
+      auto pos = addr.find("@");
+      if (pos == absl::string_view::npos) {
+        domain = header.substr(start, end - start);
+      } else {
+        pos += strlen("@");
+        domain = addr.substr(pos, addr.length() - pos);
+      }
     } else {
       auto start = header.find(domainMatchParamName);
       if (start == absl::string_view::npos) {
