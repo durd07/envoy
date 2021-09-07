@@ -488,12 +488,10 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         active_trans->traClient()->updateLskpmc(parent_, std::string(metadata->pCookieIpMap().value()),
                                            Tracing::NullSpan::instance(),
                                            active_trans->streamInfo());
-
       }
 
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
-
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;
