@@ -2,10 +2,11 @@
 
 #include "envoy/buffer/buffer.h"
 
+#include "source/common/common/base64.h"
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
-#include "source/common/common/base64.h"
 #include "source/common/common/logger.h"
+
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
 #include "source/extensions/filters/network/sip_proxy/protocol.h"
 
@@ -114,6 +115,8 @@ public:
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
   virtual absl::string_view getLocalIp() PURE;
+  virtual std::string getOwnDomain() PURE;
+  virtual std::string getDomainMatchParamName() PURE;
 };
 
 /**
@@ -134,6 +137,8 @@ public:
    * @throw EnvoyException on Sip protocol errors
    */
   FilterStatus onData(Buffer::Instance& data);
+  std::string getOwnDomain() { return callbacks_.getOwnDomain(); }
+  std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
 
 protected:
   MessageMetadataSharedPtr metadata() { return metadata_; }
@@ -170,12 +175,14 @@ private:
   void setFirstVia(bool flag) { first_via_ = flag; }
   bool isFirstRoute() { return first_route_; }
   void setFirstRoute(bool flag) { first_route_ = flag; }
+  bool isFirstRecordRoute() { return first_record_route_; }
+  void setFirstRecordRoute(bool flag) { first_record_route_ = flag; }
+  bool isFirstServiceRoute() { return first_service_route_; }
+  void setFirstServiceRoute(bool flag) { first_service_route_ = flag; }
 
   auto sipHeaderType(absl::string_view sip_line);
   MsgType sipMsgType(absl::string_view top_line);
   MethodType sipMethod(absl::string_view top_line);
-
-  static absl::string_view domain(absl::string_view sip_header, HeaderType header_type);
 
   int parseTopLine(absl::string_view& top_line);
 
@@ -184,6 +191,8 @@ private:
 
   bool first_via_{true};
   bool first_route_{true};
+  bool first_record_route_{true};
+  bool first_service_route_{true};
 
   class MessageHandler;
   class HeaderHandler {
@@ -218,8 +227,12 @@ private:
     size_t rawOffset() { return parent_.rawOffset(); }
     bool isFirstVia() { return parent_.isFirstVia(); }
     bool isFirstRoute() { return parent_.isFirstRoute(); }
+    bool isFirstRecordRoute() { return parent_.isFirstRecordRoute(); }
+    bool isFirstServiceRoute() { return parent_.isFirstServiceRoute(); }
     void setFirstVia(bool flag) { parent_.setFirstVia(flag); }
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
+    void setFirstRecordRoute(bool flag) { parent_.setFirstRecordRoute(flag); }
+    void setFirstServiceRoute(bool flag) { parent_.setFirstServiceRoute(flag); }
 
     MessageHandler& parent_;
     HeaderProcessor header_processors_;
@@ -228,7 +241,7 @@ private:
   class MessageHandler {
   public:
     MessageHandler(std::shared_ptr<HeaderHandler> handler, Decoder& parent)
-        : handler_(std::move(handler)), parent_(parent) {}
+        : parent_(parent), handler_(std::move(handler)) {}
     virtual ~MessageHandler() = default;
 
     virtual void parseHeader(HeaderType& type, absl::string_view& header) PURE;
@@ -238,12 +251,17 @@ private:
     size_t rawOffset() { return parent_.rawOffset(); }
     bool isFirstVia() { return parent_.isFirstVia(); }
     bool isFirstRoute() { return parent_.isFirstRoute(); }
+    bool isFirstRecordRoute() { return parent_.isFirstRecordRoute(); }
+    bool isFirstServiceRoute() { return parent_.isFirstServiceRoute(); }
     void setFirstVia(bool flag) { parent_.setFirstVia(flag); }
     void setFirstRoute(bool flag) { parent_.setFirstRoute(flag); }
+    void setFirstRecordRoute(bool flag) { parent_.setFirstRecordRoute(flag); }
+    void setFirstServiceRoute(bool flag) { parent_.setFirstServiceRoute(flag); }
 
+    Decoder& parent_;
   protected:
     std::shared_ptr<HeaderHandler> handler_;
-    Decoder& parent_;
+    //Decoder& parent_;
   };
 
   class REGISTERHeaderHandler : public HeaderHandler {

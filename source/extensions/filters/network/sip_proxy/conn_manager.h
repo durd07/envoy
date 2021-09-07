@@ -12,6 +12,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/stats/timespan_impl.h"
 #include "source/common/stream_info/stream_info_impl.h"
+
 #include "source/extensions/filters/network/sip_proxy/decoder.h"
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
 #include "source/extensions/filters/network/sip_proxy/protocol.h"
@@ -79,15 +80,16 @@ public:
     // should return local address ip
     // But after ORIGINAL_DEST, the local address update to upstream local address
     // So here get downstream remote IP, which should in same pod car with envoy
-    if (config_.settings()->epInsert()) {
-      return read_callbacks_->connection()
-          .addressProvider()
-          .remoteAddress()
-          ->ip()
-          ->addressAsString();
-    } else {
-      return "";
-    }
+    ENVOY_LOG(
+        error, "XXXXXXXXXXXXXXXXXXXXX {}",
+        read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString());
+    return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
+  }
+
+  std::string getOwnDomain() override { return config_.settings()->ownDomain(); }
+
+  std::string getDomainMatchParamName() override {
+    return config_.settings()->domainMatchParamName();
   }
 
 private:
@@ -115,18 +117,16 @@ private:
     }
 
     absl::string_view getLocalIp() override {
-      if (parent_.settings()->epInsert()) {
-        // should return local address ip
-        // But after ORIGINAL_DEST, the local address update to upstream local address
-        // So here get downstream remote IP, which should in same pod car with envoy
-        return parent_.parent_.read_callbacks_->connection()
-            .addressProvider()
-            .remoteAddress()
-            ->ip()
-            ->addressAsString();
-      } else {
-        return "";
-      }
+      // should return local address ip
+      // But after ORIGINAL_DEST, the local address update to upstream local address
+      // So here get downstream remote IP, which should in same pod car with envoy
+      return parent_.parent_.getLocalIp();
+    }
+
+    std::string getOwnDomain() override { return parent_.parent_.getOwnDomain(); }
+
+    std::string getDomainMatchParamName() override {
+      return parent_.parent_.getDomainMatchParamName();
     }
 
     ActiveTrans& parent_;

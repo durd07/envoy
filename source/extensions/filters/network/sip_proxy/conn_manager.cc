@@ -22,7 +22,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  // ENVOY_LOG(trace, "ConnectionManager received data {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(trace, "ConnectionManager received data {}\n{}\n", data.length(), data.toString());
   request_buffer_.move(data);
   dispatch();
 
@@ -49,6 +49,7 @@ void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectRe
 
   Buffer::OwnedImpl response_buffer;
 
+  metadata.setEP(getLocalIp());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(std::make_shared<MessageMetadata>(metadata), response_buffer);
 
@@ -161,6 +162,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   Buffer::OwnedImpl buffer;
 
+  metadata_->setEP(getLocalIp());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);
 

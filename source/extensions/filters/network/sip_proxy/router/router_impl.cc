@@ -9,6 +9,7 @@
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/router/metadatamatchcriteria_impl.h"
+
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/encoder.h"
 #include "source/extensions/filters/network/well_known_names.h"
@@ -220,6 +221,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
+      ENVOY_STREAM_LOG(debug, "reuse upstream request from EP {}", *callbacks_, host);
       upstream_request_ = upstream_request;
 
       try {
@@ -230,9 +232,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
+      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed.", *callbacks_, host);
       message_handler_with_loadbalancer();
     }
   } else {
+    ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
     message_handler_with_loadbalancer();
   }
 
@@ -248,9 +252,8 @@ FilterStatus Router::messageEnd() {
 
   Buffer::OwnedImpl transport_buffer;
 
-  if (upstream_request_->transactionInfo()->epInsert()) {
-    metadata_->setEP(upstream_request_->localAddress());
-  }
+  // set EP/Opaque, used in upstream
+  metadata_->setEP(upstream_request_->localAddress());
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
@@ -273,7 +276,6 @@ const Network::Connection* Router::downstreamConnection() const {
 // Not used
 // void Router::cleanup() { /*upstream_request_.reset();*/
 //}
-
 UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool_data,
                                  std::shared_ptr<TransactionInfo> transaction_info)
     : conn_pool_data_(pool_data), transaction_info_(transaction_info), response_complete_(false) {}
@@ -290,7 +292,9 @@ FilterStatus UpstreamRequest::start() {
   }
 
   ENVOY_LOG(info, "connecting {}", conn_pool_data_.host()->address()->asString());
+
   setConnectionState(ConnectionState::Connecting);
+  conn_state_ = ConnectionState::Connecting;
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_data_.newConnection(*this);
   if (handle) {
@@ -355,9 +359,8 @@ void UpstreamRequest::onRequestStart() {
     for (const auto& metadata : pending_request_) {
       Buffer::OwnedImpl transport_buffer;
 
-      if (transaction_info_->epInsert()) {
-        metadata->setEP(localAddress());
-      }
+      // set EP/Opaque, used in upstream
+      metadata->setEP(localAddress());
 
       std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
       encoder->encode(metadata, transport_buffer);
@@ -374,8 +377,6 @@ void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstShare
   upstream_host_ = host;
 }
 
-/*TODO: not called in current phase */
-/*
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
@@ -409,7 +410,6 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
-*/
 
 SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&& transaction_id) {
   try {
@@ -474,13 +474,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
   return FilterStatus::Continue;
 }
 
-absl::string_view ResponseDecoder::getLocalIp() {
-  if (parent_.transactionInfo()->epInsert()) {
-    return parent_.localAddress();
-  } else {
-    return "";
-  }
-}
+absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
 } // namespace Router
 } // namespace SipProxy
