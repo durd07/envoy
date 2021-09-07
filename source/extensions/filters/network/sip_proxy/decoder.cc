@@ -92,7 +92,10 @@ FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
       reassemble(data);
     }
   } else {
-    reassemble(data);
+    if (start_new_message_) {
+      start_new_message_ = false;
+      reassemble(data);
+    }
   }
   return FilterStatus::StopIteration;
 }
@@ -304,7 +307,7 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   }
 
   metadata()->setTopRoute(header);
-  //metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  // metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
   metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
   return 0;
 }
@@ -367,7 +370,7 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc);
+  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
   parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
   metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
@@ -653,7 +656,7 @@ int Decoder::decode() {
   }
 
   if (!metadata->topRoute().has_value() && metadata->msgType() == MsgType::Request) {
-    //metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
+    // metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
     metadata->setDomain(metadata->requestURI().value(), getDomainMatchParamName());
   }
   return 0;
@@ -684,15 +687,15 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     auto start = loc + strlen(";ep=");
 
     if (auto end = top_line.find_first_of("; ", start); end != absl::string_view::npos) {
-      /*Base64
-auto str = std::string(top_line.substr(start, end - start));
-auto pos = str.find("%3D");
-while (pos != absl::string_view::npos) {
-  str.replace(pos, strlen("%3D"), "=");
-  pos = str.find("%3D");
-}
-metadata->setRouteEP(Base64::decode(str));
-*/
+      //Base64
+      // auto str = std::string(top_line.substr(start, end - start));
+      // auto pos = str.find("%3D");
+      // while (pos != absl::string_view::npos) {
+      //   str.replace(pos, strlen("%3D"), "=");
+      //   pos = str.find("%3D");
+      // }
+      // metadata->setRouteEP(Base64::decode(str));
+
       metadata->setRouteEP(top_line.substr(start, end - start));
     }
   }

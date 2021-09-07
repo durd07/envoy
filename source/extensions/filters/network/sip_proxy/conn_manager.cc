@@ -32,7 +32,10 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "sip proxy received data {}\n{}\n", data.length(), data.toString());
+  ENVOY_CONN_LOG(trace, "sip proxy received data {} --> {} {}\n{}\n", read_callbacks_->connection(),
+                 read_callbacks_->connection().addressProvider().remoteAddress()->asStringView(),
+                 read_callbacks_->connection().addressProvider().localAddress()->asStringView(),
+                 data.length(), data.toString());
   request_buffer_.move(data);
   dispatch();
 
