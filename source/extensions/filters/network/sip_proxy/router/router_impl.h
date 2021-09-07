@@ -367,11 +367,15 @@ private:
 class ThreadLocalActiveConn;
 class ResponseDecoder : public DecoderCallbacks,
                         public DecoderEventHandler,
-                        public TrafficRoutingAssistant::RequestCallbacks,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
-  ResponseDecoder(UpstreamRequest& parent)
-      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {}
+  ResponseDecoder(UpstreamRequest& parent, SipFilters::DecoderFilterCallbacks * callbacks)
+      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {
+	      p_cookie_ip_map_ = callbacks->pCookieIPMap();
+      }
+  ~ResponseDecoder() override {
+	  ENVOY_LOG(trace, "FELIX ResponseDecoder released");
+  }
   bool onData(Buffer::Instance& data);
 
   // DecoderEventHandler
@@ -393,10 +397,6 @@ public:
   std::string getDomainMatchParamName() override;
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-    UNREFERENCED_PARAMETER(type);
-    UNREFERENCED_PARAMETER(resp);
-  }
 
 private:
   UpstreamRequest& parent_;
@@ -409,6 +409,7 @@ using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
 class UpstreamRequest : public Tcp::ConnectionPool::Callbacks,
                         public Tcp::ConnectionPool::UpstreamCallbacks,
                         public std::enable_shared_from_this<UpstreamRequest>,
+                        public TrafficRoutingAssistant::RequestCallbacks,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
   UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
@@ -462,6 +463,12 @@ public:
   }
 
   std::shared_ptr<TransactionInfo> transactionInfo() { return transaction_info_; }
+
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
+	  ENVOY_LOG(trace, "COMPLETE");
+    UNREFERENCED_PARAMETER(type);
+    UNREFERENCED_PARAMETER(resp);
+  }
 
 private:
   Tcp::ConnectionPool::Instance& conn_pool_;

@@ -35,8 +35,10 @@ void GrpcClientImpl::cancel() {
 void GrpcClientImpl::updateLskpmc(RequestCallbacks& callbacks, const std::string lskpmc,
                                   Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
+	std::cout << "FELIX2 " << &callbacks << std::endl;
   ASSERT(callbacks_ == nullptr);
   callbacks_ = &callbacks;
+  ENVOY_LOG(trace, "callbacks {} {} {}", fmt::ptr(&callbacks), static_cast<void*>(&callbacks), fmt::ptr(callbacks_));
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
   request.mutable_update_lskpmc_request()->mutable_lskpmc()->set_key(
@@ -108,6 +110,8 @@ void GrpcClientImpl::onSuccess(
     std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
         response,
     Tracing::Span& span) {
+
+  ENVOY_LOG(trace, "callbacks {}", fmt::ptr(callbacks_));
 
   UNREFERENCED_PARAMETER(span);
   if (response->has_get_ip_from_lskpmc_response()) {

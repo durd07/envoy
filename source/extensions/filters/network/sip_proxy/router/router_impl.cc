@@ -443,7 +443,7 @@ SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&
 void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
-  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
+  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this, this->callbacks_);
   response_decoder_->onData(upstream_buffer_);
 }
 
@@ -480,17 +480,19 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
-      p_cookie_ip_map_ = active_trans->pCookieIPMap();
-      active_trans->startUpstreamResponse();
-      active_trans->upstreamData(metadata);
+      // p_cookie_ip_map_ = active_trans->pCookieIPMap();
 
       if (metadata->pCookieIpMap().has_value()) {
-        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
-        active_trans->traClient()->updateLskpmc(*this, std::string(metadata->pCookieIpMap().value()),
+        ENVOY_LOG(trace, "update p-cookie-ip-map {} {} {}", static_cast<void*>(this), fmt::ptr(&(*this)), metadata->pCookieIpMap().value());
+	std::cout << "FELIX1 " << dynamic_cast<TrafficRoutingAssistant::RequestCallbacks*>(this) << std::endl;
+        active_trans->traClient()->updateLskpmc(parent_, std::string(metadata->pCookieIpMap().value()),
                                            Tracing::NullSpan::instance(),
                                            active_trans->streamInfo());
 
       }
+
+      active_trans->startUpstreamResponse();
+      active_trans->upstreamData(metadata);
 
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
