@@ -483,8 +483,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       // p_cookie_ip_map_ = active_trans->pCookieIPMap();
 
       if (metadata->pCookieIpMap().has_value()) {
-        ENVOY_LOG(trace, "update p-cookie-ip-map {} {} {}", static_cast<void*>(this), fmt::ptr(&(*this)), metadata->pCookieIpMap().value());
-	std::cout << "FELIX1 " << dynamic_cast<TrafficRoutingAssistant::RequestCallbacks*>(this) << std::endl;
+        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
         active_trans->traClient()->updateLskpmc(parent_, std::string(metadata->pCookieIpMap().value()),
                                            Tracing::NullSpan::instance(),
                                            active_trans->streamInfo());
