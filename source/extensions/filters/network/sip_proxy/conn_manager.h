@@ -103,14 +103,23 @@ public:
 
   void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
     switch (type) {
+    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcResp: {
+      ENVOY_LOG(trace, "=== GetIpFromLskpmcResp");
+      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::GetIpFromLskpmcResponse>(resp).lskpmc();
+      decoder_->metadata()->setDestination(lskpmc.val());
+      (*p_cookie_ip_map_)[lskpmc.key()] = lskpmc.val();
+      this->continueHanding();
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
+      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
+      break;
+    }
     case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
-      for (auto& item :
-           absl::any_cast<
-               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
-               .lskpmcs()) {
-        ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-        (*p_cookie_ip_map_)[item.key()] = item.val();
-        // update local cache
+      ENVOY_LOG(trace, "=== SubscribeResp");
+      for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp).lskpmcs()) {
+	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
+             (*p_cookie_ip_map_)[item.key()] = item.val();
       }
       break;
     }
@@ -313,7 +322,6 @@ private:
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
   std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
-  // std::shared_ptr<SipSettings> sip_settings_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 

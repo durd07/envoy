@@ -314,7 +314,7 @@ public:
     switch (type) {
     case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcResp: {
       ENVOY_LOG(trace, "=== GetIpFromLskpmcResp");
-      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::Lskpmc>(resp);
+      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::GetIpFromLskpmcResponse>(resp).lskpmc();
       metadata_->setDestination(lskpmc.val());
       (*callbacks_->pCookieIPMap())[lskpmc.key()] = lskpmc.val();
       callbacks_->continueHanding();

@@ -27,8 +27,6 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
     tra_client_ = TrafficRoutingAssistant::traClient(
         this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
         config.settings()->traServiceConfig().transport_api_version());
-
-    tra_client_->subscribe(*this, "", Tracing::NullSpan::instance(), StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr()));
   }
 }
 
@@ -117,6 +115,10 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
   read_callbacks_->connection().addConnectionCallbacks(*this);
   read_callbacks_->connection().enableHalfClose(true);
+
+  auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
+  tra_client_->subscribe(*this, "", Tracing::NullSpan::instance(), stream_info);
+
 }
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {

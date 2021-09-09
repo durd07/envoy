@@ -97,7 +97,7 @@ FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
 
   if (metadata->pCookieIpMap().has_value()) {
-    callbacks_->traClient()->updateLskpmc(*this, std::string(metadata->pCookieIpMap().value()),
+    callbacks_->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
                                            Tracing::NullSpan::instance(),
                                            callbacks_->streamInfo());
   }
@@ -116,7 +116,7 @@ FilterStatus Router::handleAffinity() {
           callbacks_->pCookieIPMap()->end()) {
         auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
       } else {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+        callbacks_->traClient()->getIpFromLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
         return FilterStatus::StopIteration;
@@ -134,7 +134,7 @@ FilterStatus Router::handleAffinity() {
           callbacks_->pCookieIPMap()->end()) {
         auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
       } else {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+        callbacks_->traClient()->getIpFromLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
         return FilterStatus::StopIteration;
