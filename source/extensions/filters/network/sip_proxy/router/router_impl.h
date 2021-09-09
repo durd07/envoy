@@ -312,7 +312,8 @@ public:
   // TrafficRoutingAssistant::RequestCallbacks
   void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
     switch (type) {
-    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcRespr: {
+    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcResp: {
+      ENVOY_LOG(trace, "=== GetIpFromLskpmcResp");
       auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::Lskpmc>(resp);
       metadata_->setDestination(lskpmc.val());
       (*callbacks_->pCookieIPMap())[lskpmc.key()] = lskpmc.val();
@@ -320,9 +321,11 @@ public:
       break;
     }
     case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
+      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
       break;
     }
     case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
+      ENVOY_LOG(trace, "=== SubscribeResp");
       for (auto& item :
            absl::any_cast<
                envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)

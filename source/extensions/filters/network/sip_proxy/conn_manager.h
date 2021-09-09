@@ -109,6 +109,7 @@ public:
                envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
                .lskpmcs()) {
         ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
+        (*p_cookie_ip_map_)[item.key()] = item.val();
         // update local cache
       }
       break;

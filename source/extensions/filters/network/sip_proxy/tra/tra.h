@@ -21,7 +21,7 @@ namespace TrafficRoutingAssistant {
 
 enum class ResponseType {
 	UpdateLskpmcResp,
-	GetIpFromLskpmcRespr,
+	GetIpFromLskpmcResp,
 	SubscribeResp,
 	FailureResp,
 };

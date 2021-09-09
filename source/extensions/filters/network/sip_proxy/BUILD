@@ -69,6 +69,7 @@ envoy_cc_library(
         "//source/common/stream_info:stream_info_lib",
         "//source/extensions/filters/network/sip_proxy/tra:tra_lib",
         "//source/extensions/filters/network/sip_proxy/router:router_interface",
+        "//source/common/tracing:http_tracer_lib",
     ],
 )
 

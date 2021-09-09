@@ -2,6 +2,7 @@
 
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
+#include "common/tracing/http_tracer_impl.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
@@ -26,6 +27,8 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
     tra_client_ = TrafficRoutingAssistant::traClient(
         this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
         config.settings()->traServiceConfig().transport_api_version());
+
+    tra_client_->subscribe(*this, "", Tracing::NullSpan::instance(), StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr()));
   }
 }
 

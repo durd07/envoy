@@ -111,7 +111,7 @@ void GrpcClientImpl::onSuccess(
 
   UNREFERENCED_PARAMETER(span);
   if (response->has_get_ip_from_lskpmc_response()) {
-    callbacks_->complete(ResponseType::GetIpFromLskpmcRespr, response->get_ip_from_lskpmc_response().ip());
+    callbacks_->complete(ResponseType::GetIpFromLskpmcResp, response->get_ip_from_lskpmc_response().ip());
   } else if (response->has_update_lskpmc_response()) {
     callbacks_->complete(ResponseType::UpdateLskpmcResp, response->update_lskpmc_response().ret());
   } else if (response->has_subscribe_response()) {
