@@ -331,12 +331,12 @@ int Decoder::HeaderHandler::processWwwAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
-  auto loc = header.find(",opaque=");
+  auto loc = header.find("opaque=");
   if (loc == absl::string_view::npos) {
     return 0;
   }
   // has ""
-  auto start = loc + strlen(",opaque=\"");
+  auto start = loc + strlen("opaque=\"");
   /* No ""
   auto end = header.find(",", start);
   if (end == absl::string_view::npos) {
@@ -345,7 +345,7 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
     metadata()->setRouteOpaque(header.substr(start, end - start));
   }
   */
-  auto end = header.find("\"", start);
+  auto end = header.find('\"', start);
   if (end == absl::string_view::npos) {
     return 0;
   }
@@ -367,7 +367,7 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
-  auto loc = header.find("=");
+  auto loc = header.find('=');
   if (loc == absl::string_view::npos) {
     return 0;
   }

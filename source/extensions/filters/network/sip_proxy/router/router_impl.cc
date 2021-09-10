@@ -114,7 +114,8 @@ FilterStatus Router::handleAffinity() {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        metadata->setDestination(host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
@@ -126,13 +127,12 @@ FilterStatus Router::handleAffinity() {
       auto host = metadata->routeEP().value();
       metadata->setDestination(host);
     }
-  }
-
-  if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
+  } else if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        metadata->setDestination(host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
