@@ -26,8 +26,6 @@ GrpcClientImpl::GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
     : async_client_(std::move(async_client)), timeout_(timeout),
       transport_api_version_(transport_api_version) {}
 
-GrpcClientImpl::~GrpcClientImpl() { ASSERT(!callbacks_); }
-
 void GrpcClientImpl::setRequestCallbacks(RequestCallbacks& callbacks)
 {
   // ASSERT(callbacks_ == nullptr);

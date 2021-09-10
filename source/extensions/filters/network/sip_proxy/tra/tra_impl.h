@@ -42,7 +42,7 @@ public:
   GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
                  const absl::optional<std::chrono::milliseconds>& timeout,
                  envoy::config::core::v3::ApiVersion transport_api_version);
-  ~GrpcClientImpl() override;
+  ~GrpcClientImpl() override = default;
 
   // Extensions::NetworkFilters::SipProxy::TrafficRoutingAssistant::Client
   void setRequestCallbacks(RequestCallbacks& callbacks) override;
