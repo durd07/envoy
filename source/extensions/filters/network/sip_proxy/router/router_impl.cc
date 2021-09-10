@@ -321,12 +321,14 @@ UpstreamRequest::~UpstreamRequest() {
 }
 
 FilterStatus UpstreamRequest::start() {
-  //if (conn_state_ != ConnectionState::NotConnected) {
-  //  return FilterStatus::StopIteration;
-  //}
+  if (conn_state_ == ConnectionState::Connecting) {
+    return FilterStatus::StopIteration;
+  } else if (conn_state_ == ConnectionState::Connected) {
+    return FilterStatus::Continue;
+  }
 
   ENVOY_LOG(info, "start connecting {}", conn_pool_.host()->address()->asString());
-  //conn_state_ = ConnectionState::Connecting;
+  conn_state_ = ConnectionState::Connecting;
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_.newConnection(*this);
   if (handle) {

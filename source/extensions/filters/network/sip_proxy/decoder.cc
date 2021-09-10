@@ -68,6 +68,7 @@ State DecoderStateMachine::run() {
 Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
 
 void Decoder::complete() {
+  ENVOY_LOG(trace, "sip message COMPLETE");
   request_.reset();
   metadata_.reset();
   state_machine_ = nullptr;
