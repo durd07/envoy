@@ -161,14 +161,14 @@ void GrpcClientImpl::onSuccess(
   } else if (response->has_subscribe_lskpmc_response()) {
     callbacks_->complete(ResponseType::SubscribeLskpmcResp, response->subscribe_lskpmc_response());
   }
-  callbacks_ = nullptr;
+  // callbacks_ = nullptr;
 }
 
 void GrpcClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::string&,
                                Tracing::Span&) {
   ASSERT(status != Grpc::Status::WellKnownGrpcStatus::Ok);
   callbacks_->complete(ResponseType::FailureResp, status);
-  callbacks_ = nullptr;
+  // callbacks_ = nullptr;
 }
 
 void GrpcClientImpl::onReceiveMessage(
@@ -176,7 +176,7 @@ void GrpcClientImpl::onReceiveMessage(
         message) {
   UNREFERENCED_PARAMETER(message);
   callbacks_->complete(ResponseType::SubscribeLskpmcResp, message->subscribe_lskpmc_response());
-  callbacks_ = nullptr;
+  // callbacks_ = nullptr;
 }
 
 ClientPtr traClient(Server::Configuration::FactoryContext& context,
