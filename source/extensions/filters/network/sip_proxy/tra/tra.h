@@ -20,9 +20,11 @@ namespace SipProxy {
 namespace TrafficRoutingAssistant {
 
 enum class ResponseType {
+  CreateLskpmcResp,
 	UpdateLskpmcResp,
-	GetIpFromLskpmcResp,
-	SubscribeResp,
+	RetrieveLskpmcResp,
+	DeleteLskpmcResp,
+	SubscribeLskpmcResp,
 	FailureResp,
 };
 
@@ -43,19 +45,19 @@ class Client {
 public:
   virtual ~Client() = default;
 
-  /**
-   * Cancel an inflight limit request.
-   */
+  virtual void setRequestCallbacks(RequestCallbacks& callbacks) PURE;
+
   virtual void cancel() PURE;
 
-  virtual void updateLskpmc(RequestCallbacks& callbacks, const std::string lskpmc,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
-  virtual void getIpFromLskpmc(RequestCallbacks& callbacks, const std::string key,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
-  virtual void subscribe(RequestCallbacks& callbacks, const std::string lskpmc,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using ClientPtr = std::unique_ptr<Client>;

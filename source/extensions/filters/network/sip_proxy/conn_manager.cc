@@ -117,7 +117,8 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
   read_callbacks_->connection().enableHalfClose(true);
 
   auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
-  tra_client_->subscribe(*this, "", Tracing::NullSpan::instance(), stream_info);
+  tra_client_->setRequestCallbacks(*this);
+  tra_client_->subscribeLskpmc("", Tracing::NullSpan::instance(), stream_info);
 
 }
 
@@ -142,6 +143,43 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
 
   return *transactions_.at(k);
 }
+
+void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) {
+    switch (type) {
+    case TrafficRoutingAssistant::ResponseType::CreateLskpmcResp: {
+      ENVOY_LOG(trace, "=== CreateLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
+      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
+      ENVOY_LOG(trace, "=== RetrieveLskpmcResp");
+      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmc();
+      decoder_->metadata()->setDestination(lskpmc.val());
+      (*p_cookie_ip_map_)[lskpmc.key()] = lskpmc.val();
+      this->continueHanding();
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::DeleteLskpmcResp: {
+      ENVOY_LOG(trace, "=== DeleteLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
+      ENVOY_LOG(trace, "=== SubscribeResp");
+      for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs()) {
+	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
+             (*p_cookie_ip_map_)[item.key()] = item.val();
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    ENVOY_LOG(debug, "complete");
+  }
+
 
 bool ConnectionManager::ResponseDecoder::onData(MessageMetadataSharedPtr metadata) {
   metadata_ = metadata;

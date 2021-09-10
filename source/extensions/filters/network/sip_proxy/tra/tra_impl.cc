@@ -11,6 +11,7 @@
 #include "common/common/assert.h"
 #include "common/http/header_map_impl.h"
 #include "common/http/headers.h"
+#include "common/protobuf/protobuf.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -18,31 +19,59 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace TrafficRoutingAssistant {
 
-GrpcClientImpl::GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
+GrpcClientImpl::GrpcClientImpl(RequestCallbacks& callbacks, Grpc::RawAsyncClientPtr&& async_client,
                                const absl::optional<std::chrono::milliseconds>& timeout,
                                envoy::config::core::v3::ApiVersion transport_api_version)
-    : async_client_(std::move(async_client)), timeout_(timeout),
+    : callbacks_(&callbacks), async_client_(std::move(async_client)), timeout_(timeout),
       transport_api_version_(transport_api_version) {}
 
 GrpcClientImpl::~GrpcClientImpl() { ASSERT(!callbacks_); }
 
+void GrpcClientImpl::setRequestCallbacks(RequestCallbacks& callbacks)
+{
+  // ASSERT(callbacks_ == nullptr);
+  callbacks_ = &callbacks;
+}
+
 void GrpcClientImpl::cancel() {
   ASSERT(callbacks_ != nullptr);
   request_->cancel();
-  callbacks_ = nullptr;
+  // callbacks_ = nullptr;
 }
 
-void GrpcClientImpl::updateLskpmc(RequestCallbacks& callbacks, const std::string lskpmc,
-                                  Tracing::Span& parent_span,
+void GrpcClientImpl::createLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
-  ASSERT(callbacks_ == nullptr);
-  callbacks_ = &callbacks;
+
+  envoy::extensions::filters::network::sip_proxy::tra::v3::CreateLskpmcRequest req;
+  req.mutable_lskpmc()->set_key(lskpmc.substr(0, lskpmc.find('=')));
+  req.mutable_lskpmc()->set_val(lskpmc.substr(lskpmc.find('=') + 1));
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_update_lskpmc_request()->mutable_lskpmc()->set_key(
-      lskpmc.substr(0, lskpmc.find('=')));
-  request.mutable_update_lskpmc_request()->mutable_lskpmc()->set_val(
-      lskpmc.substr(lskpmc.find('=') + 1));
+  request.mutable_request()->PackFrom(req);
+
+  const auto& service_method =
+      Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
+                             "CreateLskpmc",
+                             "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
+                             "CreateLskpmc")
+          .getMethodDescriptorForVersion(transport_api_version_);
+
+  request_ =
+      async_client_->send(service_method, request, *this, parent_span,
+                          Http::AsyncClient::RequestOptions().setTimeout(timeout_).setParentContext(
+                              Http::AsyncClient::ParentContext{&stream_info}),
+                          transport_api_version_);
+}
+
+void GrpcClientImpl::updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
+                                  const StreamInfo::StreamInfo& stream_info) {
+
+  envoy::extensions::filters::network::sip_proxy::tra::v3::UpdateLskpmcRequest req;
+  req.mutable_lskpmc()->set_key(lskpmc.substr(0, lskpmc.find('=')));
+  req.mutable_lskpmc()->set_val(lskpmc.substr(lskpmc.find('=') + 1));
+
+  envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
+  request.mutable_request()->PackFrom(req);
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -58,20 +87,20 @@ void GrpcClientImpl::updateLskpmc(RequestCallbacks& callbacks, const std::string
                           transport_api_version_);
 }
 
-void GrpcClientImpl::getIpFromLskpmc(RequestCallbacks& callbacks, const std::string key,
-                                     Tracing::Span& parent_span,
+void GrpcClientImpl::retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                      const StreamInfo::StreamInfo& stream_info) {
-  ASSERT(callbacks_ == nullptr);
-  callbacks_ = &callbacks;
+
+  envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcRequest req;
+  req.set_lskpmc(lskpmc);
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_get_ip_from_lskpmc_request()->set_key(key);
+  request.mutable_request()->PackFrom(req);
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
-                             "GetIpFromLskpmc",
+                             "RetrieveLskpmc",
                              "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
-                             "GetIpFromLskpmc")
+                             "RetrieveLskpmc")
           .getMethodDescriptorForVersion(transport_api_version_);
 
   request_ =
@@ -81,23 +110,41 @@ void GrpcClientImpl::getIpFromLskpmc(RequestCallbacks& callbacks, const std::str
                           transport_api_version_);
 }
 
-void GrpcClientImpl::subscribe(RequestCallbacks& callbacks, const std::string lskpmc,
-                               Tracing::Span& parent_span,
-                               const StreamInfo::StreamInfo& stream_info) {
-  ASSERT(callbacks_ == nullptr);
-  callbacks_ = &callbacks;
+void GrpcClientImpl::deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
+                                     const StreamInfo::StreamInfo& stream_info) {
 
+  envoy::extensions::filters::network::sip_proxy::tra::v3::DeleteLskpmcRequest req;
+  req.set_lskpmc(lskpmc);
+
+  envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
+  request.mutable_request()->PackFrom(req);
+
+  const auto& service_method =
+      Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
+                             "DeleteLskpmc",
+                             "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
+                             "DeleteLskpmc")
+          .getMethodDescriptorForVersion(transport_api_version_);
+
+  request_ =
+      async_client_->send(service_method, request, *this, parent_span,
+                          Http::AsyncClient::RequestOptions().setTimeout(timeout_).setParentContext(
+                              Http::AsyncClient::ParentContext{&stream_info}),
+                          transport_api_version_);
+}
+
+void GrpcClientImpl::subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
+                               const StreamInfo::StreamInfo& stream_info) {
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
 
   UNREFERENCED_PARAMETER(lskpmc);
   UNREFERENCED_PARAMETER(parent_span);
-  UNREFERENCED_PARAMETER(stream_info);
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
-                             "Subscribe",
+                             "SubscribeLskpmc",
                              "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
-                             "Subscribe")
+                             "SubscribeLskpmc")
           .getMethodDescriptorForVersion(transport_api_version_);
   async_client_->start(service_method, *this,
                        Http::AsyncClient::StreamOptions().setTimeout(timeout_).setParentContext(

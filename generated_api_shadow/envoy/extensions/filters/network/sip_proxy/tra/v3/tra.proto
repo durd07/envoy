@@ -6,6 +6,7 @@ import "envoy/config/core/v3/config_source.proto";
 import "envoy/config/core/v3/grpc_service.proto";
 
 import "validate/validate.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "udpa/annotations/status.proto";
 import "udpa/annotations/versioning.proto";
@@ -19,10 +20,11 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
 // Sip tra :ref:`configuration overview <config_sip_filters_tra>`.
 
 service TraService {
-	rpc UpdateLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
-        rpc GetIpFromLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
-
-	rpc Subscribe(TraServiceRequest) returns (stream TraServiceResponse) {}
+	rpc CreateLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc UpdateLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc RetrieveLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc DeleteLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
+	rpc SubscribeLskpmc(TraServiceRequest) returns (stream TraServiceResponse) {}
 }
 
 message TraServiceConfig {
@@ -38,19 +40,20 @@ message TraServiceConfig {
 }
 
 message TraServiceRequest {
-	oneof request {
-		UpdateLskpmcRequest update_lskpmc_request = 1;
-		GetIpFromLskpmcRequest get_ip_from_lskpmc_request = 2;
-		SubscribeRequest subscribe_request = 3;
-	}
+        google.protobuf.Any request = 1;
 }
 
 message TraServiceResponse {
-	oneof response {
-		UpdateLskpmcResponse update_lskpmc_response = 1;
-		GetIpFromLskpmcResponse get_ip_from_lskpmc_response = 2;
-		SubscribeResponse subscribe_response = 3;
-	}
+	int32 ret = 1;
+	string reason = 2;
+        google.protobuf.Any response = 3;
+}
+
+message CreateLskpmcRequest {
+	Lskpmc lskpmc = 1;
+}
+
+message CreateLskpmcResponse {
 }
 
 message UpdateLskpmcRequest {
@@ -58,21 +61,27 @@ message UpdateLskpmcRequest {
 }
 
 message UpdateLskpmcResponse {
-	int32 ret = 1;
 }
 
-message GetIpFromLskpmcRequest {
-	string key = 1;
+message RetrieveLskpmcRequest {
+        string lskpmc = 1;
 }
 
-message GetIpFromLskpmcResponse {
+message RetrieveLskpmcResponse {
 	Lskpmc lskpmc = 1;
 }
 
-message SubscribeRequest {
+message DeleteLskpmcRequest {
+        string lskpmc = 1;
 }
 
-message SubscribeResponse {
+message DeleteLskpmcResponse {
+}
+
+message SubscribeLskpmcRequest {
+}
+
+message SubscribeLskpmcResponse {
 	repeated Lskpmc lskpmcs = 1;
 }
 

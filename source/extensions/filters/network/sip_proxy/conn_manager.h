@@ -101,33 +101,8 @@ public:
 
   TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
 
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-    switch (type) {
-    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcResp: {
-      ENVOY_LOG(trace, "=== GetIpFromLskpmcResp");
-      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::GetIpFromLskpmcResponse>(resp).lskpmc();
-      decoder_->metadata()->setDestination(lskpmc.val());
-      (*p_cookie_ip_map_)[lskpmc.key()] = lskpmc.val();
-      this->continueHanding();
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
-      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
-      ENVOY_LOG(trace, "=== SubscribeResp");
-      for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp).lskpmcs()) {
-	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-             (*p_cookie_ip_map_)[item.key()] = item.val();
-      }
-      break;
-    }
-    default:
-      break;
-    }
-    ENVOY_LOG(debug, "complete");
-  }
+  // TrafficRoutingAssistant::RequestCallbacks
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override;
 
 private:
   friend class SipConnectionManagerTest;

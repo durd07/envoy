@@ -39,22 +39,24 @@ class GrpcClientImpl : public Client,
                        public TrafficRoutingAssistantAsyncStreamCallbacks,
                        public Logger::Loggable<Logger::Id::sip> {
 public:
-  GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
+  GrpcClientImpl(RequestCallbacks& callbacks, Grpc::RawAsyncClientPtr&& async_client,
                  const absl::optional<std::chrono::milliseconds>& timeout,
                  envoy::config::core::v3::ApiVersion transport_api_version);
   ~GrpcClientImpl() override;
 
   // Extensions::NetworkFilters::SipProxy::TrafficRoutingAssistant::Client
+  void setRequestCallbacks(RequestCallbacks& callbacks) override;
   void cancel() override;
 
-  void updateLskpmc(RequestCallbacks& callbacks, const std::string lskpmc,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+  void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
-  void getIpFromLskpmc(RequestCallbacks& callbacks, const std::string key,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+  void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
-  void subscribe(RequestCallbacks& callbacks, const std::string lskpmc,
-		  Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+  void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   // Grpc::AsyncRequestCallbacks
   void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}
@@ -75,10 +77,10 @@ public:
   };
 
 private:
+  RequestCallbacks* callbacks_{};
   Grpc::AsyncClient<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest, envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse> async_client_;
   Grpc::AsyncRequest* request_{};
   absl::optional<std::chrono::milliseconds> timeout_;
-  RequestCallbacks* callbacks_{};
   const envoy::config::core::v3::ApiVersion transport_api_version_;
 };
 
