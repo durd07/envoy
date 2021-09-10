@@ -156,9 +156,11 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
     }
     case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
       ENVOY_LOG(trace, "=== RetrieveLskpmcResp");
-      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmc();
-      decoder_->metadata()->setDestination(lskpmc.val());
-      (*p_cookie_ip_map_)[lskpmc.key()] = lskpmc.val();
+      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmcs();
+      for (auto & item : lskpmcs) {
+        decoder_->metadata()->setDestination(item.second);
+        p_cookie_ip_map_->insert(item);
+      }
       this->continueHanding();
       break;
     }
@@ -169,8 +171,8 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
     case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
       ENVOY_LOG(trace, "=== SubscribeResp");
       for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs()) {
-	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-             (*p_cookie_ip_map_)[item.key()] = item.val();
+	     ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
+        p_cookie_ip_map_->insert(item);
       }
       break;
     }

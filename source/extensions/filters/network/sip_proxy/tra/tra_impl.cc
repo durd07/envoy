@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "envoy/config/core/v3/grpc_service.pb.h"
@@ -19,10 +20,10 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace TrafficRoutingAssistant {
 
-GrpcClientImpl::GrpcClientImpl(RequestCallbacks& callbacks, Grpc::RawAsyncClientPtr&& async_client,
+GrpcClientImpl::GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
                                const absl::optional<std::chrono::milliseconds>& timeout,
                                envoy::config::core::v3::ApiVersion transport_api_version)
-    : callbacks_(&callbacks), async_client_(std::move(async_client)), timeout_(timeout),
+    : async_client_(std::move(async_client)), timeout_(timeout),
       transport_api_version_(transport_api_version) {}
 
 GrpcClientImpl::~GrpcClientImpl() { ASSERT(!callbacks_); }
@@ -42,12 +43,11 @@ void GrpcClientImpl::cancel() {
 void GrpcClientImpl::createLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
 
-  envoy::extensions::filters::network::sip_proxy::tra::v3::CreateLskpmcRequest req;
-  req.mutable_lskpmc()->set_key(lskpmc.substr(0, lskpmc.find('=')));
-  req.mutable_lskpmc()->set_val(lskpmc.substr(lskpmc.find('=') + 1));
-
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_request()->PackFrom(req);
+  //request.mutable_create_lskpmc_request()->mutable_lskpmcs()->insert(lskpmc.substr(0, lskpmc.find('=')),  lskpmc.substr(lskpmc.find('=') + 1));
+  auto key = lskpmc.substr(0, lskpmc.find('='));
+  auto val = lskpmc.substr(lskpmc.find('=') + 1);
+  (*request.mutable_create_lskpmc_request()->mutable_lskpmcs())[key] = val;
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -66,12 +66,11 @@ void GrpcClientImpl::createLskpmc(const std::string lskpmc, Tracing::Span& paren
 void GrpcClientImpl::updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
 
-  envoy::extensions::filters::network::sip_proxy::tra::v3::UpdateLskpmcRequest req;
-  req.mutable_lskpmc()->set_key(lskpmc.substr(0, lskpmc.find('=')));
-  req.mutable_lskpmc()->set_val(lskpmc.substr(lskpmc.find('=') + 1));
-
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_request()->PackFrom(req);
+  //request.mutable_update_lskpmc_request()->mutable_lskpmcs()->insert(lskpmc.substr(0, lskpmc.find('=')),  lskpmc.substr(lskpmc.find('=') + 1));
+  auto key = lskpmc.substr(0, lskpmc.find('='));
+  auto val = lskpmc.substr(lskpmc.find('=') + 1);
+  (*request.mutable_create_lskpmc_request()->mutable_lskpmcs())[key] = val;
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -90,11 +89,8 @@ void GrpcClientImpl::updateLskpmc(const std::string lskpmc, Tracing::Span& paren
 void GrpcClientImpl::retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                      const StreamInfo::StreamInfo& stream_info) {
 
-  envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcRequest req;
-  req.set_lskpmc(lskpmc);
-
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_request()->PackFrom(req);
+  request.mutable_retrieve_lskpmc_request()->set_lskpmc(lskpmc);
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -113,11 +109,8 @@ void GrpcClientImpl::retrieveLskpmc(const std::string lskpmc, Tracing::Span& par
 void GrpcClientImpl::deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                      const StreamInfo::StreamInfo& stream_info) {
 
-  envoy::extensions::filters::network::sip_proxy::tra::v3::DeleteLskpmcRequest req;
-  req.set_lskpmc(lskpmc);
-
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
-  request.mutable_request()->PackFrom(req);
+  request.mutable_delete_lskpmc_request()->set_lskpmc(lskpmc);
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -157,12 +150,16 @@ void GrpcClientImpl::onSuccess(
     Tracing::Span& span) {
 
   UNREFERENCED_PARAMETER(span);
-  if (response->has_get_ip_from_lskpmc_response()) {
-    callbacks_->complete(ResponseType::GetIpFromLskpmcResp, response->get_ip_from_lskpmc_response());
+  if (response->has_create_lskpmc_response()) {
+    callbacks_->complete(ResponseType::CreateLskpmcResp, response->create_lskpmc_response());
   } else if (response->has_update_lskpmc_response()) {
     callbacks_->complete(ResponseType::UpdateLskpmcResp, response->update_lskpmc_response());
-  } else if (response->has_subscribe_response()) {
-    callbacks_->complete(ResponseType::SubscribeResp, response->subscribe_response());
+  } else if (response->has_retrieve_lskpmc_response()) {
+    callbacks_->complete(ResponseType::RetrieveLskpmcResp, response->retrieve_lskpmc_response());
+  } else if (response->has_delete_lskpmc_response()) {
+    callbacks_->complete(ResponseType::DeleteLskpmcResp, response->delete_lskpmc_response());
+  } else if (response->has_subscribe_lskpmc_response()) {
+    callbacks_->complete(ResponseType::SubscribeLskpmcResp, response->subscribe_lskpmc_response());
   }
   callbacks_ = nullptr;
 }
@@ -178,7 +175,7 @@ void GrpcClientImpl::onReceiveMessage(
     std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
         message) {
   UNREFERENCED_PARAMETER(message);
-  callbacks_->complete(ResponseType::SubscribeResp, message->subscribe_response());
+  callbacks_->complete(ResponseType::SubscribeLskpmcResp, message->subscribe_lskpmc_response());
   callbacks_ = nullptr;
 }
 

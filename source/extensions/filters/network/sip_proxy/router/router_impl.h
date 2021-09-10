@@ -271,7 +271,6 @@ private:
 class Router : public Upstream::LoadBalancerContextBase,
                public virtual DecoderEventHandler,
                public SipFilters::DecoderFilter,
-               public TrafficRoutingAssistant::RequestCallbacks,
                Logger::Loggable<Logger::Id::sip> {
 public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
@@ -307,38 +306,6 @@ public:
     }
     ENVOY_LOG(trace, "DDD destination = {} ", metadata_->destination().value());
     return host.address()->ip()->addressAsString() != metadata_->destination().value();
-  }
-
-  // TrafficRoutingAssistant::RequestCallbacks
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-    switch (type) {
-    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcResp: {
-      ENVOY_LOG(trace, "=== GetIpFromLskpmcResp");
-      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::GetIpFromLskpmcResponse>(resp).lskpmc();
-      metadata_->setDestination(lskpmc.val());
-      (*callbacks_->pCookieIPMap())[lskpmc.key()] = lskpmc.val();
-      callbacks_->continueHanding();
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
-      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
-      ENVOY_LOG(trace, "=== SubscribeResp");
-      for (auto& item :
-           absl::any_cast<
-               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
-               .lskpmcs()) {
-	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-        // update local cache
-      }
-      break;
-    }
-    default:
-      break;
-    }
-    ENVOY_LOG(debug, "complete");
   }
 
 private:

@@ -484,7 +484,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
       if (metadata->pCookieIpMap().has_value()) {
         ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
-        active_trans->traClient()->updateLskpmc(parent_, std::string(metadata->pCookieIpMap().value()),
+        active_trans->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
                                            Tracing::NullSpan::instance(),
                                            active_trans->streamInfo());
       }

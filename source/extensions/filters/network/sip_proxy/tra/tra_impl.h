@@ -39,7 +39,7 @@ class GrpcClientImpl : public Client,
                        public TrafficRoutingAssistantAsyncStreamCallbacks,
                        public Logger::Loggable<Logger::Id::sip> {
 public:
-  GrpcClientImpl(RequestCallbacks& callbacks, Grpc::RawAsyncClientPtr&& async_client,
+  GrpcClientImpl(Grpc::RawAsyncClientPtr&& async_client,
                  const absl::optional<std::chrono::milliseconds>& timeout,
                  envoy::config::core::v3::ApiVersion transport_api_version);
   ~GrpcClientImpl() override;
