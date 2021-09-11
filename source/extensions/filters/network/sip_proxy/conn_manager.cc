@@ -161,7 +161,7 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
       for (auto & item : lskpmcs) {
         if (!item.second.empty()) {
           decoder_->metadata()->setDestination(item.second);
-          p_cookie_ip_map_->insert(item);
+          p_cookie_ip_map_->emplace(item);
 	}
         ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
       }
@@ -178,9 +178,8 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
       auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs();
       for (auto& item : lskpmcs) {
         ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
-        p_cookie_ip_map_->insert(item);
+        p_cookie_ip_map_->emplace(item);
       }
-      break;
     }
     default:
       break;
