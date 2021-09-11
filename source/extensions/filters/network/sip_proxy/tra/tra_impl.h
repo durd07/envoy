@@ -48,6 +48,8 @@ public:
   void setRequestCallbacks(RequestCallbacks& callbacks) override;
   void cancel() override;
 
+  void closeStream() override;
+
   void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
@@ -80,6 +82,7 @@ private:
   RequestCallbacks* callbacks_{};
   Grpc::AsyncClient<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest, envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse> async_client_;
   Grpc::AsyncRequest* request_{};
+  Grpc::AsyncStream<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest> stream_{};
   absl::optional<std::chrono::milliseconds> timeout_;
   const envoy::config::core::v3::ApiVersion transport_api_version_;
 };

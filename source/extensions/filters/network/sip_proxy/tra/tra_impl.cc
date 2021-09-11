@@ -38,6 +38,11 @@ void GrpcClientImpl::cancel() {
   // callbacks_ = nullptr;
 }
 
+void GrpcClientImpl::closeStream() {
+  ASSERT(callbacks_ != nullptr);
+  stream_.closeStream();
+}
+
 void GrpcClientImpl::createLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
 
@@ -130,6 +135,7 @@ void GrpcClientImpl::subscribeLskpmc(const std::string lskpmc, Tracing::Span& pa
 
   UNREFERENCED_PARAMETER(lskpmc);
   UNREFERENCED_PARAMETER(parent_span);
+  request.mutable_subscribe_lskpmc_request();
 
   const auto& service_method =
       Grpc::VersionedMethods("envoy.extensions.filters.network.sip_proxy.tra.v3.TraService."
@@ -137,9 +143,11 @@ void GrpcClientImpl::subscribeLskpmc(const std::string lskpmc, Tracing::Span& pa
                              "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
                              "SubscribeLskpmc")
           .getMethodDescriptorForVersion(transport_api_version_);
-  async_client_->start(service_method, *this,
-                       Http::AsyncClient::StreamOptions().setTimeout(timeout_).setParentContext(
+  stream_ = async_client_->start(service_method, *this,
+                       //Http::AsyncClient::StreamOptions().setTimeout(timeout_).setParentContext(
+                       Http::AsyncClient::StreamOptions().setParentContext(
                            Http::AsyncClient::ParentContext{&stream_info}));
+  stream_.sendMessage(request, false);
 }
 
 void GrpcClientImpl::onSuccess(

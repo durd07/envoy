@@ -49,6 +49,8 @@ public:
 
   virtual void cancel() PURE;
 
+  virtual void closeStream() PURE;
+
   virtual void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
   virtual void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;

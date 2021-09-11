@@ -23,14 +23,16 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 
   if (config.settings()->traServiceConfig().has_grpc_service()) {
     const std::chrono::milliseconds timeout = std::chrono::milliseconds(
-        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 20));
+        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 2000));
     tra_client_ = TrafficRoutingAssistant::traClient(
         this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
         config.settings()->traServiceConfig().transport_api_version());
   }
 }
 
-ConnectionManager::~ConnectionManager() = default;
+ConnectionManager::~ConnectionManager() {
+	tra_client_->closeStream();
+};
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
   ENVOY_CONN_LOG(trace, "sip proxy received data {} --> {} {}\n{}\n", read_callbacks_->connection(),
