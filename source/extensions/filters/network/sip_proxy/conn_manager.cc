@@ -175,7 +175,8 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
     }
     case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
       ENVOY_LOG(trace, "=== SubscribeLskpmcResp");
-      for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs()) {
+      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs();
+      for (auto& item : lskpmcs) {
         ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
         p_cookie_ip_map_->insert(item);
       }

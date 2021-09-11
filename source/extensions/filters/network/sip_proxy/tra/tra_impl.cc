@@ -180,7 +180,6 @@ void GrpcClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::strin
 void GrpcClientImpl::onReceiveMessage(
     std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
         message) {
-  UNREFERENCED_PARAMETER(message);
   callbacks_->complete(ResponseType::SubscribeLskpmcResp, message->subscribe_lskpmc_response());
   // callbacks_ = nullptr;
 }
