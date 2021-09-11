@@ -65,8 +65,6 @@ public:
 
   void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
                       std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain,
-              domainMatchParamName);
     if (header.find(";ep=") != absl::string_view::npos) {
       // already Contact have ep
       return;
@@ -81,7 +79,7 @@ public:
 
     // Compare the domain
     if (domain != ownDomain) {
-      ENVOY_LOG(debug, "header domain:{} is not equal to own_domain:{}", domain, ownDomain);
+      ENVOY_LOG(trace, "header {} domain:{} is not equal to own_domain:{}, don't add EP.", header, domain, ownDomain);
       return;
     }
 

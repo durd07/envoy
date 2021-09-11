@@ -159,8 +159,10 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
     case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
       auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmcs();
       for (auto & item : lskpmcs) {
-        decoder_->metadata()->setDestination(item.second);
-        p_cookie_ip_map_->insert(item);
+        if (!item.second.empty()) {
+          decoder_->metadata()->setDestination(item.second);
+          p_cookie_ip_map_->insert(item);
+	}
         ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
       }
 
@@ -172,9 +174,9 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
       break;
     }
     case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
-      ENVOY_LOG(trace, "=== SubscribeResp");
+      ENVOY_LOG(trace, "=== SubscribeLskpmcResp");
       for (auto& item : absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs()) {
-	     ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
+        ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
         p_cookie_ip_map_->insert(item);
       }
       break;
@@ -182,7 +184,6 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
     default:
       break;
     }
-    ENVOY_LOG(debug, "complete");
   }
 
 

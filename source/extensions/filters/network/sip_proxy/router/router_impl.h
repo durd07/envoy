@@ -277,7 +277,6 @@ public:
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
         context_(context) {
-    std::cout << "FELIX 3" << std::endl;
   }
 
   // SipFilters::DecoderFilter
