@@ -176,7 +176,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 }
 
 FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
-  ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
 
@@ -349,7 +349,7 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
   if (end == absl::string_view::npos) {
     return 0;
   }
-  metadata()->setRouteOpaque(header.substr(start, end - start - 1));
+  metadata()->setRouteOpaque(header.substr(start, end - start));
   /*Base64
       auto end = header.find("\"", start);
       if (end == absl::string_view::npos) {

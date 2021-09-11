@@ -300,11 +300,9 @@ public:
   }
 
   bool shouldSelectAnotherHost(const Upstream::Host& host) override {
-    ENVOY_LOG(trace, "DDD ip = {} ", host.address()->ip()->addressAsString());
     if (!metadata_->destination().has_value()) {
       return false;
     }
-    ENVOY_LOG(trace, "DDD destination = {} ", metadata_->destination().value());
     return host.address()->ip()->addressAsString() != metadata_->destination().value();
   }
 
@@ -343,9 +341,7 @@ public:
       : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {
 	      p_cookie_ip_map_ = callbacks->pCookieIPMap();
       }
-  ~ResponseDecoder() override {
-	  ENVOY_LOG(trace, "FELIX ResponseDecoder released");
-  }
+  ~ResponseDecoder() override {}
   bool onData(Buffer::Instance& data);
 
   // DecoderEventHandler
@@ -379,7 +375,6 @@ using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
 class UpstreamRequest : public Tcp::ConnectionPool::Callbacks,
                         public Tcp::ConnectionPool::UpstreamCallbacks,
                         public std::enable_shared_from_this<UpstreamRequest>,
-                        public TrafficRoutingAssistant::RequestCallbacks,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
   UpstreamRequest(Tcp::ConnectionPool::Instance& pool,
@@ -412,33 +407,16 @@ public:
 
   void setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks);
 
-  void addIntoPendingRequest(MessageMetadataSharedPtr metadata) {
-    if (pending_request_.size() < 1000000) {
-      pending_request_.push_back(metadata);
-    } else {
-      ENVOY_LOG(warn, "pending request is full, drop this request. size {} request {}",
-                pending_request_.size(), metadata->rawMsg());
-    }
-  }
-
   ConnectionState connectionState() { return conn_state_; }
   void write(Buffer::Instance& data, bool end_stream) {
     return conn_data_->connection().write(data, end_stream);
   }
 
   absl::string_view localAddress() {
-    ENVOY_LOG(error, "YYYYYYYYYYYYYYYYYYYYYYYY {}",
-              conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
   std::shared_ptr<TransactionInfo> transactionInfo() { return transaction_info_; }
-
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-	  ENVOY_LOG(trace, "COMPLETE");
-    UNREFERENCED_PARAMETER(type);
-    UNREFERENCED_PARAMETER(resp);
-  }
 
 private:
   Tcp::ConnectionPool::Instance& conn_pool_;

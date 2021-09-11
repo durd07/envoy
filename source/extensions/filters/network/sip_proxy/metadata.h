@@ -150,7 +150,7 @@ private:
   std::string raw_msg_{};
 
   absl::string_view getDomain(absl::string_view header, std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
+    // ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
 
     // Get domain
     absl::string_view domain = "";

@@ -83,9 +83,6 @@ public:
     // should return local address ip
     // But after ORIGINAL_DEST, the local address update to upstream local address
     // So here get downstream remote IP, which should in same pod car with envoy
-    ENVOY_LOG(
-        error, "XXXXXXXXXXXXXXXXXXXXX {}",
-        read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 

@@ -114,8 +114,9 @@ FilterStatus Router::handleAffinity() {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
         metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
@@ -126,13 +127,15 @@ FilterStatus Router::handleAffinity() {
     } else if (metadata->routeEP().has_value()) {
       auto host = metadata->routeEP().value();
       metadata->setDestination(host);
+      ENVOY_LOG(trace, "Set destination from EP {}", host);
     }
   } else if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
         metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
@@ -143,6 +146,7 @@ FilterStatus Router::handleAffinity() {
     } else if (metadata->routeOpaque().has_value()) {
       auto host = metadata->routeOpaque().value();
       metadata->setDestination(host);
+      ENVOY_LOG(trace, "Set destination from OPAQUE {}", host);
     }
   }
   return FilterStatus::Continue;
@@ -216,20 +220,17 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return FilterStatus::StopIteration;
     }
 
-    ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
-
     Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
     if (!host) {
       return FilterStatus::StopIteration;
     }
 
-    if (auto upstream_request =
-            transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
+    if (auto upstream_request = transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
         upstream_request != nullptr) {
       // There is action connection, reuse it.
       upstream_request_ = upstream_request;
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      ENVOY_STREAM_LOG(debug, "reuse upstream request", *callbacks_);
+      ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_, host->address()->ip()->addressAsString());
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
       } catch (std::out_of_range const&) {
@@ -259,8 +260,9 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
-      ENVOY_STREAM_LOG(debug, "reuse upstream request from EP {}", *callbacks_, host);
+      ENVOY_STREAM_LOG(debug, "reuse upstream request from {}", *callbacks_, host);
       upstream_request_ = upstream_request;
+      upstream_request_->setDecoderFilterCallbacks(*callbacks_);
 
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
@@ -270,7 +272,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
-      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed.", *callbacks_, host);
+      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed, select with load balancer", *callbacks_, host);
       return message_handler_with_loadbalancer();
     }
   } else {
@@ -453,17 +455,19 @@ void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
   ENVOY_LOG(info, "received upstream event {}", event);
   switch (event) {
   case Network::ConnectionEvent::RemoteClose:
-    ENVOY_STREAM_LOG(debug, "upstream remote close", *callbacks_);
+    ENVOY_LOG(debug, "upstream remote close");
     break;
   case Network::ConnectionEvent::LocalClose:
-    ENVOY_STREAM_LOG(debug, "upstream local close", *callbacks_);
+    ENVOY_LOG(debug, "upstream local close");
     break;
   default:
+    ENVOY_LOG(debug, "connected is consumed by the connection pool");
     // Connected is consumed by the connection pool.
-    NOT_REACHED_GCOVR_EXCL_LINE;
+    return;
   }
 
   releaseConnection(false);
+  transaction_info_->deleteUpstreamRequest(conn_pool_.host()->address()->ip()->addressAsString());
 }
 
 void UpstreamRequest::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks) {
@@ -476,7 +480,7 @@ bool ResponseDecoder::onData(Buffer::Instance& data) {
 }
 
 FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) {
-  ENVOY_LOG(trace, "ResponseDecoder {}", metadata->rawMsg());
+  ENVOY_LOG(trace, "ResponseDecoder\n{}", metadata->rawMsg());
   if (metadata->transactionId().has_value()) {
     auto transaction_id = metadata->transactionId().value();
 
@@ -508,7 +512,6 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
 std::string ResponseDecoder::getOwnDomain() {
-  ENVOY_LOG(error, "DDD getOwnDomain {}", parent_.transactionInfo()->getOwnDomain());
   return parent_.transactionInfo()->getOwnDomain();
 }
 

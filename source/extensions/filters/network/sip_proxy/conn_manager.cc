@@ -155,12 +155,13 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
       break;
     }
     case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
-      ENVOY_LOG(trace, "=== RetrieveLskpmcResp");
       auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmcs();
       for (auto & item : lskpmcs) {
         decoder_->metadata()->setDestination(item.second);
         p_cookie_ip_map_->insert(item);
+        ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
       }
+
       this->continueHanding();
       break;
     }
