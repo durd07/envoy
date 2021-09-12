@@ -260,7 +260,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
-      ENVOY_STREAM_LOG(debug, "reuse upstream request from {}", *callbacks_, host);
+      ENVOY_STREAM_LOG(trace, "reuse upstream request from {}", *callbacks_, host);
       upstream_request_ = upstream_request;
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
 
@@ -272,11 +272,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
-      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed, select with load balancer", *callbacks_, host);
+      ENVOY_STREAM_LOG(trace, "get upstream request for {} failed, select with load balancer", *callbacks_, host);
       return message_handler_with_loadbalancer();
     }
   } else {
-    ENVOY_STREAM_LOG(debug, "no destination preset select with load balancer.", *callbacks_);
+    ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
     return message_handler_with_loadbalancer();
   }
 
@@ -292,7 +292,7 @@ FilterStatus Router::messageEnd() {
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
 
-  ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
+  ENVOY_STREAM_LOG(info, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
                    transport_buffer.toString());
 
   upstream_request_->write(transport_buffer, false);
@@ -329,7 +329,7 @@ FilterStatus UpstreamRequest::start() {
     return FilterStatus::Continue;
   }
 
-  ENVOY_LOG(info, "start connecting {}", conn_pool_.host()->address()->asString());
+  ENVOY_LOG(trace, "start connecting {}", conn_pool_.host()->address()->asString());
   conn_state_ = ConnectionState::Connecting;
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_.newConnection(*this);

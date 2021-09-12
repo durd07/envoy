@@ -35,10 +35,9 @@ ConnectionManager::~ConnectionManager() {
 };
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_CONN_LOG(trace, "sip proxy received data {} --> {} {}\n{}\n", read_callbacks_->connection(),
+  ENVOY_CONN_LOG(debug, "sip proxy received data {} --> {}", read_callbacks_->connection(),
                  read_callbacks_->connection().addressProvider().remoteAddress()->asStringView(),
-                 read_callbacks_->connection().addressProvider().localAddress()->asStringView(),
-                 data.length(), data.toString());
+                 read_callbacks_->connection().addressProvider().localAddress()->asStringView());
   request_buffer_.move(data);
   dispatch();
 
@@ -230,7 +229,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);
 
-  ENVOY_LOG(trace, "send response {}\n{}", buffer.length(), buffer.toString());
+  ENVOY_STREAM_LOG(info, "send response {}\n{}", parent_, buffer.length(), buffer.toString());
   cm.read_callbacks_->connection().write(buffer, false);
 
   cm.stats_.response_.inc();

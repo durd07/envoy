@@ -82,8 +82,6 @@ void Decoder::complete() {
 }
 
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
-  ENVOY_LOG(trace, "sip: {} bytes available", data.length());
-
   if (continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
     State rv = state_machine_->run();
