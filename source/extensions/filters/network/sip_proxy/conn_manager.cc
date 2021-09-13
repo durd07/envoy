@@ -30,9 +30,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
   }
 }
 
-ConnectionManager::~ConnectionManager() {
-	tra_client_->closeStream();
-};
+ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
   ENVOY_CONN_LOG(debug, "sip proxy received data {} --> {}", read_callbacks_->connection(),
