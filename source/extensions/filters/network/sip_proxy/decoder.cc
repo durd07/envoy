@@ -369,7 +369,8 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
+  auto lskpmc =
+      header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
 
   if ((*parent_.parent_.pCookieIPMap())[std::string(lskpmc)] != std::string(ip)) {
@@ -377,11 +378,8 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
     metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
   }
 
-  auto headerLen = "P-Nokia-Cookie-IP-Mapping: ";
-  if ((rawOffset() - headerLen) >= 0) {
-    setOperation(Operation(OperationType::Delete, rawOffset() - headerLen,
-                           DeleteOperationValue(headerLen + strlen(header))));
-  }
+  metadata()->setOperation(Operation(OperationType::Delete, rawOffset(),
+                                       DeleteOperationValue(header.length() + strlen("\r\n"))));
   return 0;
 }
 //
@@ -695,7 +693,7 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     auto start = loc + strlen(";ep=");
 
     if (auto end = top_line.find_first_of("; ", start); end != absl::string_view::npos) {
-      //Base64
+      // Base64
       // auto str = std::string(top_line.substr(start, end - start));
       // auto pos = str.find("%3D");
       // while (pos != absl::string_view::npos) {
