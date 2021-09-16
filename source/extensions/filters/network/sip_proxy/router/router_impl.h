@@ -16,7 +16,6 @@
 #include "source/common/common/logger.h"
 #include "source/common/http/header_utility.h"
 #include "source/common/upstream/load_balancer_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/conn_manager.h"
 #include "source/extensions/filters/network/sip_proxy/decoder_events.h"
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
@@ -250,6 +249,10 @@ public:
     tls_->getTyped<ThreadLocalTransactionInfo>().upstream_request_map_.erase(host);
   }
 
+  std::string getOwnDomain() { return own_domain_; }
+
+  std::string getDomainMatchParamName() { return domain_match_parameter_name_; }
+
 private:
   const std::string cluster_name_;
   ThreadLocal::SlotPtr tls_;
@@ -285,18 +288,17 @@ public:
     }
     return nullptr;
   }
-  
+
   bool shouldSelectAnotherHost(const Upstream::Host& host) override {
-    ENVOY_LOG(trace, "DDD ip = {} ", host.address()->ip()->addressAsString());
     if (!metadata_->destination().has_value()) {
       return false;
     }
-    ENVOY_LOG(trace, "DDD destination = {} ", metadata_->destination().value());
     return host.address()->ip()->addressAsString() != metadata_->destination().value();
   }
 
-private:
   void cleanup();
+
+private:
   RouterStats generateStats(const std::string& prefix, Stats::Scope& scope) {
     return RouterStats{ALL_SIP_ROUTER_STATS(POOL_COUNTER_PREFIX(scope, prefix),
                                             POOL_GAUGE_PREFIX(scope, prefix),
@@ -341,15 +343,8 @@ public:
     return *this;
   }
   absl::string_view getLocalIp() override;
-
-  std::string getOwnDomain() override {
-      ENVOY_LOG(error, "DDD getOwnDomain {}", decoder_->getOwnDomain());
-    return decoder_->getOwnDomain();
-  }
-
-  std::string getDomainMatchParamName() override {
-    return decoder_->getDomainMatchParamName();
-  }
+  std::string getOwnDomain() override;
+  std::string getDomainMatchParamName() override;
 
 private:
   UpstreamRequest& parent_;

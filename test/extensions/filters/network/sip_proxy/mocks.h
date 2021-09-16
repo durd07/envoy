@@ -139,6 +139,9 @@ public:
 
   // SipProxy::DecoderCallbacks
   MOCK_METHOD(DecoderEventHandler&, newDecoderEventHandler, (MessageMetadataSharedPtr));
+  MOCK_METHOD(absl::string_view, getLocalIp, ());
+  MOCK_METHOD(std::string, getOwnDomain, ());
+  MOCK_METHOD(std::string, getDomainMatchParamName, ());
 };
 
 class MockDirectResponse : public DirectResponse {

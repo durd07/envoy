@@ -15,12 +15,6 @@ TEST(MessageMetadataTest, Fields) {
 
   metadata.setRespMethodType(MethodType::Invite);
   EXPECT_EQ(MethodType::Invite, metadata.respMethodType());
-
-  metadata.setInsertEPLocation(100u);
-  EXPECT_EQ(100u, metadata.insertEPLocation());
-
-  metadata.setInsertTagLocation(200u);
-  EXPECT_EQ(200u, metadata.insertTagLocation());
 }
 
 } // namespace SipProxy

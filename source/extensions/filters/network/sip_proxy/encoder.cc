@@ -21,15 +21,13 @@ void EncoderImpl::encode(const MessageMetadataSharedPtr& metadata, Buffer::Insta
           previous_position = operation.position_;
 
           output += absl::get<InsertOperationValue>(operation.value_).value_;
-          // output += "\"";
-	  auto str = Base64::encode(metadata->EP().value().data(), metadata->EP()->length());
-          auto pos = str.find("=");
-          while (pos != absl::string_view::npos) {
-            str.replace(pos, strlen("="), "%3D");
-            pos = str.find("=");
+          if (value == ",opaque=") {
+            output += "\"";
           }
-          output += str;
-          // output += "\"";
+          output += std::string(metadata->EP().value());
+          if (value == ",opaque=") {
+            output += "\"";
+          }
         }
       } else {
         output += raw_msg.substr(previous_position, operation.position_ - previous_position);

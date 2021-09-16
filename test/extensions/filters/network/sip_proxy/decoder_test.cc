@@ -172,7 +172,6 @@ TEST_F(SipDecoderTest, DecodeINVITE) {
   buffer_.add(SIP_INVITE_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
-
   EXPECT_EQ(1U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
@@ -198,9 +197,18 @@ TEST_F(SipDecoderTest, DecodeRegister) {
       "169.110.53;lr;ottag=ue_term;bidx=563242011197570;access-type=ADSL;x-alu-prset-id>\x0d\x0a"
       "Record-Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
       "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
-      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, cnonce=\"123456\", qop=auth\x0d\x0a"
-      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, cnonce=\"123456\", qop=auth, opaque=\"127.0.0.1\"\x0d\x0a"
-      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, cnonce=\"123456\", qop=auth, opaque=\"127.0.0.1\x0d\x0a"
+      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", "
+      "nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, "
+      "uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, "
+      "cnonce=\"123456\", qop=auth\x0d\x0a"
+      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", "
+      "nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, "
+      "uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, "
+      "cnonce=\"123456\", qop=auth, opaque=\"127.0.0.1\"\x0d\x0a"
+      "Authorization: Digest username=\"tc05sub1@cncs.nokialab.com\", realm=\"cncs.nokialab.com\", "
+      "nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\", algorithm=MD5, "
+      "uri=\"sip:10.30.29.47\", response=\"c4f3c2fccdca9c5febc66d4226b5afae\", nc=01201201, "
+      "cnonce=\"123456\", qop=auth, opaque=\"127.0.0.1\x0d\x0a"
       "\x0d\x0a";
 
   buffer_.add(SIP_REGISTER_FULL);
@@ -331,21 +339,32 @@ TEST_F(SipDecoderTest, DecodeFAILURE4XX) {
   initializeFilter(yaml);
 
   const std::string SIP_FAILURE4XX_FULL =
-"SIP/2.0 401 Unauthorized\x0d\x0a"
-"Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
-"Via: SIP/2.0/TCP 192.169.110.15:5060;branch=z9hG4bK1f6eb66cd87d2ae67c4b8a69d67c4f7e60a522a8-0-b-60a52adb349a8674\x0d\x0a"
-"Via: SIP/2.0/UDP 127.0.0.1;branch=z9hG4bK_0002_34-139705093266412;lsstag=pt-1.12\x0d\x0a"
-"Via: SIP/2.0/UDP 10.30.29.58:38612;received=10.30.29.58;branch=z9hG4bK1434\x0d\x0a"
-"From: <sip:tc05sub1@cncs.nokialab.com>;tag=587215\x0d\x0a"
-"To: <sip:tc05sub1@cncs.nokialab.com>;tag=182294901\x0d\x0a"
-"Call-ID: tc05sub1-1@10.30.29.58-38612\x0d\x0a"
-"CSeq: 6 REGISTER\x0d\x0a"
-"P-Charging-Vector: icid-value=\"PCSF:1-cfed-0-1-0000000060a52adb-000000000000000b\"\x0d\x0a"
-"WWW-Authenticate: Digest realm=\"cncs.nokialab.com\",nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop=\"auth\"\x0d\x0a"
-"WWW-Authenticate: Digest realm=\"cncs.nokialab.com\",nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop=\"auth\",opaque=\"127.0.0.1\"\x0d\x0a"
-"WWW-Authenticate: Digest realm=\"cncs.nokialab.com\",nonce=\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop=\"auth\",opaque=\"127.0.0.1\x0d\x0a"
-"Content-Length: 0\x0d\x0a"
-"\x0d\x0a";
+      "SIP/2.0 401 Unauthorized\x0d\x0a"
+      "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
+      "Via: SIP/2.0/TCP "
+      "192.169.110.15:5060;branch=z9hG4bK1f6eb66cd87d2ae67c4b8a69d67c4f7e60a522a8-0-b-"
+      "60a52adb349a8674\x0d\x0a"
+      "Via: SIP/2.0/UDP 127.0.0.1;branch=z9hG4bK_0002_34-139705093266412;lsstag=pt-1.12\x0d\x0a"
+      "Via: SIP/2.0/UDP 10.30.29.58:38612;received=10.30.29.58;branch=z9hG4bK1434\x0d\x0a"
+      "From: <sip:tc05sub1@cncs.nokialab.com>;tag=587215\x0d\x0a"
+      "To: <sip:tc05sub1@cncs.nokialab.com>;tag=182294901\x0d\x0a"
+      "Call-ID: tc05sub1-1@10.30.29.58-38612\x0d\x0a"
+      "CSeq: 6 REGISTER\x0d\x0a"
+      "P-Charging-Vector: icid-value=\"PCSF:1-cfed-0-1-0000000060a52adb-000000000000000b\"\x0d\x0a"
+      "WWW-Authenticate: Digest "
+      "realm=\"cncs.nokialab.com\",nonce="
+      "\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop="
+      "\"auth\"\x0d\x0a"
+      "WWW-Authenticate: Digest "
+      "realm=\"cncs.nokialab.com\",nonce="
+      "\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop=\"auth\","
+      "opaque=\"127.0.0.1\"\x0d\x0a"
+      "WWW-Authenticate: Digest "
+      "realm=\"cncs.nokialab.com\",nonce="
+      "\"436dbd0f60a52adc2DPadc43f91c774b51ac4cad614258c43cf9df\",algorithm=MD5,qop=\"auth\","
+      "opaque=\"127.0.0.1\x0d\x0a"
+      "Content-Length: 0\x0d\x0a"
+      "\x0d\x0a";
   buffer_.add(SIP_FAILURE4XX_FULL);
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
 
@@ -353,7 +372,6 @@ TEST_F(SipDecoderTest, DecodeFAILURE4XX) {
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
-
 
 TEST_F(SipDecoderTest, DecodeEMPTY) {
   initializeFilter(yaml);

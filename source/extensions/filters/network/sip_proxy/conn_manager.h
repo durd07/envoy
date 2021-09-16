@@ -12,7 +12,6 @@
 #include "source/common/common/logger.h"
 #include "source/common/stats/timespan_impl.h"
 #include "source/common/stream_info/stream_info_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/decoder.h"
 #include "source/extensions/filters/network/sip_proxy/filters/filter.h"
 #include "source/extensions/filters/network/sip_proxy/protocol.h"
@@ -82,7 +81,7 @@ public:
     // So here get downstream remote IP, which should in same pod car with envoy
     ENVOY_LOG(
         error, "XXXXXXXXXXXXXXXXXXXXX {}",
-        read_callbacks_->connection().addressProvider().remoteAddress()->ip()->addressAsString());
+        read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 

@@ -40,7 +40,11 @@ MockConfig::~MockConfig() = default;
 //}
 // MockProtocol::~MockProtocol() = default;
 
-MockDecoderCallbacks::MockDecoderCallbacks() = default;
+MockDecoderCallbacks::MockDecoderCallbacks() {
+  ON_CALL(*this, getLocalIp()).WillByDefault(Return("127.0.0.1"));
+  ON_CALL(*this, getOwnDomain()).WillByDefault(Return(""));
+  ON_CALL(*this, getDomainMatchParamName()).WillByDefault(Return(""));
+}
 MockDecoderCallbacks::~MockDecoderCallbacks() = default;
 
 MockDecoderEventHandler::MockDecoderEventHandler() {

@@ -1,12 +1,11 @@
 #include "source/extensions/filters/network/sip_proxy/decoder.h"
-#include "envoy/buffer/buffer.h"
-#include "source/common/buffer/buffer_impl.h"
 
+#include "envoy/buffer/buffer.h"
 #include "envoy/common/exception.h"
 
+#include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/common/macros.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 
 #include "re2/re2.h"
@@ -277,7 +276,7 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   }
 
   metadata()->setTopRoute(header);
-  //metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  // metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
   metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
   return 0;
 }

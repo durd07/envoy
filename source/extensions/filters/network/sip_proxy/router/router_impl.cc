@@ -9,7 +9,6 @@
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/router/metadatamatchcriteria_impl.h"
-
 #include "source/extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "source/extensions/filters/network/sip_proxy/encoder.h"
 #include "source/extensions/filters/network/well_known_names.h"
@@ -274,8 +273,9 @@ const Network::Connection* Router::downstreamConnection() const {
 }
 
 // Not used
-// void Router::cleanup() { /*upstream_request_.reset();*/
-//}
+ void Router::cleanup() { upstream_request_.reset();
+}
+
 UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool_data,
                                  std::shared_ptr<TransactionInfo> transaction_info)
     : conn_pool_data_(pool_data), transaction_info_(transaction_info), response_complete_(false) {}
@@ -475,6 +475,14 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 }
 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
+
+std::string ResponseDecoder::getOwnDomain() {
+  return parent_.transactionInfo()->getOwnDomain();
+}
+
+std::string ResponseDecoder::getDomainMatchParamName() {
+  return parent_.transactionInfo()->getDomainMatchParamName();
+}
 
 } // namespace Router
 } // namespace SipProxy

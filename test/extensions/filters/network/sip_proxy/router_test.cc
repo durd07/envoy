@@ -14,6 +14,8 @@
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/server/factory_context.h"
 #include "test/mocks/upstream/host.h"
+
+//#include "test/mocks/stream_info/mocks.h"
 #include "test/test_common/printers.h"
 #include "test/test_common/registry.h"
 
@@ -92,15 +94,20 @@ registration_affinity: true
     metadata_ = std::make_shared<MessageMetadata>();
     metadata_->setMethodType(method);
     metadata_->setMsgType(msg_type);
-    metadata_->setTransactionId("test");
+    metadata_->setTransactionId("<branch=cluster>");
+    metadata_->setRouteEP("10.0.0.1");
+    metadata_->setRouteOpaque("10.0.0.1");
+    metadata_->setDomain("<sip:10.0.0.1;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip="
+                       "192.169.110.50;x-skey=000075b77a8f02240001;x-fbi=cfed;ue-addr=10.30.29.58>",
+                       "host");
     if (set_destination) {
-      metadata_->setDestination("127.0.0.1");
+      metadata_->setDestination("10.0.0.1");
     }
   }
 
   void initializeTransaction() {
     auto transaction_info_ptr = std::make_shared<TransactionInfo>(
-        "test", thread_local_, static_cast<std::chrono::seconds>(2));
+        "test", thread_local_, static_cast<std::chrono::seconds>(2), "", "x-suri");
     transaction_info_ptr->init();
     transaction_infos_->emplace(cluster_name_, transaction_info_ptr);
   }
@@ -110,16 +117,22 @@ registration_affinity: true
     initializeMetadata(msg_type, method);
     EXPECT_EQ(FilterStatus::Continue, router_->transportBegin(metadata_));
 
-    EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
-    EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
+    //EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
+    //EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
+    EXPECT_CALL(callbacks_, route()).WillRepeatedly(Return(route_ptr_));
+    EXPECT_CALL(*route_, routeEntry()).WillRepeatedly(Return(&route_entry_));
     EXPECT_CALL(route_entry_, clusterName()).WillRepeatedly(ReturnRef(cluster_name_));
 
+    std::cout << "DDD ============ 010\n";
     EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
 
     EXPECT_CALL(callbacks_, connection()).WillRepeatedly(Return(&connection_));
     EXPECT_CALL(callbacks_, dispatcher()).WillRepeatedly(ReturnRef(dispatcher_));
+    // EXPECT_CALL(connection_, streamInfo()).WillRepeatedly(ReturnRef(streamInfo_));
+    std::cout << "DDD ============ 011\n";
     EXPECT_EQ(&connection_, router_->downstreamConnection());
 
+    std::cout << "DDD ============ 012\n";
     EXPECT_EQ(nullptr, router_->metadataMatchCriteria());
   }
 
@@ -184,6 +197,7 @@ registration_affinity: true
 
   NiceMock<Server::Configuration::MockFactoryContext> context_;
   NiceMock<Network::MockClientConnection> connection_;
+  NiceMock<StreamInfo::MockStreamInfo> streamInfo_;
   NiceMock<Event::MockDispatcher> dispatcher_;
   NiceMock<MockTimeSystem> time_source_;
   NiceMock<SipFilters::MockDecoderFilterCallbacks> callbacks_;
@@ -212,10 +226,15 @@ TEST_F(SipRouterTest, Call) {
   initializeTrans();
   initializeRouter();
   initializeTransaction();
+  std::cout << "DDD ============ 001\n";
   startRequest(MsgType::Request);
+  std::cout << "DDD ============ 002\n";
   connectUpstream();
+  std::cout << "DDD ============ 003\n";
   completeRequest();
+  std::cout << "DDD ============ 004\n";
   returnResponse();
+  std::cout << "DDD ============ 005\n";
   EXPECT_CALL(callbacks_, transactionId()).WillRepeatedly(Return("test"));
   destroyRouter();
 }
@@ -272,7 +291,7 @@ TEST_F(SipRouterTest, DiffRouterDiffTrans) {
   EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
   EXPECT_CALL(route_entry_, clusterName()).WillRepeatedly(ReturnRef(cluster_name_));
 
-  metadata_->setTransactionId("test1");
+  metadata_->setTransactionId("cluster");
   EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
 }
 
@@ -280,12 +299,12 @@ TEST_F(SipRouterTest, DiffDestination) {
   initializeTrans();
   initializeRouter();
   initializeTransaction();
-  initializeMetadata(MsgType::Request, MethodType::Ack);
+  initializeMetadata(MsgType::Request, MethodType::Register);
   metadata_->setEP("10.0.0.1");
   EXPECT_EQ(FilterStatus::StopIteration, router_->messageBegin(metadata_));
 
   initializeRouter();
-  initializeMetadata(MsgType::Request, MethodType::Ack);
+  initializeMetadata(MsgType::Request, MethodType::Register);
   metadata_->setEP("10.0.0.1");
   metadata_->setDestination("10.0.0.1");
 
@@ -295,6 +314,7 @@ TEST_F(SipRouterTest, DiffDestination) {
 
   EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
 }
+
 
 TEST_F(SipRouterTest, DiffDestinationDiffTrans) {
   initializeTrans();
@@ -310,7 +330,25 @@ TEST_F(SipRouterTest, DiffDestinationDiffTrans) {
   EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
   EXPECT_CALL(route_entry_, clusterName()).WillRepeatedly(ReturnRef(cluster_name_));
 
-  metadata_->setTransactionId("test1");
+  metadata_->setTransactionId("cluster");
+  EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
+}
+
+TEST_F(SipRouterTest, DiffDestinationNoTrans) {
+  initializeTrans();
+  initializeRouter();
+  initializeTransaction();
+  startRequest(MsgType::Request);
+
+  initializeRouter();
+  initializeMetadata(MsgType::Request, MethodType::Ack);
+  metadata_->setDestination("10.0.0.1");
+
+  EXPECT_CALL(callbacks_, route()).WillOnce(Return(route_ptr_));
+  EXPECT_CALL(*route_, routeEntry()).WillOnce(Return(&route_entry_));
+  EXPECT_CALL(route_entry_, clusterName()).WillRepeatedly(ReturnRef(cluster_name_));
+
+  metadata_->setTransactionId("<branch=testNoTrans>");
   EXPECT_EQ(FilterStatus::Continue, router_->messageBegin(metadata_));
 }
 
@@ -460,7 +498,8 @@ TEST_F(SipRouterTest, CallWithExistingConnection) {
   connectUpstream();
   completeRequest();
   returnResponse();
-  EXPECT_CALL(callbacks_, transactionId()).WillRepeatedly(Return("test"));
+  metadata_->setDestination("10.0.0.1");
+  router_->cleanup();
   startRequestWithExistingConnection(MsgType::Request);
   destroyRouter();
 }
@@ -525,7 +564,7 @@ TEST_F(SipRouterTest, RouteMatcher) {
   name: local_route
   routes:
     match:
-      domain: A
+      domain: pcsf-cfed.cncs.svc.cluster.local
     route:
       cluster: A
 )EOF";
@@ -537,11 +576,16 @@ TEST_F(SipRouterTest, RouteMatcher) {
   auto matcher_ptr = std::make_shared<RouteMatcher>(config);
 
   // Match domain
-  metadata_->setDomain("A");
+  metadata_->setDomain("<sip:10.177.8.232;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060;inst-ip="
+                       "192.169.110.50;x-skey=000075b77a8f02240001;x-fbi=cfed;ue-addr=10.30.29.58>",
+                       "x-suri");
   matcher_ptr->route(*metadata_);
 
   // Not match domain
-  metadata_->setDomain("B");
+  metadata_->setDomain(
+      "<sip:10.177.8.232;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local.test:5060;inst-ip=192.169.110."
+      "50;x-skey=000075b77a8f02240001;x-fbi=cfed;ue-addr=10.30.29.58>",
+      "x-suri");
   matcher_ptr->route(*metadata_);
 }
 
@@ -595,7 +639,9 @@ TEST_F(SipRouterTest, ResponseDecoder) {
 
   // No active trans
   metadata_->setTransactionId(nullptr);
-  EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
+  // DDD
+  // EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
+  EXPECT_EQ(FilterStatus::Continue, response_decoder_ptr->transportBegin(metadata_));
   // No transid
   metadata_->resetTransactionId();
   EXPECT_EQ(FilterStatus::StopIteration, response_decoder_ptr->transportBegin(metadata_));
@@ -641,7 +687,7 @@ TEST_F(SipRouterTest, Audit) {
       std::make_shared<TransactionInfoItem>(&callbacks_, upstream_request_ptr);
   itemToDelete->toDelete();
   ThreadLocalTransactionInfo threadInfo(transaction_info_ptr, dispatcher_,
-                                        std::chrono::milliseconds(0));
+                                        std::chrono::milliseconds(0), "", "x-suri");
   threadInfo.transaction_info_map_.emplace(cluster_name_, item);
   threadInfo.transaction_info_map_.emplace("test1", itemToDelete);
   threadInfo.auditTimerAction();
