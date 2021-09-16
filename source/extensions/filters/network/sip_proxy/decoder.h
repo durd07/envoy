@@ -146,7 +146,6 @@ public:
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() { return callbacks_.pCookieIPMap(); }
 
-protected:
   MessageMetadataSharedPtr metadata() { return metadata_; }
 
 private:

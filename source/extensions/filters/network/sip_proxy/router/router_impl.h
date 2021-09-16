@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 
+#include "common/common/macros.h"
 #include "envoy/extensions/filters/network/sip_proxy/tra/v3/tra.pb.h"
 #include "extensions/filters/network/sip_proxy/filters/factory_base.h"
 #include "envoy/extensions/filters/network/sip_proxy/v3/route.pb.h"
@@ -270,14 +271,12 @@ private:
 class Router : public Upstream::LoadBalancerContextBase,
                public virtual DecoderEventHandler,
                public SipFilters::DecoderFilter,
-               public TrafficRoutingAssistant::RequestCallbacks,
                Logger::Loggable<Logger::Id::sip> {
 public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
         context_(context) {
-    std::cout << "FELIX 3" << std::endl;
   }
 
   // SipFilters::DecoderFilter
@@ -300,41 +299,10 @@ public:
   }
 
   bool shouldSelectAnotherHost(const Upstream::Host& host) override {
-    ENVOY_LOG(trace, "DDD ip = {} ", host.address()->ip()->addressAsString());
     if (!metadata_->destination().has_value()) {
       return false;
     }
-    ENVOY_LOG(trace, "DDD destination = {} ", metadata_->destination().value());
     return host.address()->ip()->addressAsString() != metadata_->destination().value();
-  }
-
-  // TrafficRoutingAssistant::RequestCallbacks
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-    switch (type) {
-    case TrafficRoutingAssistant::ResponseType::GetIpFromLskpmcRespr: {
-      auto lskpmc = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::Lskpmc>(resp);
-      metadata_->setDestination(lskpmc.val());
-      (*callbacks_->pCookieIPMap())[lskpmc.key()] = lskpmc.val();
-      callbacks_->continueHanding();
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
-      for (auto& item :
-           absl::any_cast<
-               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
-               .lskpmcs()) {
-	     ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-        // update local cache
-      }
-      break;
-    }
-    default:
-      break;
-    }
-    ENVOY_LOG(debug, "complete");
   }
 
 private:
@@ -368,8 +336,11 @@ class ResponseDecoder : public DecoderCallbacks,
                         public DecoderEventHandler,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
-  ResponseDecoder(UpstreamRequest& parent)
-      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {}
+  ResponseDecoder(UpstreamRequest& parent, SipFilters::DecoderFilterCallbacks * callbacks)
+      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {
+	      p_cookie_ip_map_ = callbacks->pCookieIPMap();
+      }
+  ~ResponseDecoder() override {}
   bool onData(Buffer::Instance& data);
 
   // DecoderEventHandler
@@ -435,23 +406,12 @@ public:
 
   void setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks);
 
-  void addIntoPendingRequest(MessageMetadataSharedPtr metadata) {
-    if (pending_request_.size() < 1000000) {
-      pending_request_.push_back(metadata);
-    } else {
-      ENVOY_LOG(warn, "pending request is full, drop this request. size {} request {}",
-                pending_request_.size(), metadata->rawMsg());
-    }
-  }
-
   ConnectionState connectionState() { return conn_state_; }
   void write(Buffer::Instance& data, bool end_stream) {
     return conn_data_->connection().write(data, end_stream);
   }
 
   absl::string_view localAddress() {
-    ENVOY_LOG(error, "YYYYYYYYYYYYYYYYYYYYYYYY {}",
-              conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return conn_data_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 

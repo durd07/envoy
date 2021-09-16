@@ -22,6 +22,7 @@ envoy_cc_library(
         "//source/common/common:minimal_logger_lib",
         "//source/common/grpc:typed_async_client_lib",
         "//source/common/http:headers_lib",
+        "//source/common/protobuf",
         "//source/common/tracing:http_tracer_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
         "@envoy_api//envoy/extensions/filters/network/sip_proxy/tra/v3:pkg_cc_proto",

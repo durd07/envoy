@@ -89,7 +89,6 @@ ConfigImpl::ConfigImpl(const envoy::extensions::filters::network::sip_proxy::v3:
           config.settings().own_domain(), config.settings().domain_match_parameter_name(),
           config.settings().tra_service_config())) {
 
-  ENVOY_LOG(debug, "FFF {}", config.settings().tra_service_config().grpc_service().envoy_grpc().cluster_name());
   if (config.sip_filters().empty()) {
     ENVOY_LOG(debug, "using default router filter");
 

@@ -96,6 +96,12 @@ void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callb
 FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
 
+  if (metadata->pCookieIpMap().has_value()) {
+    callbacks_->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
+                                           Tracing::NullSpan::instance(),
+                                           callbacks_->streamInfo());
+  }
+
   const std::shared_ptr<const ProtocolOptionsConfig> options =
       cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
           NetworkFilterNames::get().SipProxy);
@@ -108,35 +114,39 @@ FilterStatus Router::handleAffinity() {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
       } else {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+        callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
-        return FilterStatus::Suspend;
+        return FilterStatus::StopIteration;
       }
 
     } else if (metadata->routeEP().has_value()) {
       auto host = metadata->routeEP().value();
       metadata->setDestination(host);
+      ENVOY_LOG(trace, "Set destination from EP {}", host);
     }
-  }
-
-  if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
+  } else if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
     if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto ip = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
       } else {
-        callbacks_->traClient()->getIpFromLskpmc(*this, std::string(metadata->lskpmc().value()),
+        callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
                                                  Tracing::NullSpan::instance(),
                                                  callbacks_->streamInfo());
-        return FilterStatus::Suspend;
+        return FilterStatus::StopIteration;
       }
 
     } else if (metadata->routeOpaque().has_value()) {
       auto host = metadata->routeOpaque().value();
       metadata->setDestination(host);
+      ENVOY_LOG(trace, "Set destination from OPAQUE {}", host);
     }
   }
   return FilterStatus::Continue;
@@ -185,7 +195,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   }
 
   auto ret = handleAffinity();
-  if (ret == FilterStatus::Suspend || ret == FilterStatus::StopIteration) {
+  if (ret == FilterStatus::StopIteration) {
     return ret;
   }
 
@@ -210,20 +220,17 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return FilterStatus::StopIteration;
     }
 
-    ENVOY_STREAM_LOG(debug, "router decoding request", *callbacks_);
-
     Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
     if (!host) {
       return FilterStatus::StopIteration;
     }
 
-    if (auto upstream_request =
-            transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
+    if (auto upstream_request = transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
         upstream_request != nullptr) {
       // There is action connection, reuse it.
       upstream_request_ = upstream_request;
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      ENVOY_STREAM_LOG(debug, "reuse upstream request", *callbacks_);
+      ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_, host->address()->ip()->addressAsString());
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
       } catch (std::out_of_range const&) {
@@ -253,8 +260,9 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
-      ENVOY_STREAM_LOG(debug, "reuse upstream request from EP {}", *callbacks_, host);
+      ENVOY_STREAM_LOG(trace, "reuse upstream request from {}", *callbacks_, host);
       upstream_request_ = upstream_request;
+      upstream_request_->setDecoderFilterCallbacks(*callbacks_);
 
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
@@ -264,12 +272,12 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
-      ENVOY_STREAM_LOG(debug, "get upstream request for {} failed.", *callbacks_, host);
-      message_handler_with_loadbalancer();
+      ENVOY_STREAM_LOG(trace, "get upstream request for {} failed, select with load balancer", *callbacks_, host);
+      return message_handler_with_loadbalancer();
     }
   } else {
-    ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
-    message_handler_with_loadbalancer();
+    ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
+    return message_handler_with_loadbalancer();
   }
 
   return FilterStatus::Continue;
@@ -284,7 +292,7 @@ FilterStatus Router::messageEnd() {
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, transport_buffer);
 
-  ENVOY_STREAM_LOG(trace, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
+  ENVOY_STREAM_LOG(info, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),
                    transport_buffer.toString());
 
   upstream_request_->write(transport_buffer, false);
@@ -315,12 +323,14 @@ UpstreamRequest::~UpstreamRequest() {
 }
 
 FilterStatus UpstreamRequest::start() {
-  //if (conn_state_ != ConnectionState::NotConnected) {
-  //  return FilterStatus::StopIteration;
-  //}
+  if (conn_state_ == ConnectionState::Connecting) {
+    return FilterStatus::StopIteration;
+  } else if (conn_state_ == ConnectionState::Connected) {
+    return FilterStatus::Continue;
+  }
 
-  ENVOY_LOG(info, "start connecting {}", conn_pool_.host()->address()->asString());
-  //conn_state_ = ConnectionState::Connecting;
+  ENVOY_LOG(trace, "start connecting {}", conn_pool_.host()->address()->asString());
+  conn_state_ = ConnectionState::Connecting;
 
   Tcp::ConnectionPool::Cancellable* handle = conn_pool_.newConnection(*this);
   if (handle) {
@@ -437,7 +447,7 @@ SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&
 void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
-  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
+  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this, this->callbacks_);
   response_decoder_->onData(upstream_buffer_);
 }
 
@@ -445,17 +455,19 @@ void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
   ENVOY_LOG(info, "received upstream event {}", event);
   switch (event) {
   case Network::ConnectionEvent::RemoteClose:
-    ENVOY_STREAM_LOG(debug, "upstream remote close", *callbacks_);
+    ENVOY_LOG(debug, "upstream remote close");
     break;
   case Network::ConnectionEvent::LocalClose:
-    ENVOY_STREAM_LOG(debug, "upstream local close", *callbacks_);
+    ENVOY_LOG(debug, "upstream local close");
     break;
   default:
+    ENVOY_LOG(debug, "connected is consumed by the connection pool");
     // Connected is consumed by the connection pool.
-    NOT_REACHED_GCOVR_EXCL_LINE;
+    return;
   }
 
   releaseConnection(false);
+  transaction_info_->deleteUpstreamRequest(conn_pool_.host()->address()->ip()->addressAsString());
 }
 
 void UpstreamRequest::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks) {
@@ -468,16 +480,22 @@ bool ResponseDecoder::onData(Buffer::Instance& data) {
 }
 
 FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) {
-  ENVOY_LOG(trace, "ResponseDecoder {}", metadata->rawMsg());
   if (metadata->transactionId().has_value()) {
     auto transaction_id = metadata->transactionId().value();
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
-      p_cookie_ip_map_ = active_trans->pCookieIPMap();
+      // p_cookie_ip_map_ = active_trans->pCookieIPMap();
+
+      if (metadata->pCookieIpMap().has_value()) {
+        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
+        active_trans->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
+                                           Tracing::NullSpan::instance(),
+                                           active_trans->streamInfo());
+      }
+
       active_trans->startUpstreamResponse();
       active_trans->upstreamData(metadata);
-
     } else {
       ENVOY_LOG(debug, "no active trans selected {}\n{}", transaction_id, metadata->rawMsg());
       return FilterStatus::StopIteration;
@@ -493,7 +511,6 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
 std::string ResponseDecoder::getOwnDomain() {
-  ENVOY_LOG(error, "DDD getOwnDomain {}", parent_.transactionInfo()->getOwnDomain());
   return parent_.transactionInfo()->getOwnDomain();
 }
 

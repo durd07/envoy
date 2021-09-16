@@ -83,9 +83,6 @@ public:
     // should return local address ip
     // But after ORIGINAL_DEST, the local address update to upstream local address
     // So here get downstream remote IP, which should in same pod car with envoy
-    ENVOY_LOG(
-        error, "XXXXXXXXXXXXXXXXXXXXX {}",
-        read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString());
     return read_callbacks_->connection().addressProvider().localAddress()->ip()->addressAsString();
   }
 
@@ -101,23 +98,8 @@ public:
 
   TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
 
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override {
-    switch (type) {
-    case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
-      for (auto& item :
-           absl::any_cast<
-               envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(resp)
-               .lskpmcs()) {
-        ENVOY_LOG(debug, "tra update {}={}", item.key(), item.val());
-        // update local cache
-      }
-      break;
-    }
-    default:
-      break;
-    }
-    ENVOY_LOG(debug, "complete");
-  }
+  // TrafficRoutingAssistant::RequestCallbacks
+  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override;
 
 private:
   friend class SipConnectionManagerTest;
@@ -312,7 +294,6 @@ private:
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
   std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
-  // std::shared_ptr<SipSettings> sip_settings_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 

@@ -7,6 +7,7 @@
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 
+#include "extensions/filters/network/sip_proxy/decoder_events.h"
 #include "re2/re2.h"
 #include <utility>
 
@@ -67,6 +68,7 @@ State DecoderStateMachine::run() {
 Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
 
 void Decoder::complete() {
+  ENVOY_LOG(trace, "sip message COMPLETE");
   request_.reset();
   metadata_.reset();
   state_machine_ = nullptr;
@@ -80,18 +82,19 @@ void Decoder::complete() {
 }
 
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
-  ENVOY_LOG(trace, "sip: {} bytes available", data.length());
-
   if (continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
     State rv = state_machine_->run();
 
-    if (rv == State::Done || rv == State::StopIteration) {
+    if (rv == State::Done) {
       complete();
       reassemble(data);
     }
   } else {
-    reassemble(data);
+    if (start_new_message_) {
+      start_new_message_ = false;
+      reassemble(data);
+    }
   }
   return FilterStatus::StopIteration;
 }
@@ -171,7 +174,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 }
 
 FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
-  ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
 
@@ -181,7 +184,7 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   state_machine_ = std::make_unique<DecoderStateMachine>(metadata_, request_->handler_);
   State rv = state_machine_->run();
 
-  if (rv == State::Done || rv == State::StopIteration) {
+  if (rv == State::Done) {
     complete();
   }
 
@@ -206,14 +209,14 @@ auto Decoder::sipHeaderType(absl::string_view sip_line) {
       {"P-Nokia-Cookie-IP-Mapping", HeaderType::PCookieIPMap},
       {"", HeaderType::Other}};
 
-  auto header_type_str = sip_line.substr(0, sip_line.find_first_of(":"));
+  auto header_type_str = sip_line.substr(0, sip_line.find_first_of(':'));
   if (auto result = sip_header_type_map.find(header_type_str);
       result != sip_header_type_map.end()) {
     return std::tuple<HeaderType, absl::string_view>{
-        result->second, sip_line.substr(sip_line.find_first_of(":") + 2)};
+        result->second, sip_line.substr(sip_line.find_first_of(':') + strlen(": "))};
   } else {
     return std::tuple<HeaderType, absl::string_view>{
-        HeaderType::Other, sip_line.substr(sip_line.find_first_of(":") + 2)};
+        HeaderType::Other, sip_line.substr(sip_line.find_first_of(':') + strlen(": "))};
   }
 }
 
@@ -303,7 +306,7 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   }
 
   metadata()->setTopRoute(header);
-  //metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
+  // metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
   metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
   return 0;
 }
@@ -326,12 +329,12 @@ int Decoder::HeaderHandler::processWwwAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
-  auto loc = header.find(",opaque=");
+  auto loc = header.find("opaque=");
   if (loc == absl::string_view::npos) {
     return 0;
   }
   // has ""
-  auto start = loc + strlen(",opaque=\"");
+  auto start = loc + strlen("opaque=\"");
   /* No ""
   auto end = header.find(",", start);
   if (end == absl::string_view::npos) {
@@ -340,11 +343,11 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
     metadata()->setRouteOpaque(header.substr(start, end - start));
   }
   */
-  auto end = header.find("\"", start);
+  auto end = header.find('\"', start);
   if (end == absl::string_view::npos) {
     return 0;
   }
-  metadata()->setRouteOpaque(header.substr(start, end - start - 1));
+  metadata()->setRouteOpaque(header.substr(start, end - start));
   /*Base64
       auto end = header.find("\"", start);
       if (end == absl::string_view::npos) {
@@ -362,16 +365,23 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
-  auto loc = header.find("=");
+  auto loc = header.find('=');
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  auto lskpmc = header.substr(0, loc);
+  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
-  parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
 
-  // TODO: update grpc server
+  if ((*parent_.parent_.pCookieIPMap())[std::string(lskpmc)] != std::string(ip)) {
+    parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
+    metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
+  }
 
+  auto headerLen = "P-Nokia-Cookie-IP-Mapping: ";
+  if ((rawOffset() - headerLen) >= 0) {
+    setOperation(Operation(OperationType::Delete, rawOffset() - headerLen,
+                           DeleteOperationValue(headerLen + strlen(header))));
+  }
   return 0;
 }
 //
@@ -557,6 +567,9 @@ void Decoder::FAILURE4XXHandler::parseHeader(HeaderType& type, absl::string_view
   case HeaderType::Via:
     handler_->processVia(header);
     break;
+  case HeaderType::PCookieIPMap:
+    handler_->processPCookieIPMap(header);
+    break;
   default:
     break;
   }
@@ -617,10 +630,10 @@ int Decoder::decode() {
 
   while (!msg.empty()) {
     std::string::size_type crlf = msg.find("\r\n");
-    /* After message reassemble, this condition could not be true
-    if (crlf == absl::string_view::npos) {
-      break;
-    }*/
+    // After message reassemble, this condition could not be true
+    // if (crlf == absl::string_view::npos) {
+    //   break;
+    // }
 
     if (current_header_ == HeaderType::TopLine) {
       // Sip Request Line
@@ -651,7 +664,7 @@ int Decoder::decode() {
   }
 
   if (!metadata->topRoute().has_value() && metadata->msgType() == MsgType::Request) {
-    //metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
+    // metadata->setDomain(domain(metadata->requestURI().value(), HeaderType::TopLine));
     metadata->setDomain(metadata->requestURI().value(), getDomainMatchParamName());
   }
   return 0;
@@ -682,15 +695,15 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     auto start = loc + strlen(";ep=");
 
     if (auto end = top_line.find_first_of("; ", start); end != absl::string_view::npos) {
-      /*Base64
-auto str = std::string(top_line.substr(start, end - start));
-auto pos = str.find("%3D");
-while (pos != absl::string_view::npos) {
-  str.replace(pos, strlen("%3D"), "=");
-  pos = str.find("%3D");
-}
-metadata->setRouteEP(Base64::decode(str));
-*/
+      //Base64
+      // auto str = std::string(top_line.substr(start, end - start));
+      // auto pos = str.find("%3D");
+      // while (pos != absl::string_view::npos) {
+      //   str.replace(pos, strlen("%3D"), "=");
+      //   pos = str.find("%3D");
+      // }
+      // metadata->setRouteEP(Base64::decode(str));
+
       metadata->setRouteEP(top_line.substr(start, end - start));
     }
   }

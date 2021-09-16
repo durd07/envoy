@@ -37,6 +37,7 @@ public:
   absl::optional<absl::string_view> routeEP() { return route_ep_; }
   absl::optional<absl::string_view> routeOpaque() { return route_opaque_; }
   absl::optional<absl::string_view> lskpmc() { return lskpmc_; }
+  absl::optional<absl::string_view> pCookieIpMap() { return p_cookie_ip_map_; }
 
   absl::optional<absl::string_view> requestURI() { return request_uri_; }
   absl::optional<absl::string_view> topRoute() { return top_route_; }
@@ -54,6 +55,7 @@ public:
   void setRouteEP(absl::string_view data) { route_ep_ = data; }
   void setRouteOpaque(absl::string_view data) { route_opaque_ = data; }
   void setLskpmc(absl::string_view data) { lskpmc_ = data; }
+  void setPCookieIpMap(absl::string_view data) { p_cookie_ip_map_ = data; }
 
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
@@ -63,8 +65,6 @@ public:
 
   void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
                       std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain,
-              domainMatchParamName);
     if (header.find(";ep=") != absl::string_view::npos) {
       // already Contact have ep
       return;
@@ -79,7 +79,7 @@ public:
 
     // Compare the domain
     if (domain != ownDomain) {
-      ENVOY_LOG(debug, "header domain:{} is not equal to own_domain:{}", domain, ownDomain);
+      ENVOY_LOG(trace, "header {} domain:{} is not equal to own_domain:{}, don't add EP.", header, domain, ownDomain);
       return;
     }
 
@@ -88,7 +88,7 @@ public:
 
   void addOpaqueOperation(size_t rawOffset, absl::string_view& header) {
     if (header.find(",opaque=") != absl::string_view::npos) {
-      // already Contact have ep
+      // already has opaque
       return;
     }
     auto pos = header.length();
@@ -103,8 +103,11 @@ public:
           Operation(OperationType::Delete, rawOffset + pos,
                     DeleteOperationValue(
                         header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
-      auto xsuri = header.find("sip:pcsf-cfed");
-      setOperation(Operation(OperationType::Delete, rawOffset + xsuri, DeleteOperationValue(4)));
+      // auto xsuri = header.find("sip:pcsf-cfed");
+      auto xsuri = header.find("x-suri=sip:");
+      if (xsuri != absl::string_view::npos) {
+        setOperation(Operation(OperationType::Delete, rawOffset + xsuri + strlen("x-suri="), DeleteOperationValue(4)));
+      }
     }
   }
 
@@ -137,6 +140,7 @@ private:
   absl::optional<absl::string_view> route_ep_{};
   absl::optional<absl::string_view> route_opaque_{};
   absl::optional<absl::string_view> lskpmc_{};
+  absl::optional<absl::string_view> p_cookie_ip_map_{};
 
   absl::optional<absl::string_view> request_uri_{};
   absl::optional<absl::string_view> top_route_{};
@@ -147,7 +151,7 @@ private:
   std::string raw_msg_{};
 
   absl::string_view getDomain(absl::string_view header, std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
+    // ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
 
     // Get domain
     absl::string_view domain = "";
