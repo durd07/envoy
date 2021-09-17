@@ -68,6 +68,7 @@ State DecoderStateMachine::run() {
 Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
 
 void Decoder::complete() {
+  ENVOY_LOG(trace, "sip message COMPLETE");
   request_.reset();
   metadata_.reset();
   state_machine_ = nullptr;
@@ -81,8 +82,6 @@ void Decoder::complete() {
 }
 
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
-  ENVOY_LOG(trace, "sip: {} bytes available", data.length());
-
   if (continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
     State rv = state_machine_->run();
@@ -175,7 +174,7 @@ int Decoder::reassemble(Buffer::Instance& data) {
 }
 
 FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
-  ENVOY_LOG(trace, "onDataReady {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
 
@@ -330,12 +329,12 @@ int Decoder::HeaderHandler::processWwwAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
-  auto loc = header.find(", opaque=");
+  auto loc = header.find("opaque=");
   if (loc == absl::string_view::npos) {
     return 0;
   }
   // has ""
-  auto start = loc + strlen(", opaque=\"");
+  auto start = loc + strlen("opaque=\"");
   /* No ""
   auto end = header.find(",", start);
   if (end == absl::string_view::npos) {
@@ -344,11 +343,11 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
     metadata()->setRouteOpaque(header.substr(start, end - start));
   }
   */
-  auto end = header.find("\"", start);
+  auto end = header.find('\"', start);
   if (end == absl::string_view::npos) {
     return 0;
   }
-  metadata()->setRouteOpaque(header.substr(start, end - start - 1));
+  metadata()->setRouteOpaque(header.substr(start, end - start));
   /*Base64
       auto end = header.find("\"", start);
       if (end == absl::string_view::npos) {
@@ -366,14 +365,21 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
 }
 
 int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
-  auto loc = header.find("=");
+  auto loc = header.find('=');
   if (loc == absl::string_view::npos) {
     return 0;
   }
-  auto lskpmc = header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
+  auto lskpmc =
+      header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
-  parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
-  metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
+
+  if ((*parent_.parent_.pCookieIPMap())[std::string(lskpmc)] != std::string(ip)) {
+    parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
+    metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
+  }
+
+  metadata()->setOperation(Operation(OperationType::Delete, rawOffset(),
+                                       DeleteOperationValue(header.length() + strlen("\r\n"))));
   return 0;
 }
 //
@@ -687,7 +693,7 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     auto start = loc + strlen(";ep=");
 
     if (auto end = top_line.find_first_of("; ", start); end != absl::string_view::npos) {
-      //Base64
+      // Base64
       // auto str = std::string(top_line.substr(start, end - start));
       // auto pos = str.find("%3D");
       // while (pos != absl::string_view::npos) {

@@ -2,6 +2,7 @@
 
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
+#include "common/tracing/http_tracer_impl.h"
 
 #include "extensions/filters/network/sip_proxy/app_exception_impl.h"
 #include "extensions/filters/network/sip_proxy/encoder.h"
@@ -22,7 +23,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 
   if (config.settings()->traServiceConfig().has_grpc_service()) {
     const std::chrono::milliseconds timeout = std::chrono::milliseconds(
-        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 20));
+        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 2000));
     tra_client_ = TrafficRoutingAssistant::traClient(
         this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
         config.settings()->traServiceConfig().transport_api_version());
@@ -32,10 +33,9 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
 ConnectionManager::~ConnectionManager() = default;
 
 Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_CONN_LOG(trace, "sip proxy received data {} --> {} {}\n{}\n", read_callbacks_->connection(),
+  ENVOY_CONN_LOG(debug, "sip proxy received data {} --> {}", read_callbacks_->connection(),
                  read_callbacks_->connection().addressProvider().remoteAddress()->asStringView(),
-                 read_callbacks_->connection().addressProvider().localAddress()->asStringView(),
-                 data.length(), data.toString());
+                 read_callbacks_->connection().addressProvider().localAddress()->asStringView());
   request_buffer_.move(data);
   dispatch();
 
@@ -114,6 +114,11 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
   read_callbacks_->connection().addConnectionCallbacks(*this);
   read_callbacks_->connection().enableHalfClose(true);
+
+  auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
+  tra_client_->setRequestCallbacks(*this);
+  tra_client_->subscribeLskpmc("", Tracing::NullSpan::instance(), stream_info);
+
 }
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {
@@ -137,6 +142,47 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
 
   return *transactions_.at(k);
 }
+
+void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) {
+    switch (type) {
+    case TrafficRoutingAssistant::ResponseType::CreateLskpmcResp: {
+      ENVOY_LOG(trace, "=== CreateLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
+      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
+      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmcs();
+      for (auto & item : lskpmcs) {
+        if (!item.second.empty()) {
+          decoder_->metadata()->setDestination(item.second);
+          p_cookie_ip_map_->emplace(item);
+	}
+        ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
+      }
+
+      this->continueHanding();
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::DeleteLskpmcResp: {
+      ENVOY_LOG(trace, "=== DeleteLskpmcResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
+      ENVOY_LOG(trace, "=== SubscribeLskpmcResp");
+      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs();
+      for (auto& item : lskpmcs) {
+        ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
+        p_cookie_ip_map_->emplace(item);
+      }
+    }
+    default:
+      break;
+    }
+  }
+
 
 bool ConnectionManager::ResponseDecoder::onData(MessageMetadataSharedPtr metadata) {
   metadata_ = metadata;
@@ -181,7 +227,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
   encoder->encode(metadata_, buffer);
 
-  ENVOY_LOG(trace, "send response {}\n{}", buffer.length(), buffer.toString());
+  ENVOY_STREAM_LOG(info, "send response {}\n{}", parent_, buffer.length(), buffer.toString());
   cm.read_callbacks_->connection().write(buffer, false);
 
   cm.stats_.response_.inc();

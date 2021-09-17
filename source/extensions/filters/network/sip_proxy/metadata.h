@@ -65,8 +65,6 @@ public:
 
   void addEPOperation(size_t rawOffset, absl::string_view& header, std::string ownDomain,
                       std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\n ownDomain: {}\n  domainMatchParamName: {}", header, ownDomain,
-              domainMatchParamName);
     if (header.find(";ep=") != absl::string_view::npos) {
       // already Contact have ep
       return;
@@ -81,7 +79,7 @@ public:
 
     // Compare the domain
     if (domain != ownDomain) {
-      ENVOY_LOG(debug, "header domain:{} is not equal to own_domain:{}", domain, ownDomain);
+      ENVOY_LOG(trace, "header {} domain:{} is not equal to own_domain:{}, don't add EP.", header, domain, ownDomain);
       return;
     }
 
@@ -105,8 +103,11 @@ public:
           Operation(OperationType::Delete, rawOffset + pos,
                     DeleteOperationValue(
                         header.substr(pos, header.find_first_of(";>", pos + 1) - pos).size())));
-      auto xsuri = header.find("sip:pcsf-cfed");
-      setOperation(Operation(OperationType::Delete, rawOffset + xsuri, DeleteOperationValue(4)));
+      // auto xsuri = header.find("sip:pcsf-cfed");
+      auto xsuri = header.find("x-suri=sip:");
+      if (xsuri != absl::string_view::npos) {
+        setOperation(Operation(OperationType::Delete, rawOffset + xsuri + strlen("x-suri="), DeleteOperationValue(4)));
+      }
     }
   }
 
@@ -150,7 +151,7 @@ private:
   std::string raw_msg_{};
 
   absl::string_view getDomain(absl::string_view header, std::string domainMatchParamName) {
-    ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
+    // ENVOY_LOG(error, "header: {}\ndomainMatchParamName: {}", header, domainMatchParamName);
 
     // Get domain
     absl::string_view domain = "";
