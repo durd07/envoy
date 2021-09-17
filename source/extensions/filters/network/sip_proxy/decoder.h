@@ -121,6 +121,7 @@ public:
   virtual std::string getDomainMatchParamName() PURE;
 
   virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
+  virtual void updatePCookieIPMap(std::string &, std::string &) PURE;
 };
 
 /**

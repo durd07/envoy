@@ -97,7 +97,8 @@ FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
 
   if (metadata->pCookieIpMap().has_value()) {
-    callbacks_->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
+    callbacks_->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
+    callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
                                            Tracing::NullSpan::instance(),
                                            callbacks_->streamInfo());
   }
@@ -447,7 +448,7 @@ SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&
 void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
-  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this, this->callbacks_);
+  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
   response_decoder_->onData(upstream_buffer_);
 }
 
@@ -488,8 +489,9 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       // p_cookie_ip_map_ = active_trans->pCookieIPMap();
 
       if (metadata->pCookieIpMap().has_value()) {
-        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
-        active_trans->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
+        ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first, metadata->pCookieIpMap().value().second);
+	active_trans->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
+        active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
                                            Tracing::NullSpan::instance(),
                                            active_trans->streamInfo());
       }
