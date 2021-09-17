@@ -52,13 +52,23 @@ public:
 
   void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
-  void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+  void updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void createXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void updateXafi(const std::pair<std::string &&, std::string &&> && xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void retrieveXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void deleteXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
+
+  void subscribeXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
 
   // Grpc::AsyncRequestCallbacks
   void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}

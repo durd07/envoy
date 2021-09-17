@@ -21,15 +21,16 @@ namespace TrafficRoutingAssistant {
 
 enum class ResponseType {
   CreateLskpmcResp,
-	UpdateLskpmcResp,
-	RetrieveLskpmcResp,
-	DeleteLskpmcResp,
-	SubscribeLskpmcResp,
-	UpdateXafiResp,
-	RetrieveXafiResp,
-	DeleteXafiResp,
-	SubscribeXafiesp,
-	FailureResp,
+  UpdateLskpmcResp,
+  RetrieveLskpmcResp,
+  DeleteLskpmcResp,
+  SubscribeLskpmcResp,
+  CreateXafiResp,
+  UpdateXafiResp,
+  RetrieveXafiResp,
+  DeleteXafiResp,
+  SubscribeXafiResp,
+  FailureResp,
 };
 
 /**
@@ -57,7 +58,7 @@ public:
 
   virtual void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
-  virtual void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
   virtual void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
@@ -67,7 +68,7 @@ public:
 
   virtual void createXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
-  virtual void updateXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateXafi(const std::pair<std::string &&, std::string &&> && xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
   virtual void retrieveXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 

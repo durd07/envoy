@@ -96,6 +96,18 @@ public:
     return p_cookie_ip_map_;
   }
 
+  void updatePCookieIPMap(std::string & key, std::string & val) override {
+	  p_cookie_ip_map_->emplace(std::make_pair(key, val));
+  }
+
+  std::shared_ptr<XafiIPMap> xafiIPMap() override {
+    return xafi_ip_map_;
+  }
+
+  void updateXafiIPMap(std::string & key, std::string & val) override {
+	  xafi_ip_map_->emplace(std::make_pair(key, val));
+  }
+
   TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
 
   // TrafficRoutingAssistant::RequestCallbacks
@@ -141,6 +153,19 @@ private:
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.parent_.pCookieIPMap();
     }
+    void updatePCookieIPMap(std::string & key, std::string & val) override {
+	    UNREFERENCED_PARAMETER(key);
+	    UNREFERENCED_PARAMETER(val);
+    }
+
+    std::shared_ptr<XafiIPMap> xafiIPMap() override {
+      return parent_.parent_.xafiIPMap();
+    }
+    void updateXafiIPMap(std::string & key, std::string & val) override {
+	    UNREFERENCED_PARAMETER(key);
+	    UNREFERENCED_PARAMETER(val);
+    }
+
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;
@@ -176,6 +201,9 @@ private:
     TrafficRoutingAssistant::ClientPtr & traClient() override { return parent_.traClient(); };
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.pCookieIPMap();
+    }
+    std::shared_ptr<XafiIPMap> xafiIPMap() override {
+      return parent_.xafiIPMap();
     }
     void continueHanding() override { return parent_.continueHanding(); }
 
@@ -236,6 +264,9 @@ private:
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.pCookieIPMap();
     }
+    std::shared_ptr<XafiIPMap> xafiIPMap() override {
+      return parent_.xafiIPMap();
+    }
     void continueHanding() override { return parent_.continueHanding(); }
 
     // Sip::FilterChainFactoryCallbacks
@@ -294,6 +325,7 @@ private:
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
   std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
+  std::shared_ptr<XafiIPMap> xafi_ip_map_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 

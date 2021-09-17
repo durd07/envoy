@@ -24,6 +24,11 @@ service TraService {
   rpc RetrieveLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
   rpc DeleteLskpmc(TraServiceRequest) returns (TraServiceResponse) {}
   rpc SubscribeLskpmc(TraServiceRequest) returns (stream TraServiceResponse) {}
+  rpc CreateXafi(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc UpdateXafi(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc RetrieveXafi(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc DeleteXafi(TraServiceRequest) returns (TraServiceResponse) {}
+  rpc SubscribeXafi(TraServiceRequest) returns (stream TraServiceResponse) {}
 }
 
 message TraServiceConfig {
@@ -45,6 +50,11 @@ message TraServiceRequest {
     RetrieveLskpmcRequest retrieve_lskpmc_request = 3;
     DeleteLskpmcRequest delete_lskpmc_request = 4;
     SubscribeLskpmcRequest subscribe_lskpmc_request = 5;
+    CreateXafiRequest create_xafi_request = 6;
+    UpdateXafiRequest update_xafi_request = 7;
+    RetrieveXafiRequest retrieve_xafi_request = 8;
+    DeleteXafiRequest delete_xafi_request = 9;
+    SubscribeXafiRequest subscribe_xafi_request = 10;
   }
 }
 
@@ -57,6 +67,11 @@ message TraServiceResponse {
     RetrieveLskpmcResponse retrieve_lskpmc_response = 5;
     DeleteLskpmcResponse delete_lskpmc_response = 6;
     SubscribeLskpmcResponse subscribe_lskpmc_response = 7;
+    CreateXafiResponse create_xafi_response = 8;
+    UpdateXafiResponse update_xafi_response = 9;
+    RetrieveXafiResponse retrieve_xafi_response = 10;
+    DeleteXafiResponse delete_xafi_response = 11;
+    SubscribeXafiResponse subscribe_xafi_response = 12;
   }
 }
 
@@ -94,4 +109,40 @@ message SubscribeLskpmcRequest {
 
 message SubscribeLskpmcResponse {
   map<string, string> lskpmcs = 1;
+}
+
+message CreateXafiRequest {
+  map<string, string> xafis = 1;
+}
+
+message CreateXafiResponse {
+}
+
+message UpdateXafiRequest {
+  map<string, string> xafis = 1;
+}
+
+message UpdateXafiResponse {
+}
+
+message RetrieveXafiRequest {
+  string xafi = 1;
+}
+
+message RetrieveXafiResponse {
+  map<string, string> xafis = 1;
+}
+
+message DeleteXafiRequest {
+  string xafi = 1;
+}
+
+message DeleteXafiResponse {
+}
+
+message SubscribeXafiRequest {
+}
+
+message SubscribeXafiResponse {
+  map<string, string> xafis = 1;
 }

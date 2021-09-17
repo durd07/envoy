@@ -336,11 +336,9 @@ class ResponseDecoder : public DecoderCallbacks,
                         public DecoderEventHandler,
                         public Logger::Loggable<Logger::Id::sip> {
 public:
-  ResponseDecoder(UpstreamRequest& parent, SipFilters::DecoderFilterCallbacks * callbacks)
-      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {
-	      p_cookie_ip_map_ = callbacks->pCookieIPMap();
-      }
-  ~ResponseDecoder() override {}
+  ResponseDecoder(UpstreamRequest& parent)
+      : parent_(parent), decoder_(std::make_unique<Decoder>(*this)) {}
+  ~ResponseDecoder() override = default;
   bool onData(Buffer::Instance& data);
 
   // DecoderEventHandler
@@ -362,11 +360,20 @@ public:
   std::string getDomainMatchParamName() override;
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
+  void updatePCookieIPMap(std::string & key, std::string & val) override {
+	  p_cookie_ip_map_->emplace(std::make_pair(key, val));
+  }
+
+  std::shared_ptr<XafiIPMap> xafiIPMap() override { return xafi_ip_map_; }
+  void updateXafiIPMap(std::string & key, std::string & val) override {
+	  xafi_ip_map_->emplace(std::make_pair(key, val));
+  }
 
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
   std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
+  std::shared_ptr<XafiIPMap> xafi_ip_map_;
 };
 
 using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;

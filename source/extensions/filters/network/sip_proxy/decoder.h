@@ -16,6 +16,7 @@ namespace NetworkFilters {
 namespace SipProxy {
 
 using PCookieIPMap = std::map<std::string, std::string>;
+using XafiIPMap = std::map<std::string, std::string>;
 
 #define ALL_PROTOCOL_STATES(FUNCTION)                                                              \
   FUNCTION(StopIteration)                                                                          \
@@ -121,6 +122,9 @@ public:
   virtual std::string getDomainMatchParamName() PURE;
 
   virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
+  virtual void updatePCookieIPMap(std::string &, std::string &) PURE;
+  virtual std::shared_ptr<XafiIPMap> xafiIPMap() PURE;
+  virtual void updateXafiIPMap(std::string &, std::string &) PURE;
 };
 
 /**
@@ -145,6 +149,7 @@ public:
   std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
 
   std::shared_ptr<PCookieIPMap> pCookieIPMap() { return callbacks_.pCookieIPMap(); }
+  std::shared_ptr<XafiIPMap> xafiIPMap() { return callbacks_.xafiIPMap(); }
 
   MessageMetadataSharedPtr metadata() { return metadata_; }
 

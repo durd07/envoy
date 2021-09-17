@@ -24,6 +24,7 @@ namespace SipProxy {
 namespace SipFilters {
 
 using PCookieIPMap = std::map<std::string, std::string>;
+using XafiIPMap = std::map<std::string, std::string>;
 
 enum class ResponseStatus {
   MoreData = 0, // The upstream response requires more data.
@@ -94,6 +95,7 @@ public:
   virtual std::shared_ptr<SipProxy::SipSettings> settings() PURE;
   virtual TrafficRoutingAssistant::ClientPtr & traClient() PURE;
   virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
+  virtual std::shared_ptr<XafiIPMap> xafiIPMap() PURE;
   virtual void onReset() PURE;
   virtual void continueHanding() PURE;
 };

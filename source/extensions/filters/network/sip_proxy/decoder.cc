@@ -380,11 +380,7 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
       header.substr(header.find(": ") + strlen(": "), loc - header.find(": ") - strlen(": "));
   auto ip = header.substr(loc + 1, header.length() - loc - 1);
 
-  if ((*parent_.parent_.pCookieIPMap())[std::string(lskpmc)] != std::string(ip)) {
-    parent_.parent_.pCookieIPMap()->emplace(std::make_pair(lskpmc, ip));
-    metadata()->setPCookieIpMap(header.substr(header.find(": ") + strlen(": ")));
-  }
-
+  metadata()->setPCookieIpMap(std::make_pair(std::string(lskpmc), std::string(ip)));
   metadata()->setOperation(Operation(OperationType::Delete, rawOffset(),
                                        DeleteOperationValue(header.length() + strlen("\r\n"))));
   return 0;
