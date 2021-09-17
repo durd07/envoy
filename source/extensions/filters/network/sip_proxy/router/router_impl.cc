@@ -111,7 +111,20 @@ FilterStatus Router::handleAffinity() {
   }
 
   if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
-    if (metadata->lskpmc().has_value()) {
+    if (metadata->xafi().has_value()) {
+      if (callbacks_->xafiIPMap()->find(std::string(metadata->xafi().value())) !=
+          callbacks_->xafiIPMap()->end()) {
+        auto & host = (*callbacks_->xafiIPMap())[std::string(metadata->xafi().value())];
+        metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", metadata->xafi().value(), host);
+      } else {
+        callbacks_->traClient()->retrieveXafi(std::string(metadata->xafi().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        return FilterStatus::StopIteration;
+      }
+
+    } else if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
         auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
@@ -130,7 +143,20 @@ FilterStatus Router::handleAffinity() {
       ENVOY_LOG(trace, "Set destination from EP {}", host);
     }
   } else if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
-    if (metadata->lskpmc().has_value()) {
+    if (metadata->xafi().has_value()) {
+      if (callbacks_->xafiIPMap()->find(std::string(metadata->xafi().value())) !=
+          callbacks_->xafiIPMap()->end()) {
+        auto & host = (*callbacks_->xafiIPMap())[std::string(metadata->xafi().value())];
+        metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", metadata->xafi().value(), host);
+      } else {
+        callbacks_->traClient()->retrieveXafi(std::string(metadata->xafi().value()),
+                                                 Tracing::NullSpan::instance(),
+                                                 callbacks_->streamInfo());
+        return FilterStatus::StopIteration;
+      }
+
+    } else if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
         auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];

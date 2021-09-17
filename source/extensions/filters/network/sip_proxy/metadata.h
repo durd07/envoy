@@ -38,6 +38,8 @@ public:
   absl::optional<absl::string_view> routeOpaque() { return route_opaque_; }
   absl::optional<absl::string_view> lskpmc() { return lskpmc_; }
   absl::optional<absl::string_view> pCookieIpMap() { return p_cookie_ip_map_; }
+  absl::optional<absl::string_view> xafi() { return xafi_; }
+  absl::optional<absl::string_view> xafiIpMap() { return xafi_ip_map_; }
 
   absl::optional<absl::string_view> requestURI() { return request_uri_; }
   absl::optional<absl::string_view> topRoute() { return top_route_; }
@@ -141,6 +143,8 @@ private:
   absl::optional<absl::string_view> route_opaque_{};
   absl::optional<absl::string_view> lskpmc_{};
   absl::optional<absl::string_view> p_cookie_ip_map_{};
+  absl::optional<absl::string_view> xafi_{};
+  absl::optional<absl::string_view> xafi_ip_map_{};
 
   absl::optional<absl::string_view> request_uri_{};
   absl::optional<absl::string_view> top_route_{};

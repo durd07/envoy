@@ -25,6 +25,10 @@ enum class ResponseType {
 	RetrieveLskpmcResp,
 	DeleteLskpmcResp,
 	SubscribeLskpmcResp,
+	UpdateXafiResp,
+	RetrieveXafiResp,
+	DeleteXafiResp,
+	SubscribeXafiesp,
 	FailureResp,
 };
 
@@ -60,6 +64,16 @@ public:
   virtual void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
   virtual void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void createXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void updateXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void retrieveXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void deleteXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+
+  virtual void subscribeXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using ClientPtr = std::unique_ptr<Client>;

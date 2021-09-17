@@ -118,6 +118,7 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
   auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
   tra_client_->setRequestCallbacks(*this);
   tra_client_->subscribeLskpmc("", Tracing::NullSpan::instance(), stream_info);
+  tra_client_->subscribeXafi("", Tracing::NullSpan::instance(), stream_info);
 
 }
 
@@ -176,6 +177,39 @@ void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, abs
       for (auto& item : lskpmcs) {
         ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
         p_cookie_ip_map_->emplace(item);
+      }
+    }
+    case TrafficRoutingAssistant::ResponseType::CreateXafiResp: {
+      ENVOY_LOG(trace, "=== CreateXafiResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::UpdateXafiResp: {
+      ENVOY_LOG(trace, "=== UpdateXafiResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::RetrieveXafiResp: {
+      auto xafis = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveXafiResponse>(resp).xafis();
+      for (auto & item : xafis ) {
+        if (!item.second.empty()) {
+          decoder_->metadata()->setDestination(item.second);
+          xafi_ip_map_->emplace(item);
+	}
+        ENVOY_LOG(trace, "=== RetrieveXafiResp {}={}", item.first, item.second);
+      }
+
+      this->continueHanding();
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::DeleteXafiResp: {
+      ENVOY_LOG(trace, "=== DeleteXafiResp");
+      break;
+    }
+    case TrafficRoutingAssistant::ResponseType::SubscribeXafiResp: {
+      ENVOY_LOG(trace, "=== SubscribeXafiResp");
+      auto xafis = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeXafiResponse>(resp).xafis();
+      for (auto& item : xafis) {
+        ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
+        xafi_ip_map_->emplace(item);
       }
     }
     default:
