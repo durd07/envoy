@@ -57,7 +57,7 @@ public:
 
   virtual void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
-  virtual void updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 
   virtual void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
 

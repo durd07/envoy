@@ -96,6 +96,10 @@ public:
     return p_cookie_ip_map_;
   }
 
+  void updatePCookieIPMap(std::string & key, std::string & val) override {
+	  p_cookie_ip_map_->emplace(std::make_pair(key, val));
+  }
+
   TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
 
   // TrafficRoutingAssistant::RequestCallbacks
@@ -141,6 +145,11 @@ private:
     std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
       return parent_.parent_.pCookieIPMap();
     }
+    void updatePCookieIPMap(std::string & key, std::string & val) override {
+	    UNREFERENCED_PARAMETER(key);
+	    UNREFERENCED_PARAMETER(val);
+    }
+
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;

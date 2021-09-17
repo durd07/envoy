@@ -97,9 +97,13 @@ FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
 
   if (metadata->pCookieIpMap().has_value()) {
-    callbacks_->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
-                                           Tracing::NullSpan::instance(),
-                                           callbacks_->streamInfo());
+    auto [key, val] = metadata->pCookieIpMap().value();
+    if ((*callbacks_->pCookieIPMap())[key] != val) {
+      callbacks_->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
+      callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
+                                            Tracing::NullSpan::instance(),
+                                            callbacks_->streamInfo());
+    }
   }
 
   const std::shared_ptr<const ProtocolOptionsConfig> options =
@@ -127,13 +131,14 @@ FilterStatus Router::handleAffinity() {
     } else if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto& host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
         metadata->setDestination(host);
-	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
+        ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(),
+                  host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
+                                                Tracing::NullSpan::instance(),
+                                                callbacks_->streamInfo());
         return FilterStatus::StopIteration;
       }
 
@@ -159,13 +164,14 @@ FilterStatus Router::handleAffinity() {
     } else if (metadata->lskpmc().has_value()) {
       if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
           callbacks_->pCookieIPMap()->end()) {
-        auto & host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
+        auto& host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
         metadata->setDestination(host);
-	ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(), host);
+        ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(),
+                  host);
       } else {
         callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
+                                                Tracing::NullSpan::instance(),
+                                                callbacks_->streamInfo());
         return FilterStatus::StopIteration;
       }
 
@@ -251,12 +257,14 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return FilterStatus::StopIteration;
     }
 
-    if (auto upstream_request = transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
+    if (auto upstream_request =
+            transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
         upstream_request != nullptr) {
       // There is action connection, reuse it.
       upstream_request_ = upstream_request;
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_, host->address()->ip()->addressAsString());
+      ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_,
+                       host->address()->ip()->addressAsString());
       try {
         transaction_info->getTransaction(std::string(metadata->transactionId().value()));
       } catch (std::out_of_range const&) {
@@ -298,7 +306,8 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
       return upstream_request_->start();
     } else {
-      ENVOY_STREAM_LOG(trace, "get upstream request for {} failed, select with load balancer", *callbacks_, host);
+      ENVOY_STREAM_LOG(trace, "get upstream request for {} failed, select with load balancer",
+                       *callbacks_, host);
       return message_handler_with_loadbalancer();
     }
   } else {
@@ -473,7 +482,7 @@ SipFilters::DecoderFilterCallbacks* UpstreamRequest::getTransaction(std::string&
 void UpstreamRequest::onUpstreamData(Buffer::Instance& data, bool end_stream) {
   UNREFERENCED_PARAMETER(end_stream);
   upstream_buffer_.move(data);
-  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this, this->callbacks_);
+  auto response_decoder_ = std::make_unique<ResponseDecoder>(*this);
   response_decoder_->onData(upstream_buffer_);
 }
 
@@ -514,10 +523,15 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
       // p_cookie_ip_map_ = active_trans->pCookieIPMap();
 
       if (metadata->pCookieIpMap().has_value()) {
-        ENVOY_LOG(trace, "update p-cookie-ip-map {}", metadata->pCookieIpMap().value());
-        active_trans->traClient()->updateLskpmc(std::string(metadata->pCookieIpMap().value()),
-                                           Tracing::NullSpan::instance(),
-                                           active_trans->streamInfo());
+        ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
+                  metadata->pCookieIpMap().value().second);
+        auto [key, val] = metadata->pCookieIpMap().value();
+        if ((*active_trans->pCookieIPMap())[key] != val) {
+          active_trans->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
+          active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
+                                                  Tracing::NullSpan::instance(),
+                                                  active_trans->streamInfo());
+        }
       }
 
       active_trans->startUpstreamResponse();
@@ -536,9 +550,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
-std::string ResponseDecoder::getOwnDomain() {
-  return parent_.transactionInfo()->getOwnDomain();
-}
+std::string ResponseDecoder::getOwnDomain() { return parent_.transactionInfo()->getOwnDomain(); }
 
 std::string ResponseDecoder::getDomainMatchParamName() {
   return parent_.transactionInfo()->getDomainMatchParamName();

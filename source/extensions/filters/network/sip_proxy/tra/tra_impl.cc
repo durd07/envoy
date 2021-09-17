@@ -66,13 +66,13 @@ void GrpcClientImpl::createLskpmc(const std::string lskpmc, Tracing::Span& paren
                           transport_api_version_);
 }
 
-void GrpcClientImpl::updateLskpmc(const std::string lskpmc, Tracing::Span& parent_span,
+void GrpcClientImpl::updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span,
                                   const StreamInfo::StreamInfo& stream_info) {
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
   //request.mutable_update_lskpmc_request()->mutable_lskpmcs()->insert(lskpmc.substr(0, lskpmc.find('=')),  lskpmc.substr(lskpmc.find('=') + 1));
-  auto key = lskpmc.substr(0, lskpmc.find('='));
-  auto val = lskpmc.substr(lskpmc.find('=') + 1);
+  auto key = lskpmc.first;
+  auto val = lskpmc.second;
   (*request.mutable_create_lskpmc_request()->mutable_lskpmcs())[key] = val;
 
   const auto& service_method =
