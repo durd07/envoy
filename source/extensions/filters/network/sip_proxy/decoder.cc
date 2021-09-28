@@ -523,9 +523,9 @@ void Decoder::GeneralHandler::parseHeader(HeaderType& type, absl::string_view& h
     break;
   case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+    break;
   case HeaderType::PCookieIPMap:
     handler_->processPCookieIPMap(header);
-    break;
     break;
   default:
     break;
