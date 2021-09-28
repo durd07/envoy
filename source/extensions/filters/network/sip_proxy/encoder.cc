@@ -1,6 +1,6 @@
 #include "extensions/filters/network/sip_proxy/encoder.h"
 
-#include "algorithm"
+#include <algorithm>
 
 namespace Envoy {
 namespace Extensions {
