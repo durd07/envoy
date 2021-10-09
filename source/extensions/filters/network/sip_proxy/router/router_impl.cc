@@ -195,11 +195,12 @@ FilterStatus Router::handleAffinity() {
 }
 
 FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
+  metadata_ = metadata;
+
   if (upstream_request_ != nullptr) {
     return FilterStatus::Continue;
   }
 
-  metadata_ = metadata;
   route_ = callbacks_->route();
   if (!route_) {
     ENVOY_STREAM_LOG(debug, "no route match domain {}", *callbacks_, metadata->domain().value());
@@ -247,6 +248,9 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
 FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
 FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
+  if (upstream_request_ != nullptr) {
+    return FilterStatus::Continue;
+  }
 
   auto& transaction_info = (*transaction_infos_)[cluster_->name()];
 

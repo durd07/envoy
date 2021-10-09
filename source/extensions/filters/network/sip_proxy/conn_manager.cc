@@ -132,12 +132,12 @@ void ConnectionManager::onEvent(Network::ConnectionEvent event) {
 DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSharedPtr metadata) {
   ENVOY_LOG(trace, "new decoder filter");
   std::string&& k = std::string(metadata->transactionId().value());
-  if (metadata->methodType() == MethodType::Ack) {
-    if (transactions_.find(k) != transactions_.end()) {
-      // ACK_4XX metadata will updated later.
-      return *transactions_.at(k);
+  // if (metadata->methodType() == MethodType::Ack) {
+  if (transactions_.find(k) != transactions_.end()) {
+    // ACK_4XX metadata will updated later.
+    return *transactions_.at(k);
     }
-  }
+  // }
 
   ActiveTransPtr new_trans = std::make_unique<ActiveTrans>(*this, metadata);
   new_trans->createFilterChain();

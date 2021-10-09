@@ -180,13 +180,13 @@ struct ThreadLocalTransactionInfo : public ThreadLocal::ThreadLocalObject,
       }
 
       ++it;
-      /* In single thread, this condition should be cover in line 160
-       * And Envoy should be single thread
-      if (it->second->deleted()) {
-        transaction_info_map_.erase(it++);
-      } else {
-        ++it;
-      }*/
+      // In single thread, this condition should be cover in line 160
+      // And Envoy should be single thread
+      // if (it->second->deleted()) {
+      //   transaction_info_map_.erase(it++);
+      // } else {
+      //   ++it;
+      // }
     }
     audit_timer_->enableTimer(std::chrono::seconds(2));
   }
