@@ -134,7 +134,7 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
   std::string&& k = std::string(metadata->transactionId().value());
   if (metadata->methodType() == MethodType::Ack) {
     if (transactions_.find(k) != transactions_.end()) {
-      // ACK_4XX
+      // ACK_4XX metadata will updated later.
       return *transactions_.at(k);
     }
   }
@@ -303,6 +303,7 @@ FilterStatus ConnectionManager::ActiveTrans::applyDecoderFilters(ActiveTransDeco
 }
 
 FilterStatus ConnectionManager::ActiveTrans::transportBegin(MessageMetadataSharedPtr metadata) {
+  metadata_ = metadata;
   filter_context_ = metadata;
   filter_action_ = [this](DecoderEventHandler* filter) -> FilterStatus {
     MessageMetadataSharedPtr metadata = absl::any_cast<MessageMetadataSharedPtr>(filter_context_);
@@ -334,7 +335,6 @@ FilterStatus ConnectionManager::ActiveTrans::transportEnd() {
 void ConnectionManager::ActiveTrans::finalizeRequest() {}
 
 FilterStatus ConnectionManager::ActiveTrans::messageBegin(MessageMetadataSharedPtr metadata) {
-  metadata_ = metadata;
   filter_context_ = metadata;
   filter_action_ = [this](DecoderEventHandler* filter) -> FilterStatus {
     MessageMetadataSharedPtr metadata = absl::any_cast<MessageMetadataSharedPtr>(filter_context_);
