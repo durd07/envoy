@@ -124,73 +124,24 @@ FilterStatus Router::handleAffinity() {
     return FilterStatus::Continue;
   }
 
-  if (metadata->methodType() != MethodType::Register && options->sessionAffinity()) {
-    if (metadata->xafi().has_value()) {
-      if (callbacks_->xafiIPMap()->find(std::string(metadata->xafi().value())) !=
-          callbacks_->xafiIPMap()->end()) {
-        auto & host = (*callbacks_->xafiIPMap())[std::string(metadata->xafi().value())];
-        metadata->setDestination(host);
-	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", metadata->xafi().value(), host);
-      } else {
-        callbacks_->traClient()->retrieveXafi(std::string(metadata->xafi().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
-        return FilterStatus::StopIteration;
+  if ((options->registrationAffinity() || options->sessionAffinity()) && metadata->destinationMap().empty()) {
+    std::cout << "DDD DestinationMap: \n";
+    for (const auto& aff: options->CustomerizeAffinityList()) {
+      for (auto [param, value] : metadata->paramMap()) {
+        if (param == aff.name()) {
+          std::cout << param << " = " << value << std::endl;
+	  metadata->addDestination(param, value);
+	}
       }
-
-    } else if (metadata->lskpmc().has_value()) {
-      if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
-          callbacks_->pCookieIPMap()->end()) {
-        auto& host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
-        metadata->setDestination(host);
-        ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(),
-                  host);
-      } else {
-        callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
-                                                Tracing::NullSpan::instance(),
-                                                callbacks_->streamInfo());
-        return FilterStatus::StopIteration;
-      }
-
-    } else if (metadata->routeEP().has_value()) {
-      auto host = metadata->routeEP().value();
-      metadata->setDestination(host);
-      ENVOY_LOG(trace, "Set destination from EP {}", host);
     }
-  } else if (metadata->methodType() == MethodType::Register && options->registrationAffinity()) {
-    if (metadata->xafi().has_value()) {
-      if (callbacks_->xafiIPMap()->find(std::string(metadata->xafi().value())) !=
-          callbacks_->xafiIPMap()->end()) {
-        auto & host = (*callbacks_->xafiIPMap())[std::string(metadata->xafi().value())];
-        metadata->setDestination(host);
-	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", metadata->xafi().value(), host);
-      } else {
-        callbacks_->traClient()->retrieveXafi(std::string(metadata->xafi().value()),
-                                                 Tracing::NullSpan::instance(),
-                                                 callbacks_->streamInfo());
-        return FilterStatus::StopIteration;
-      }
-
-    } else if (metadata->lskpmc().has_value()) {
-      if (callbacks_->pCookieIPMap()->find(std::string(metadata->lskpmc().value())) !=
-          callbacks_->pCookieIPMap()->end()) {
-        auto& host = (*callbacks_->pCookieIPMap())[std::string(metadata->lskpmc().value())];
-        metadata->setDestination(host);
-        ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", metadata->lskpmc().value(),
-                  host);
-      } else {
-        callbacks_->traClient()->retrieveLskpmc(std::string(metadata->lskpmc().value()),
-                                                Tracing::NullSpan::instance(),
-                                                callbacks_->streamInfo());
-        return FilterStatus::StopIteration;
-      }
-
-    } else if (metadata->routeOpaque().has_value()) {
-      auto host = metadata->routeOpaque().value();
-      metadata->setDestination(host);
-      ENVOY_LOG(trace, "Set destination from OPAQUE {}", host);
-    }
+    metadata->destIter = metadata->destinationMap().begin();
   }
+
+  // No destinationMap selected
+  if (metadata->destinationMap().empty()) {
+    return FilterStatus::StopIteration;
+  }
+
   return FilterStatus::Continue;
 }
 
@@ -247,14 +198,8 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
 
 FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
-FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
-  if (upstream_request_ != nullptr) {
-    return FilterStatus::Continue;
-  }
-
-  auto& transaction_info = (*transaction_infos_)[cluster_->name()];
-
-  auto message_handler_with_loadbalancer = [&]() {
+FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
+		MessageMetadataSharedPtr metadata) {
     Tcp::ConnectionPool::Instance* conn_pool =
         thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
@@ -301,10 +246,24 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       }
     }
     return upstream_request_->start();
-  };
+  }
 
-  if (metadata->destination().has_value()) {
-    auto host = metadata->destination().value();
+FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
+  if (upstream_request_ != nullptr) {
+    return FilterStatus::Continue;
+  }
+
+  auto& transaction_info = (*transaction_infos_)[cluster_->name()];
+
+  while (metadata->destIter != metadata->destinationMap().end()) {
+    std::string host;
+    if (FilterStatus::Continue == (handle_param_map_[metadata->destIter->second](metadata->destIter->first, metadata))) {
+      host = metadata->destination().value();
+      metadata->destIter ++;
+    } else {
+      return FilterStatus::StopIteration;
+    }
+
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
         upstream_request != nullptr) {
       // There is action connection, reuse it.
@@ -319,17 +278,14 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
                                             callbacks_, upstream_request_);
       }
       return upstream_request_->start();
-    } else {
-      ENVOY_STREAM_LOG(trace, "get upstream request for {} failed, select with load balancer",
-                       *callbacks_, host);
-      return message_handler_with_loadbalancer();
     }
-  } else {
     ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
-    return message_handler_with_loadbalancer();
-  }
 
-  return FilterStatus::Continue;
+    if (FilterStatus::Continue == messageHandlerWithLoadbalancer(transaction_info, metadata)) {
+      return FilterStatus::Continue;
+    }
+  }
+  return FilterStatus::StopIteration;
 }
 
 FilterStatus Router::messageEnd() {

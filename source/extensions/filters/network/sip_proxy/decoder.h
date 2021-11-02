@@ -195,6 +195,7 @@ private:
   MethodType sipMethod(absl::string_view top_line);
 
   static absl::string_view domain(absl::string_view sip_header, HeaderType header_type);
+  static void getParamFromHeader(absl::string_view header, MessageMetadataSharedPtr metadata);
 
   int parseTopLine(absl::string_view& top_line);
 

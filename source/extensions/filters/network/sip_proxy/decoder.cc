@@ -280,38 +280,9 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   if (!isFirstRoute()) {
     return 0;
   }
-  setFirstRoute(false);
+  setFirstRoute(false); 
 
-  if (auto loc = header.find(";ep="); loc != absl::string_view::npos) {
-    // No "" of ep string
-    auto start = loc + strlen(";ep=");
-    if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
-      /* Base64
-      auto str = std::string(header.substr(start, end - start));
-      auto pos = str.find("%3D");
-      while (pos != absl::string_view::npos) {
-        str.replace(pos, strlen("%3D"), "=");
-        pos = str.find("%3D");
-      }
-      metadata()->setRouteEP(Base64::decode(str)); */
-      metadata()->setRouteEP(header.substr(start, end - start));
-    }
-  }
-
-  if (auto loc = header.find(";lskpmc="); loc != absl::string_view::npos) {
-    auto start = loc + strlen(";lskpmc=");
-    if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
-      metadata()->setLskpmc(header.substr(start, end - start));
-    }
-  }
-
-  if (auto loc = header.find(";x-afi="); loc != absl::string_view::npos) {
-    auto start = loc + strlen(";x-afi=");
-    if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
-      // FIXME disable x-afi handler now
-      // metadata()->setXafi(header.substr(start, end - start));
-    }
-  }
+  Decoder::getParamFromHeader(header, metadata());
 
   metadata()->setTopRoute(header);
   // metadata()->setDomain(Decoder::domain(header, HeaderType::Route));
@@ -355,7 +326,7 @@ int Decoder::HeaderHandler::processAuth(absl::string_view& header) {
   if (end == absl::string_view::npos) {
     return 0;
   }
-  metadata()->setRouteOpaque(header.substr(start, end - start));
+  metadata()->addParam("ep", header.substr(start, end - start).data());
   /*Base64
       auto end = header.find("\"", start);
       if (end == absl::string_view::npos) {
@@ -692,23 +663,8 @@ int Decoder::parseTopLine(absl::string_view& top_line) {
     metadata->setRequestURI(top_line);
   }
 
-  if (auto loc = top_line.find(";ep="); loc != absl::string_view::npos) {
-    // Need to exclude the "" of ep string
-    auto start = loc + strlen(";ep=");
+  Decoder::getParamFromHeader(top_line, metadata);
 
-    if (auto end = top_line.find_first_of("; ", start); end != absl::string_view::npos) {
-      // Base64
-      // auto str = std::string(top_line.substr(start, end - start));
-      // auto pos = str.find("%3D");
-      // while (pos != absl::string_view::npos) {
-      //   str.replace(pos, strlen("%3D"), "=");
-      //   pos = str.find("%3D");
-      // }
-      // metadata->setRouteEP(Base64::decode(str));
-
-      metadata->setRouteEP(top_line.substr(start, end - start));
-    }
-  }
   return 0;
 }
 
@@ -729,6 +685,43 @@ absl::string_view Decoder::domain(absl::string_view sip_header, HeaderType heade
 
   re2::RE2::FullMatch(static_cast<std::string>(sip_header), pattern, &domain);
   return sip_header.substr(sip_header.find(domain), domain.length());
+}
+
+void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataSharedPtr metadata) {
+  std::size_t pos = 0;
+  std::string pattern = "(.*)=(.*?)>*";
+
+  std::cout << "DDD header: " << header << std::endl;
+
+  while ( std::size_t found = header.find_first_of(";", pos)) {
+    std::string str;
+    if (found == std::string_view::npos)
+    {
+      str = static_cast<std::string>(header).substr(pos);
+    } else {
+      str = static_cast<std::string>(header).substr(pos, found - pos);
+    }
+
+    std::string param = "";
+    std::string value = "";
+    re2::RE2::FullMatch(static_cast<std::string>(str), pattern, &param, &value);
+
+    std::cout << "DDD Parameter in TopRoute/TopLine:\n";
+    if (param.size() > 0 && value.size() > 0 ) {
+      std::cout << param << " = " << value << std::endl;
+      if( param == "opaque" )
+      {
+        metadata->addParam("ep", value);
+      } else {
+        metadata->addParam(param, value);
+      }
+    }
+    if( found == std::string_view::npos)
+    {
+      break;
+    }
+    pos = found + 1;
+  }
 }
 
 } // namespace SipProxy

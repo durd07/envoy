@@ -31,10 +31,21 @@ addUniqueClusters(absl::flat_hash_set<std::string>& clusters,
 ProtocolOptionsConfigImpl::ProtocolOptionsConfigImpl(
     const envoy::extensions::filters::network::sip_proxy::v3::SipProtocolOptions& config)
     : session_affinity_(config.session_affinity()),
-      registration_affinity_(config.registration_affinity()) {}
+      registration_affinity_(config.registration_affinity()) {
+
+  for(const auto& affinity: config.customized_affinity()) {
+    CustomerizeAffinity aff(affinity.key_name(), affinity.query(), affinity.subscribe());
+    customerized_affinity_list_.emplace_back(aff);
+  }
+  std::cout << "DDD Customerized Affinity:\n";
+  for(auto& aff: customerized_affinity_list_) {
+    std::cout << aff.name() << " " << aff.query() << " " << aff.subscribe() << std::endl;
+  }
+}
 
 bool ProtocolOptionsConfigImpl::sessionAffinity() const { return session_affinity_; }
 bool ProtocolOptionsConfigImpl::registrationAffinity() const { return registration_affinity_; }
+const std::vector<CustomerizeAffinity>& ProtocolOptionsConfigImpl::CustomerizeAffinityList() const { return customerized_affinity_list_; }
 
 Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromProtoTyped(
     const envoy::extensions::filters::network::sip_proxy::v3::SipProxy& proto_config,

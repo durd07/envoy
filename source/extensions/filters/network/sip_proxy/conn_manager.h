@@ -42,6 +42,25 @@ public:
 };
 
 /**
+ * Customerized Affinity
+ */
+class CustomerizeAffinity {
+public:
+  CustomerizeAffinity(std::string name, bool query, bool subscribe) {
+    name_ = name;
+    query_ = query;
+    subscribe_ = subscribe;
+  };
+  std::string name() const { return name_; }
+  bool query() const { return query_; }
+  bool subscribe() const { return subscribe_; }
+private:
+  std::string name_;
+  bool query_;
+  bool subscribe_;
+};
+
+/**
  * Extends Upstream::ProtocolOptionsConfig with Sip-specific cluster options.
  */
 class ProtocolOptionsConfig : public Upstream::ProtocolOptionsConfig {
@@ -50,6 +69,7 @@ public:
 
   virtual bool sessionAffinity() const PURE;
   virtual bool registrationAffinity() const PURE;
+  virtual const std::vector<CustomerizeAffinity>& CustomerizeAffinityList() const PURE;
 };
 
 /**

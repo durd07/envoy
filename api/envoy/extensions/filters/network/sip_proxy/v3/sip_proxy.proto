@@ -90,4 +90,15 @@ message SipProtocolOptions {
   bool session_affinity = 1;
 
   bool registration_affinity = 2;
+
+  repeated CustomizedAffinity customized_affinity = 3;
+}
+
+// For affinity
+message CustomizedAffinity {
+  string key_name = 1;
+
+  bool query = 2;
+
+  bool subscribe = 3;
 }

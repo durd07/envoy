@@ -29,6 +29,7 @@
 
 #include "absl/types/optional.h"
 #include "absl/types/any.h"
+#include "common/tracing/http_tracer_impl.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -277,6 +278,10 @@ public:
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
         context_(context) {
+    handle_param_map_["lkspmc"] = std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["x-suri"] = std::bind(&Router::handleXsuri, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["xafi"] = std::bind(&Router::handleXafi, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["ep"] = std::bind(&Router::handleEp, this, std::placeholders::_1, std::placeholders::_2);
   }
 
   // SipFilters::DecoderFilter
@@ -312,7 +317,50 @@ private:
                                             POOL_GAUGE_PREFIX(scope, prefix),
                                             POOL_HISTOGRAM_PREFIX(scope, prefix))};
   }
+
   FilterStatus handleAffinity();
+  FilterStatus messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
+		  MessageMetadataSharedPtr metadata);
+
+  FilterStatus handleEp(std::string ep, MessageMetadataSharedPtr metadata) {
+    metadata->setDestination(metadata->destinationMap()[ep]);
+    ENVOY_LOG(trace, "Set destination from EP {}", ep);
+    return FilterStatus::Continue;
+  }
+
+  FilterStatus handleXsuri(std::string xsuri, MessageMetadataSharedPtr metadata) {
+    UNREFERENCED_PARAMETER(xsuri); 
+    UNREFERENCED_PARAMETER(metadata); 
+    return FilterStatus::Continue;
+  }
+
+  FilterStatus handleLskpmc(std::string lskpmc, MessageMetadataSharedPtr metadata) {
+    if (callbacks_->pCookieIPMap()->find(lskpmc) != callbacks_->pCookieIPMap()->end()) {
+      auto& host = (*callbacks_->pCookieIPMap())[lskpmc];
+      metadata->setDestination(host);
+      ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", lskpmc, host);
+      return FilterStatus::Continue;
+    } 
+    //else
+    callbacks_->traClient()->retrieveLskpmc(lskpmc,
+                                            Tracing::NullSpan::instance(),
+                                            callbacks_->streamInfo());
+    return FilterStatus::StopIteration;
+  }
+
+  FilterStatus handleXafi(std::string xafi, MessageMetadataSharedPtr metadata) {
+    if (callbacks_->xafiIPMap()->find(xafi) != callbacks_->xafiIPMap()->end()) {
+        auto & host = (*callbacks_->xafiIPMap())[xafi];
+	metadata->setDestination(host);
+	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", xafi, host);
+      return FilterStatus::Continue;
+    }
+    //else
+    callbacks_->traClient()->retrieveXafi(xafi,
+                                          Tracing::NullSpan::instance(),
+                                          callbacks_->streamInfo());
+    return FilterStatus::StopIteration;
+  }
 
   Upstream::ClusterManager& cluster_manager_;
   RouterStats stats_;
@@ -329,6 +377,8 @@ private:
   std::shared_ptr<SipSettings> settings_;
   Server::Configuration::FactoryContext& context_;
   bool continue_handling_;
+
+  std::map<std::string, std::function<FilterStatus(std::string, MessageMetadataSharedPtr)>> handle_param_map_;
 };
 
 class ThreadLocalActiveConn;
