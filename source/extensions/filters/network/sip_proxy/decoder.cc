@@ -309,7 +309,7 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
     auto start = loc + strlen(";x-afi=");
     if (auto end = header.find_first_of(";>", start); end != absl::string_view::npos) {
       // FIXME disable x-afi handler now
-      // metadata()->setXafi(header.substr(start, end - start));
+      metadata()->setXafi(header.substr(start, end - start));
     }
   }
 
