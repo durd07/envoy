@@ -27,12 +27,12 @@ public:
 
   bool sessionAffinity() const override;
   bool registrationAffinity() const override;
-  const std::vector<CustomerizeAffinity>& CustomerizeAffinityList() const override;
+  const std::vector<CustomizedAffinity>& CustomizedAffinityList() const override;
 
 private:
   bool session_affinity_;
   bool registration_affinity_;
-  std::vector<CustomerizeAffinity> customerized_affinity_list_;
+  std::vector<CustomizedAffinity> customized_affinity_list_;
 };
 
 /**

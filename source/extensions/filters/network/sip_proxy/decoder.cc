@@ -693,6 +693,7 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
 
   std::cout << "DDD header: " << header << std::endl;
 
+  std::cout << "DDD Parameter in TopRoute/TopLine:\n";
   while ( std::size_t found = header.find_first_of(";", pos)) {
     std::string str;
     if (found == std::string_view::npos)
@@ -706,7 +707,6 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
     std::string value = "";
     re2::RE2::FullMatch(static_cast<std::string>(str), pattern, &param, &value);
 
-    std::cout << "DDD Parameter in TopRoute/TopLine:\n";
     if (param.size() > 0 && value.size() > 0 ) {
       std::cout << param << " = " << value << std::endl;
       if( param == "opaque" )

@@ -42,11 +42,11 @@ public:
 };
 
 /**
- * Customerized Affinity
+ * Customized Affinity
  */
-class CustomerizeAffinity {
+class CustomizedAffinity {
 public:
-  CustomerizeAffinity(std::string name, bool query, bool subscribe) {
+  CustomizedAffinity(std::string name, bool query, bool subscribe) {
     name_ = name;
     query_ = query;
     subscribe_ = subscribe;
@@ -69,7 +69,7 @@ public:
 
   virtual bool sessionAffinity() const PURE;
   virtual bool registrationAffinity() const PURE;
-  virtual const std::vector<CustomerizeAffinity>& CustomerizeAffinityList() const PURE;
+  virtual const std::vector<CustomizedAffinity>& CustomizedAffinityList() const PURE;
 };
 
 /**

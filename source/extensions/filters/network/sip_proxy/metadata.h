@@ -153,7 +153,7 @@ private:
   absl::optional<absl::string_view> destination_{};
   // Params get from Top Route header
   std::map<std::string, std::string> param_map_{};
-  // Destination get from param_map_ ordered by CustomerizedAffinity, not queried
+  // Destination get from param_map_ ordered by CustomizedAffinity, not queried
   std::map<std::string, std::string> destination_map_{};
 
   std::string raw_msg_{};

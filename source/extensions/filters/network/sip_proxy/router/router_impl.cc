@@ -126,7 +126,7 @@ FilterStatus Router::handleAffinity() {
 
   if ((options->registrationAffinity() || options->sessionAffinity()) && metadata->destinationMap().empty()) {
     std::cout << "DDD DestinationMap: \n";
-    for (const auto& aff: options->CustomerizeAffinityList()) {
+    for (const auto& aff: options->CustomizedAffinityList()) {
       for (auto [param, value] : metadata->paramMap()) {
         if (param == aff.name()) {
           std::cout << param << " = " << value << std::endl;
@@ -285,7 +285,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       return FilterStatus::Continue;
     }
   }
-  return FilterStatus::StopIteration;
+
+  ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
+  messageHandlerWithLoadbalancer(transaction_info, metadata);
+
+  return FilterStatus::Continue;
 }
 
 FilterStatus Router::messageEnd() {
