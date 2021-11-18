@@ -691,9 +691,9 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
   std::size_t pos = 0;
   std::string pattern = "(.*)=(.*?)>*";
 
-  std::cout << "DDD header: " << header << std::endl;
+  ENVOY_LOG(debug, "DDD header: {}", header);
 
-  std::cout << "DDD Parameter in TopRoute/TopLine:\n";
+  ENVOY_LOG(debug, "DDD Parameter in TopRoute/TopLine");
   while ( std::size_t found = header.find_first_of(";", pos)) {
     std::string str;
     if (found == std::string_view::npos)
@@ -708,14 +708,29 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
     re2::RE2::FullMatch(static_cast<std::string>(str), pattern, &param, &value);
 
     if (param.size() > 0 && value.size() > 0 ) {
-      std::cout << param << " = " << value << std::endl;
-      if( param == "opaque" )
+      if(value.find("sip:") != std::string_view::npos)
       {
-        metadata->addParam("ep", value);
-      } else {
-        metadata->addParam(param, value);
+        value = value.substr(std::strlen("sip:"));
+      }
+      if(value.size() > 0 )
+      {
+         std::size_t comma = value.find(":");
+         if( comma != std::string_view::npos ) {
+           value = value.substr(0,comma);
+	 }
+      }
+      if(value.size() > 0 ){
+  ENVOY_LOG(debug, "{} = {}", param, value);
+  
+        if( param == "opaque" )
+        {
+          metadata->addParam("ep", value);
+        } else {
+          metadata->addParam(param, value);
+        }
       }
     }
+
     if( found == std::string_view::npos)
     {
       break;

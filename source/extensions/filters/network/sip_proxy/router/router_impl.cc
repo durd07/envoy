@@ -124,13 +124,19 @@ FilterStatus Router::handleAffinity() {
     return FilterStatus::Continue;
   }
 
-  if ((options->registrationAffinity() || options->sessionAffinity()) && metadata->destinationMap().empty()) {
-    std::cout << "DDD DestinationMap: \n";
+  if ((options->registrationAffinity() || options->sessionAffinity()) && 
+      !options->CustomizedAffinityList().empty() &&
+      !metadata->paramMap().empty()) {
+      ENVOY_LOG(debug, "DDD DestinationMap: \n");
     for (const auto& aff: options->CustomizedAffinityList()) {
+          ENVOY_LOG(debug, "DDD Affinity = {}\n", aff.name());
       for (auto [param, value] : metadata->paramMap()) {
+          ENVOY_LOG(debug, "DDD param = {}\n", param);
         if (param == aff.name()) {
-          std::cout << param << " = " << value << std::endl;
+          ENVOY_LOG(debug, "DDD {} = {}\n", param, aff.name());
 	  metadata->addDestination(param, value);
+	  metadata->addQuery(param, aff.query());
+	  metadata->addSubscribe(param, aff.subscribe());
 	}
       }
     }
@@ -138,9 +144,11 @@ FilterStatus Router::handleAffinity() {
   }
 
   // No destinationMap selected
+  /* DDD
   if (metadata->destinationMap().empty()) {
     return FilterStatus::StopIteration;
   }
+  */
 
   return FilterStatus::Continue;
 }
@@ -188,10 +196,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
     return FilterStatus::StopIteration;
   }
 
-  auto ret = handleAffinity();
-  if (ret == FilterStatus::StopIteration) {
-    return ret;
-  }
+  handleAffinity();
 
   return FilterStatus::Continue;
 }
@@ -199,7 +204,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
 FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
 FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
-		MessageMetadataSharedPtr metadata) {
+		MessageMetadataSharedPtr metadata, std::string dest, bool &lb_ret) {
     Tcp::ConnectionPool::Instance* conn_pool =
         thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
     if (!conn_pool) {
@@ -215,7 +220,12 @@ FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionI
     if (!host) {
       return FilterStatus::StopIteration;
     }
-
+    
+    //check the host ip is equal to dest. If false, then return StopIteration
+    //if this fundtion return StopIteration, then contiue with next affinity
+    if (dest != "" && dest != host->address()->ip()->addressAsString()) {
+      return FilterStatus::StopIteration;
+    }
     if (auto upstream_request =
             transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
         upstream_request != nullptr) {
@@ -245,23 +255,37 @@ FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionI
                                             callbacks_, upstream_request_);
       }
     }
+    lb_ret = true;
     return upstream_request_->start();
   }
 
 FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
+  bool upstream_request_started = false;
+  FilterStatus  lb_ret;
+
   if (upstream_request_ != nullptr) {
     return FilterStatus::Continue;
   }
 
   auto& transaction_info = (*transaction_infos_)[cluster_->name()];
 
-  while (metadata->destIter != metadata->destinationMap().end()) {
+  while (!metadata->destinationMap().empty() && metadata->destIter != metadata->destinationMap().end()) {
     std::string host;
-    if (FilterStatus::Continue == (handle_param_map_[metadata->destIter->second](metadata->destIter->first, metadata))) {
+    metadata->resetDestination();
+
+    ENVOY_LOG(debug, "call param map function of {}", metadata->destIter->first);
+    auto handle_ret = handle_param_map_[metadata->destIter->first](metadata->destIter->first, metadata);
+
+    if (QueryStatus::IN_LOCAL_CACHE == handle_ret) {
       host = metadata->destination().value();
       metadata->destIter ++;
-    } else {
+    } else if (QueryStatus::REMOTE_QUERY == handle_ret) {
+      ENVOY_LOG(debug, "do remote query for {}", metadata->destIter->first);
       return FilterStatus::StopIteration;
+    } else {
+      ENVOY_LOG(debug, "no existing destiantion for {}", metadata->destIter->first);
+      metadata->destIter ++;
+      continue;
     }
 
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
@@ -281,24 +305,27 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     }
     ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
 
-    if (FilterStatus::Continue == messageHandlerWithLoadbalancer(transaction_info, metadata)) {
-      return FilterStatus::Continue;
+    upstream_request_started = false;
+    lb_ret = messageHandlerWithLoadbalancer(transaction_info, metadata, host, upstream_request_started);
+    if (upstream_request_started) {
+      return lb_ret;
     }
   }
 
   ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
-  messageHandlerWithLoadbalancer(transaction_info, metadata);
-
-  return FilterStatus::Continue;
+  metadata->resetDestination();
+  return messageHandlerWithLoadbalancer(transaction_info, metadata, "", upstream_request_started);
 }
 
 FilterStatus Router::messageEnd() {
   Buffer::OwnedImpl transport_buffer;
 
   // set EP/Opaque, used in upstream
+  ENVOY_STREAM_LOG(debug, "set EP {}", *callbacks_, upstream_request_->localAddress());
   metadata_->setEP(upstream_request_->localAddress());
 
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
+  ENVOY_STREAM_LOG(debug, "before encode", *callbacks_);
   encoder->encode(metadata_, transport_buffer);
 
   ENVOY_STREAM_LOG(info, "send buffer : {} bytes\n{}", *callbacks_, transport_buffer.length(),

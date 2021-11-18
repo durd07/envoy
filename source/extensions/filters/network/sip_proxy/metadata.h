@@ -44,8 +44,12 @@ public:
   absl::optional<absl::string_view> destination() { return destination_; }
   std::map<std::string, std::string>& paramMap() {return param_map_;};
   std::map<std::string, std::string>& destinationMap() { return destination_map_; }
+  std::map<std::string, bool>& queryMap() { return query_map_; }
+  std::map<std::string, bool>& subscribeMap() { return subscribe_map_; }
   void addDestination(std::string param, std::string value) { destination_map_[param] = value;}
   void addParam(std::string param, std::string value) { param_map_[param] = value; }
+  void addQuery(std::string param, bool value) { query_map_[param] = value; }
+  void addSubscribe(std::string param, bool value) { subscribe_map_[param] = value; }
 
   std::string& rawMsg() { return raw_msg_; }
 
@@ -127,6 +131,7 @@ public:
   }
 
   void setDestination(absl::string_view destination) { destination_ = destination; }
+  void resetDestination() { destination_.reset(); }
   /*only used in UT*/
   void resetTransactionId() { transaction_id_.reset(); }
 
@@ -155,6 +160,10 @@ private:
   std::map<std::string, std::string> param_map_{};
   // Destination get from param_map_ ordered by CustomizedAffinity, not queried
   std::map<std::string, std::string> destination_map_{};
+  // Could do remote query for this param
+  std::map<std::string, bool> query_map_{};
+  // Could do remote subscribe for this param
+  std::map<std::string, bool> subscribe_map_{};
 
   std::string raw_msg_{};
 

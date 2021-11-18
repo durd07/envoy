@@ -37,9 +37,9 @@ ProtocolOptionsConfigImpl::ProtocolOptionsConfigImpl(
     CustomizedAffinity aff(affinity.key_name(), affinity.query(), affinity.subscribe());
     customized_affinity_list_.emplace_back(aff);
   }
-  std::cout << "DDD Customized Affinity:\n";
+  std::cout <<"DDD Customized Affinity:\n";
   for(auto& aff: customized_affinity_list_) {
-    std::cout << aff.name() << " " << aff.query() << " " << aff.subscribe() << std::endl;
+	  std::cout << aff.name() << "  " << aff.query() << "  " << aff.subscribe() << std::endl;
   }
 }
 

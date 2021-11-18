@@ -37,6 +37,17 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace Router {
 
+enum class QueryStatus {
+  // Do grpc query
+  REMOTE_QUERY,
+
+  // Existed in local cache
+  IN_LOCAL_CACHE,
+
+  // Not existed in local cache
+  NOT_IN_LOCAL_CACHE
+};
+
 class RouteEntryImplBase : public RouteEntry,
                            public Route,
                            public std::enable_shared_from_this<RouteEntryImplBase> {
@@ -278,7 +289,7 @@ public:
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
         context_(context) {
-    handle_param_map_["lkspmc"] = std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["lskpmc"] = std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
     handle_param_map_["x-suri"] = std::bind(&Router::handleXsuri, this, std::placeholders::_1, std::placeholders::_2);
     handle_param_map_["xafi"] = std::bind(&Router::handleXafi, this, std::placeholders::_1, std::placeholders::_2);
     handle_param_map_["ep"] = std::bind(&Router::handleEp, this, std::placeholders::_1, std::placeholders::_2);
@@ -320,46 +331,53 @@ private:
 
   FilterStatus handleAffinity();
   FilterStatus messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
-		  MessageMetadataSharedPtr metadata);
+		  MessageMetadataSharedPtr metadata, std::string dest, bool &lb_ret);
 
-  FilterStatus handleEp(std::string ep, MessageMetadataSharedPtr metadata) {
+  QueryStatus handleEp(std::string ep, MessageMetadataSharedPtr metadata) {
     metadata->setDestination(metadata->destinationMap()[ep]);
-    ENVOY_LOG(trace, "Set destination from EP {}", ep);
-    return FilterStatus::Continue;
+    ENVOY_LOG(trace, "Set destination from EP {}", metadata->destinationMap()[ep]);
+    return QueryStatus::IN_LOCAL_CACHE;
   }
 
-  FilterStatus handleXsuri(std::string xsuri, MessageMetadataSharedPtr metadata) {
+  QueryStatus handleXsuri(std::string xsuri, MessageMetadataSharedPtr metadata) {
     UNREFERENCED_PARAMETER(xsuri); 
     UNREFERENCED_PARAMETER(metadata); 
-    return FilterStatus::Continue;
+    return QueryStatus::NOT_IN_LOCAL_CACHE;
   }
 
-  FilterStatus handleLskpmc(std::string lskpmc, MessageMetadataSharedPtr metadata) {
+  QueryStatus handleLskpmc(std::string lskpmc, MessageMetadataSharedPtr metadata) {
     if (callbacks_->pCookieIPMap()->find(lskpmc) != callbacks_->pCookieIPMap()->end()) {
       auto& host = (*callbacks_->pCookieIPMap())[lskpmc];
       metadata->setDestination(host);
-      ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", lskpmc, host);
-      return FilterStatus::Continue;
+      return QueryStatus::IN_LOCAL_CACHE;
     } 
-    //else
-    callbacks_->traClient()->retrieveLskpmc(lskpmc,
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
-    return FilterStatus::StopIteration;
+
+    if (metadata->queryMap()[lskpmc]) {
+      callbacks_->traClient()->retrieveLskpmc(lskpmc,
+                                              Tracing::NullSpan::instance(),
+                                              callbacks_->streamInfo());
+      return QueryStatus::REMOTE_QUERY;
+    }
+
+    return QueryStatus::NOT_IN_LOCAL_CACHE;
   }
 
-  FilterStatus handleXafi(std::string xafi, MessageMetadataSharedPtr metadata) {
+  QueryStatus handleXafi(std::string xafi, MessageMetadataSharedPtr metadata) {
     if (callbacks_->xafiIPMap()->find(xafi) != callbacks_->xafiIPMap()->end()) {
         auto & host = (*callbacks_->xafiIPMap())[xafi];
 	metadata->setDestination(host);
 	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", xafi, host);
-      return FilterStatus::Continue;
+      return QueryStatus::IN_LOCAL_CACHE;
     }
-    //else
-    callbacks_->traClient()->retrieveXafi(xafi,
-                                          Tracing::NullSpan::instance(),
-                                          callbacks_->streamInfo());
-    return FilterStatus::StopIteration;
+
+    if (metadata->queryMap()[xafi]) {
+      callbacks_->traClient()->retrieveXafi(xafi,
+                                            Tracing::NullSpan::instance(),
+                                            callbacks_->streamInfo());
+      return QueryStatus::REMOTE_QUERY;
+    }
+
+    return QueryStatus::NOT_IN_LOCAL_CACHE;
   }
 
   Upstream::ClusterManager& cluster_manager_;
@@ -378,7 +396,7 @@ private:
   Server::Configuration::FactoryContext& context_;
   bool continue_handling_;
 
-  std::map<std::string, std::function<FilterStatus(std::string, MessageMetadataSharedPtr)>> handle_param_map_;
+  std::map<std::string, std::function<QueryStatus(std::string, MessageMetadataSharedPtr)>> handle_param_map_;
 };
 
 class ThreadLocalActiveConn;
