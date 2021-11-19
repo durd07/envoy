@@ -119,9 +119,6 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
   auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
   tra_client_->setRequestCallbacks(*this);
-  tra_client_->subscribeLskpmc("", Tracing::NullSpan::instance(), stream_info);
-  tra_client_->subscribeXafi("", Tracing::NullSpan::instance(), stream_info);
-
 }
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {

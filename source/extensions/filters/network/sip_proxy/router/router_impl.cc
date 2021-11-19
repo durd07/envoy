@@ -100,9 +100,9 @@ FilterStatus Router::handleAffinity() {
     auto [key, val] = metadata->pCookieIpMap().value();
     if ((*callbacks_->pCookieIPMap())[key] != val) {
       callbacks_->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-      callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
+//      callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
+//                                            Tracing::NullSpan::instance(),
+//                                            callbacks_->streamInfo());
     }
   }
 
@@ -110,10 +110,10 @@ FilterStatus Router::handleAffinity() {
     auto [key, val] = metadata->xafiIpMap().value();
     if ((*callbacks_->xafiIPMap())[key] != val) {
       callbacks_->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-      callbacks_->traClient()->updateXafi(metadata->xafiIpMap().value(),
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
-    }
+//      callbacks_->traClient()->updateXafi(metadata->xafiIpMap().value(),
+//                                            Tracing::NullSpan::instance(),
+//                                            callbacks_->streamInfo());
+//    }
   }
 
   const std::shared_ptr<const ProtocolOptionsConfig> options =
@@ -502,10 +502,10 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         auto [key, val] = metadata->pCookieIpMap().value();
         if ((*active_trans->pCookieIPMap())[key] != val) {
           active_trans->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-          active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-                                                  Tracing::NullSpan::instance(),
-                                                  active_trans->streamInfo());
-        }
+//          active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
+//                                                  Tracing::NullSpan::instance(),
+//                                                  active_trans->streamInfo());
+//        }
       }
 
       if (metadata->xafiIpMap().has_value()) {
@@ -514,10 +514,10 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         auto [key, val] = metadata->xafiIpMap().value();
         if ((*active_trans->xafiIPMap())[key] != val) {
           active_trans->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-          active_trans->traClient()->updateXafi(metadata->xafiIpMap().value(),
-                                                  Tracing::NullSpan::instance(),
-                                                  active_trans->streamInfo());
-        }
+//          active_trans->traClient()->updateXafi(metadata->xafiIpMap().value(),
+//                                                  Tracing::NullSpan::instance(),
+//                                                  active_trans->streamInfo());
+//        }
       }
 
       active_trans->startUpstreamResponse();
