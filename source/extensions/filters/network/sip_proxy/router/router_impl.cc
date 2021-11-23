@@ -98,22 +98,11 @@ FilterStatus Router::handleAffinity() {
 
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
-    if ((*callbacks_->pCookieIPMap())[key] != val) {
-      callbacks_->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-//      callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-//                                            Tracing::NullSpan::instance(),
-//                                            callbacks_->streamInfo());
+    if (callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+      callbacks_->traHandler()->updateTrafficRoutingAssistant(
+          "lskpnc", metadata->pCookieIpMap().value().first,
+          metadata->pCookieIpMap().value().second);
     }
-  }
-
-  if (metadata->xafiIpMap().has_value()) {
-    auto [key, val] = metadata->xafiIpMap().value();
-    if ((*callbacks_->xafiIPMap())[key] != val) {
-      callbacks_->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-//      callbacks_->traClient()->updateXafi(metadata->xafiIpMap().value(),
-//                                            Tracing::NullSpan::instance(),
-//                                            callbacks_->streamInfo());
-//    }
   }
 
   const std::shared_ptr<const ProtocolOptionsConfig> options =
@@ -124,14 +113,15 @@ FilterStatus Router::handleAffinity() {
     return FilterStatus::Continue;
   }
 
-  if ((options->registrationAffinity() || options->sessionAffinity()) && metadata->destinationMap().empty()) {
+  if ((options->registrationAffinity() || options->sessionAffinity()) &&
+      metadata->destinationMap().empty()) {
     std::cout << "DDD DestinationMap: \n";
-    for (const auto& aff: options->CustomizedAffinityList()) {
+    for (const auto& aff : options->CustomizedAffinityList()) {
       for (auto [param, value] : metadata->paramMap()) {
         if (param == aff.name()) {
           std::cout << param << " = " << value << std::endl;
-	  metadata->addDestination(param, value);
-	}
+          metadata->addDestination(param, value);
+        }
       }
     }
     metadata->destIter = metadata->destinationMap().begin();
@@ -198,55 +188,56 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
 
 FilterStatus Router::transportEnd() { return FilterStatus::Continue; }
 
-FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
-		MessageMetadataSharedPtr metadata) {
-    Tcp::ConnectionPool::Instance* conn_pool =
-        thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
-    if (!conn_pool) {
-      stats_.no_healthy_upstream_.inc();
-      callbacks_->sendLocalReply(
-          AppException(AppExceptionType::InternalError,
-                       fmt::format("no healthy upstream for '{}'", cluster_->name())),
-          true);
-      return FilterStatus::StopIteration;
-    }
-
-    Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
-    if (!host) {
-      return FilterStatus::StopIteration;
-    }
-
-    if (auto upstream_request =
-            transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
-        upstream_request != nullptr) {
-      // There is action connection, reuse it.
-      upstream_request_ = upstream_request;
-      upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_,
-                       host->address()->ip()->addressAsString());
-      try {
-        transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-      } catch (std::out_of_range const&) {
-        transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
-                                            callbacks_, upstream_request_);
-      }
-    } else {
-      upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
-      upstream_request_->setDecoderFilterCallbacks(*callbacks_);
-      transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(),
-                                              upstream_request_);
-      ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_,
-                       host->address()->ip()->addressAsString());
-
-      try {
-        transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-      } catch (std::out_of_range const&) {
-        transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
-                                            callbacks_, upstream_request_);
-      }
-    }
-    return upstream_request_->start();
+FilterStatus
+Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
+                                       MessageMetadataSharedPtr metadata) {
+  Tcp::ConnectionPool::Instance* conn_pool =
+      thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
+  if (!conn_pool) {
+    stats_.no_healthy_upstream_.inc();
+    callbacks_->sendLocalReply(
+        AppException(AppExceptionType::InternalError,
+                     fmt::format("no healthy upstream for '{}'", cluster_->name())),
+        true);
+    return FilterStatus::StopIteration;
   }
+
+  Upstream::HostDescriptionConstSharedPtr host = conn_pool->host();
+  if (!host) {
+    return FilterStatus::StopIteration;
+  }
+
+  if (auto upstream_request =
+          transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
+      upstream_request != nullptr) {
+    // There is action connection, reuse it.
+    upstream_request_ = upstream_request;
+    upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_,
+                     host->address()->ip()->addressAsString());
+    try {
+      transaction_info->getTransaction(std::string(metadata->transactionId().value()));
+    } catch (std::out_of_range const&) {
+      transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
+                                          callbacks_, upstream_request_);
+    }
+  } else {
+    upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
+    upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(),
+                                            upstream_request_);
+    ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_,
+                     host->address()->ip()->addressAsString());
+
+    try {
+      transaction_info->getTransaction(std::string(metadata->transactionId().value()));
+    } catch (std::out_of_range const&) {
+      transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
+                                          callbacks_, upstream_request_);
+    }
+  }
+  return upstream_request_->start();
+}
 
 FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   if (upstream_request_ != nullptr) {
@@ -257,9 +248,10 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
   while (metadata->destIter != metadata->destinationMap().end()) {
     std::string host;
-    if (FilterStatus::Continue == (handle_param_map_[metadata->destIter->second](metadata->destIter->first, metadata))) {
+    if (FilterStatus::Continue ==
+        (handle_param_map_[metadata->destIter->second](metadata->destIter->first, metadata))) {
       host = metadata->destination().value();
-      metadata->destIter ++;
+      metadata->destIter++;
     } else {
       return FilterStatus::StopIteration;
     }
@@ -494,30 +486,13 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
-      // p_cookie_ip_map_ = active_trans->pCookieIPMap();
-
       if (metadata->pCookieIpMap().has_value()) {
         ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
-        if ((*active_trans->pCookieIPMap())[key] != val) {
-          active_trans->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-//          active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-//                                                  Tracing::NullSpan::instance(),
-//                                                  active_trans->streamInfo());
-//        }
-      }
-
-      if (metadata->xafiIpMap().has_value()) {
-        ENVOY_LOG(trace, "update xafi-ip-map {}={}", metadata->xafiIpMap().value().first,
-                  metadata->xafiIpMap().value().second);
-        auto [key, val] = metadata->xafiIpMap().value();
-        if ((*active_trans->xafiIPMap())[key] != val) {
-          active_trans->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-//          active_trans->traClient()->updateXafi(metadata->xafiIpMap().value(),
-//                                                  Tracing::NullSpan::instance(),
-//                                                  active_trans->streamInfo());
-//        }
+        if (active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+          active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
+        }
       }
 
       active_trans->startUpstreamResponse();

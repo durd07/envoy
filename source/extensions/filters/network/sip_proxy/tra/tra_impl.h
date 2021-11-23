@@ -52,22 +52,25 @@ public:
 
   void closeStream() override;
 
-  void createTrafficRoutingAssistant(std::string& type,
-                                     absl::flat_hash_map<std::string, std::string>& data,
+  void createTrafficRoutingAssistant(const std::string& type,
+                                     const absl::flat_hash_map<std::string, std::string>& data,
                                      Tracing::Span& parent_span,
-                                     StreamInfo::StreamInfo& stream_info) const override;
-  void updateTrafficRoutingAssistant(std::string& type,
-                                     absl::flat_hash_map<std::string, std::string>& data,
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void updateTrafficRoutingAssistant(const std::string& type,
+                                     const absl::flat_hash_map<std::string, std::string>& data,
                                      Tracing::Span& parent_span,
-                                     StreamInfo::StreamInfo& stream_info) const override;
-  void retrieveTrafficRoutingAssistant(std::string& type, std::string& key,
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void retrieveTrafficRoutingAssistant(const std::string& type,
+		                       const std::string& key,
                                        Tracing::Span& parent_span,
-                                       StreamInfo::StreamInfo& stream_info) const override;
-  void deleteTrafficRoutingAssistant(std::string& type, std::string& key,
+                                       const StreamInfo::StreamInfo& stream_info) override;
+  void deleteTrafficRoutingAssistant(const std::string& type,
+		                     const std::string& key,
                                      Tracing::Span& parent_span,
-                                     StreamInfo::StreamInfo& stream_info) const override;
-  void subscribeTrafficRoutingAssistant(std::string& type, Tracing::Span& parent_span,
-                                        StreamInfo::StreamInfo& stream_info) const override;
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void subscribeTrafficRoutingAssistant(const std::string& type,
+		                        Tracing::Span& parent_span,
+                                        const StreamInfo::StreamInfo& stream_info) override;
   // Grpc::AsyncRequestCallbacks
   void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}
   void onSuccess(

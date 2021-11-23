@@ -35,7 +35,6 @@ public:
   absl::optional<absl::string_view> EP() { return ep_; }
   std::vector<Operation>& operationList() { return operation_list_; }
   absl::optional<std::pair<std::string, std::string>> pCookieIpMap() { return p_cookie_ip_map_; }
-  absl::optional<std::pair<std::string, std::string>> xafiIpMap() { return xafi_ip_map_; }
 
   absl::optional<absl::string_view> requestURI() { return request_uri_; }
   absl::optional<absl::string_view> topRoute() { return top_route_; }
@@ -55,7 +54,6 @@ public:
   void setOperation(Operation op) { operation_list_.emplace_back(op); }
   void setEP(absl::string_view data) { ep_ = data; }
   void setPCookieIpMap(std::pair<std::string, std::string> && data) { p_cookie_ip_map_ = data; }
-  void setXafiIpMap(std::pair<std::string, std::string> && data) { xafi_ip_map_ = data; }
 
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
@@ -141,10 +139,8 @@ private:
   absl::optional<absl::string_view> pep_{};
   absl::optional<absl::string_view> route_ep_{};
   absl::optional<absl::string_view> route_opaque_{};
-  absl::optional<absl::string_view> lskpmc_{};
+
   absl::optional<std::pair<std::string, std::string>> p_cookie_ip_map_{};
-  absl::optional<absl::string_view> xafi_{};
-  absl::optional<std::pair<std::string, std::string>> xafi_ip_map_{};
 
   absl::optional<absl::string_view> request_uri_{};
   absl::optional<absl::string_view> top_route_{};

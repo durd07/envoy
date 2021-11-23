@@ -36,7 +36,7 @@ class RequestCallbacks {
 public:
   virtual ~RequestCallbacks() = default;
 
-  virtual void complete(ResponseType type, absl::any resp) PURE;
+  virtual void complete(const ResponseType& type, const std::string & message_type, const absl::any& resp) PURE;
 };
 
 /**
@@ -52,22 +52,25 @@ public:
 
   virtual void closeStream() PURE;
 
-  virtual void createTrafficRoutingAssistant(std::string& type,
-                                             absl::flat_hash_map<std::string, std::string>& data,
+  virtual void createTrafficRoutingAssistant(const std::string& type,
+                                             const absl::flat_hash_map<std::string, std::string>& data,
                                              Tracing::Span& parent_span,
-                                             StreamInfo::StreamInfo& stream_info) const PURE;
-  virtual void updateTrafficRoutingAssistant(std::string& type,
-                                             absl::flat_hash_map<std::string, std::string>& data,
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateTrafficRoutingAssistant(const std::string& type,
+                                             const absl::flat_hash_map<std::string, std::string>& data,
                                              Tracing::Span& parent_span,
-                                             StreamInfo::StreamInfo& stream_info) const PURE;
-  virtual void retrieveTrafficRoutingAssistant(std::string& type, std::string& key,
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void retrieveTrafficRoutingAssistant(const std::string& type,
+		                               const std::string& key,
                                                Tracing::Span& parent_span,
-                                               StreamInfo::StreamInfo& stream_info) const PURE;
-  virtual void deleteTrafficRoutingAssistant(std::string& type, std::string& key,
+                                               const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void deleteTrafficRoutingAssistant(const std::string& type,
+		                             const std::string& key,
                                              Tracing::Span& parent_span,
-                                             StreamInfo::StreamInfo& stream_info) const PURE;
-  virtual void subscribeTrafficRoutingAssistant(std::string& type, Tracing::Span& parent_span,
-                                                StreamInfo::StreamInfo& stream_info) const PURE;
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void subscribeTrafficRoutingAssistant(const std::string& type,
+		                                Tracing::Span& parent_span,
+                                                const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using ClientPtr = std::unique_ptr<Client>;

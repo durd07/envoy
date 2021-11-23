@@ -278,10 +278,12 @@ public:
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
         context_(context) {
-    handle_param_map_["lkspmc"] = std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
-    handle_param_map_["x-suri"] = std::bind(&Router::handleXsuri, this, std::placeholders::_1, std::placeholders::_2);
-    handle_param_map_["xafi"] = std::bind(&Router::handleXafi, this, std::placeholders::_1, std::placeholders::_2);
-    handle_param_map_["ep"] = std::bind(&Router::handleEp, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["lkspmc"] =
+        std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["x-suri"] =
+        std::bind(&Router::handleXsuri, this, std::placeholders::_1, std::placeholders::_2);
+    handle_param_map_["ep"] =
+        std::bind(&Router::handleEp, this, std::placeholders::_1, std::placeholders::_2);
   }
 
   // SipFilters::DecoderFilter
@@ -320,7 +322,7 @@ private:
 
   FilterStatus handleAffinity();
   FilterStatus messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
-		  MessageMetadataSharedPtr metadata);
+                                              MessageMetadataSharedPtr metadata);
 
   FilterStatus handleEp(std::string ep, MessageMetadataSharedPtr metadata) {
     metadata->setDestination(metadata->destinationMap()[ep]);
@@ -329,37 +331,21 @@ private:
   }
 
   FilterStatus handleXsuri(std::string xsuri, MessageMetadataSharedPtr metadata) {
-    UNREFERENCED_PARAMETER(xsuri); 
-    UNREFERENCED_PARAMETER(metadata); 
+    UNREFERENCED_PARAMETER(xsuri);
+    UNREFERENCED_PARAMETER(metadata);
     return FilterStatus::Continue;
   }
 
   FilterStatus handleLskpmc(std::string lskpmc, MessageMetadataSharedPtr metadata) {
-    if (callbacks_->pCookieIPMap()->find(lskpmc) != callbacks_->pCookieIPMap()->end()) {
-      auto& host = (*callbacks_->pCookieIPMap())[lskpmc];
+    if (!callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", lskpmc).empty()) {
+      auto host = callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", lskpmc);
       metadata->setDestination(host);
       ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", lskpmc, host);
       return FilterStatus::Continue;
-    } 
-    //else
-    callbacks_->traClient()->retrieveLskpmc(lskpmc,
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
-    return FilterStatus::StopIteration;
-  }
-
-  FilterStatus handleXafi(std::string xafi, MessageMetadataSharedPtr metadata) {
-    if (callbacks_->xafiIPMap()->find(xafi) != callbacks_->xafiIPMap()->end()) {
-        auto & host = (*callbacks_->xafiIPMap())[xafi];
-	metadata->setDestination(host);
-	ENVOY_LOG(trace, "Set destination from xafi cache {}={}", xafi, host);
-      return FilterStatus::Continue;
+    } else {
+      // retrieveTrafficRoutingAssistant will query TRA async.
+      return FilterStatus::StopIteration;
     }
-    //else
-    callbacks_->traClient()->retrieveXafi(xafi,
-                                          Tracing::NullSpan::instance(),
-                                          callbacks_->streamInfo());
-    return FilterStatus::StopIteration;
   }
 
   Upstream::ClusterManager& cluster_manager_;
@@ -378,7 +364,8 @@ private:
   Server::Configuration::FactoryContext& context_;
   bool continue_handling_;
 
-  std::map<std::string, std::function<FilterStatus(std::string, MessageMetadataSharedPtr)>> handle_param_map_;
+  std::map<std::string, std::function<FilterStatus(std::string, MessageMetadataSharedPtr)>>
+      handle_param_map_;
 };
 
 class ThreadLocalActiveConn;
@@ -409,21 +396,9 @@ public:
   std::string getOwnDomain() override;
   std::string getDomainMatchParamName() override;
 
-  std::shared_ptr<PCookieIPMap> pCookieIPMap() override { return p_cookie_ip_map_; }
-  void updatePCookieIPMap(std::string & key, std::string & val) override {
-	  p_cookie_ip_map_->emplace(std::make_pair(key, val));
-  }
-
-  std::shared_ptr<XafiIPMap> xafiIPMap() override { return xafi_ip_map_; }
-  void updateXafiIPMap(std::string & key, std::string & val) override {
-	  xafi_ip_map_->emplace(std::make_pair(key, val));
-  }
-
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
-  std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
-  std::shared_ptr<XafiIPMap> xafi_ip_map_;
 };
 
 using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;

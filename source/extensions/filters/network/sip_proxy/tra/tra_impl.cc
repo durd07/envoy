@@ -43,7 +43,7 @@ void GrpcClientImpl::closeStream() {
 }
 
 void GrpcClientImpl::createTrafficRoutingAssistant(
-    std::string& type, absl::flat_hash_map<std::string, std::string>& data,
+    const std::string& type, const absl::flat_hash_map<std::string, std::string>& data,
     Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) {
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
@@ -68,7 +68,7 @@ void GrpcClientImpl::createTrafficRoutingAssistant(
 }
 
 void GrpcClientImpl::updateTrafficRoutingAssistant(
-    std::string& type, absl::flat_hash_map<std::string, std::string>& data,
+    const std::string& type, const absl::flat_hash_map<std::string, std::string>& data,
     Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) {
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
   request.set_type(type);
@@ -91,7 +91,8 @@ void GrpcClientImpl::updateTrafficRoutingAssistant(
                           transport_api_version_);
 }
 
-void GrpcClientImpl::retrieveTrafficRoutingAssistant(const std::string& type, const std::string key,
+void GrpcClientImpl::retrieveTrafficRoutingAssistant(const std::string& type,
+                                                     const std::string& key,
                                                      Tracing::Span& parent_span,
                                                      const StreamInfo::StreamInfo& stream_info) {
 
@@ -113,8 +114,9 @@ void GrpcClientImpl::retrieveTrafficRoutingAssistant(const std::string& type, co
                           transport_api_version_);
 }
 
-void GrpcClientImpl::deleteTrafficRoutingAssistant(const std::string& type, const std::string& key, Tracing::Span& parent_span,
-                                  const StreamInfo::StreamInfo& stream_info) {
+void GrpcClientImpl::deleteTrafficRoutingAssistant(const std::string& type, const std::string& key,
+                                                   Tracing::Span& parent_span,
+                                                   const StreamInfo::StreamInfo& stream_info) {
 
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
   request.set_type(type);
@@ -134,8 +136,9 @@ void GrpcClientImpl::deleteTrafficRoutingAssistant(const std::string& type, cons
                           transport_api_version_);
 }
 
-void GrpcClientImpl::subscribeTrafficRoutingAssistant(const std::string& type, Tracing::Span& parent_span,
-                                     const StreamInfo::StreamInfo& stream_info) {
+void GrpcClientImpl::subscribeTrafficRoutingAssistant(const std::string& type,
+                                                      Tracing::Span& parent_span,
+                                                      const StreamInfo::StreamInfo& stream_info) {
   envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest request;
 
   UNREFERENCED_PARAMETER(parent_span);
@@ -148,44 +151,36 @@ void GrpcClientImpl::subscribeTrafficRoutingAssistant(const std::string& type, T
                              "envoy.extensions.filters.network.sip_proxy.tra.v2.TraService."
                              "Subscribe")
           .getMethodDescriptorForVersion(transport_api_version_);
-  stream_ = async_client_->start(
-      service_method, *this,
-      Http::AsyncClient::StreamOptions().setParentContext(
-          Http::AsyncClient::ParentContext{&stream_info}));
+  stream_ = async_client_->start(service_method, *this,
+                                 Http::AsyncClient::StreamOptions().setParentContext(
+                                     Http::AsyncClient::ParentContext{&stream_info}));
   stream_.sendMessage(request, false);
 }
 
-void GrpcClientImpl::onSuccess(
-    std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
-        response,
-    Tracing::Span& span) {
+void GrpcClientImpl::onSuccess(std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&& response, Tracing::Span& span) {
 
   UNREFERENCED_PARAMETER(span);
   if (response->has_create_response()) {
-    callbacks_->complete(ResponseType::CreateResp, response->create_response());
+    callbacks_->complete(ResponseType::CreateResp, response->type(), response->create_response());
   } else if (response->has_update_response()) {
-    callbacks_->complete(ResponseType::UpdateResp, response->update_response());
+    callbacks_->complete(ResponseType::UpdateResp, response->type(), response->update_response());
   } else if (response->has_retrieve_response()) {
-    callbacks_->complete(ResponseType::RetrieveResp, response->retrieve_response());
+    callbacks_->complete(ResponseType::RetrieveResp, response->type(), response->retrieve_response());
   } else if (response->has_delete_response()) {
-    callbacks_->complete(ResponseType::DeleteResp, response->delete_response());
-  } else if (response->has_subscribe_response()) {
-    callbacks_->complete(ResponseType::SubscribeResp, response->subscribe_response());
+    callbacks_->complete(ResponseType::DeleteResp, response->type(), response->delete_response());
   }
   // callbacks_ = nullptr;
 }
 
-void GrpcClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::string&,
-                               Tracing::Span&) {
+void GrpcClientImpl::onFailure(Grpc::Status::GrpcStatus status, const std::string& message, Tracing::Span&) {
   ASSERT(status != Grpc::Status::WellKnownGrpcStatus::Ok);
-  callbacks_->complete(ResponseType::FailureResp, status);
+  ENVOY_LOG(error, "GrpcClientImpl Failure {} {}", message, status);
+  // callbacks_->complete(ResponseType::FailureResp, status);
   // callbacks_ = nullptr;
 }
 
-void GrpcClientImpl::onReceiveMessage(
-    std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
-        message) {
-  callbacks_->complete(ResponseType::SubscribeResp, message->subscribe_response());
+void GrpcClientImpl::onReceiveMessage(std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&& message) {
+  callbacks_->complete(ResponseType::SubscribeResp, message->type(), message->subscribe_response());
   // callbacks_ = nullptr;
 }
 

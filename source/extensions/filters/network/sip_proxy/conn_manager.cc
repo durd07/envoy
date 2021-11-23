@@ -13,22 +13,128 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
+TrafficRoutingAssistantHandler::TrafficRoutingAssistantHandler(
+    ConnectionManager& parent,
+    const envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceConfig& config,
+    Server::Configuration::FactoryContext& context, StreamInfo::StreamInfoImpl& stream_info)
+    : parent_(parent),
+      traffic_routing_assistant_map_(std::make_shared<TrafficRoutingAssistantMap>()),
+      stream_info_(std::move(stream_info)) {
+
+  if (config.has_grpc_service()) {
+    const std::chrono::milliseconds timeout =
+        std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, timeout, 2000));
+    tra_client_ = TrafficRoutingAssistant::traClient(context, config.grpc_service(), timeout,
+                                                     config.transport_api_version());
+    tra_client_->setRequestCallbacks(*this);
+  }
+}
+
+void TrafficRoutingAssistantHandler::updateTrafficRoutingAssistant(const std::string& type,
+                                                                   const std::string& key,
+                                                                   const std::string& val) {
+  if ((*traffic_routing_assistant_map_)[type][key] != val) {
+    (*traffic_routing_assistant_map_)[type].emplace(std::make_pair(key, val));
+    if (tra_client_) {
+      tra_client_->updateTrafficRoutingAssistant(
+          type, absl::flat_hash_map<std::string, std::string>{std::make_pair(key, val)},
+          Tracing::NullSpan::instance(), stream_info_);
+    }
+  }
+}
+
+std::string
+TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
+                                                                const std::string& key) {
+  return (*traffic_routing_assistant_map_)[type][key];
+  // if ((*traffic_routing_assistant_map_)[type].find(key) !=
+  //     (*traffic_routing_assistant_map_)[type].end()) {
+  //   return (*traffic_routing_assistant_map_)[type][key];
+  // } else {
+  //   if (tra_client_) {
+  //     tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+  //                                                  stream_info_);
+  //   }
+  //   return "";
+  // }
+}
+
+void TrafficRoutingAssistantHandler::deleteTrafficRoutingAssistant(const std::string& type,
+                                                                   const std::string& key) {
+  (*traffic_routing_assistant_map_)[type].erase(key);
+  if (tra_client_) {
+    tra_client_->deleteTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+                                               stream_info_);
+  }
+}
+
+void TrafficRoutingAssistantHandler::subscribeTrafficRoutingAssistant(const std::string& type) {
+  if (tra_client_) {
+    tra_client_->subscribeTrafficRoutingAssistant(type, Tracing::NullSpan::instance(),
+                                                  stream_info_);
+  }
+}
+
+void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::ResponseType& type,
+                                              const std::string& message_type,
+                                              const absl::any& resp) {
+  switch (type) {
+  case TrafficRoutingAssistant::ResponseType::CreateResp: {
+    ENVOY_LOG(trace, "=== CreateResp");
+    break;
+  }
+  case TrafficRoutingAssistant::ResponseType::UpdateResp: {
+    ENVOY_LOG(trace, "=== UpdateResp");
+    break;
+  }
+  case TrafficRoutingAssistant::ResponseType::RetrieveResp: {
+    auto resp_data =
+        absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveResponse>(
+            resp)
+            .data();
+    for (const auto& item : resp_data) {
+      if (!item.second.empty()) {
+        (*traffic_routing_assistant_map_)[message_type].emplace(item);
+        parent_.setDestination(item.second);
+        parent_.continueHanding();
+      }
+      ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
+    }
+
+    break;
+  }
+  case TrafficRoutingAssistant::ResponseType::DeleteResp: {
+    ENVOY_LOG(trace, "=== DeleteLskpmcResp");
+    break;
+  }
+  case TrafficRoutingAssistant::ResponseType::SubscribeResp: {
+    ENVOY_LOG(trace, "=== SubscribeLskpmcResp");
+    auto lskpmcs =
+        absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeResponse>(
+            resp)
+            .data();
+    for (auto& item : lskpmcs) {
+      ENVOY_LOG(debug, "tra update {}: {}={}", message_type, item.first, item.second);
+      (*traffic_routing_assistant_map_)[message_type].emplace(item);
+    }
+  }
+  default:
+    break;
+  }
+}
+
 ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
                                      TimeSource& time_source,
                                      Server::Configuration::FactoryContext& context,
                                      std::shared_ptr<Router::TransactionInfos> transaction_infos)
     : config_(config), stats_(config_.stats()), decoder_(std::make_unique<Decoder>(*this)),
       random_generator_(random_generator), time_source_(time_source), context_(context),
-      transaction_infos_(transaction_infos), p_cookie_ip_map_(std::make_shared<PCookieIPMap>()),
-      xafi_ip_map_(std::make_shared<XafiIPMap>()) {
+      transaction_infos_(transaction_infos) {
 
-  if (config.settings()->traServiceConfig().has_grpc_service()) {
-    const std::chrono::milliseconds timeout = std::chrono::milliseconds(
-        PROTOBUF_GET_MS_OR_DEFAULT(config.settings()->traServiceConfig(), timeout, 2000));
-    tra_client_ = TrafficRoutingAssistant::traClient(
-        this->context_, config.settings()->traServiceConfig().grpc_service(), timeout,
-        config.settings()->traServiceConfig().transport_api_version());
-  }
+  auto stream_info = StreamInfo::StreamInfoImpl(
+      time_source_, read_callbacks_->connection().addressProviderSharedPtr());
+  tra_handler_ = std::make_shared<TrafficRoutingAssistantHandler>(
+      *this, config.settings()->traServiceConfig(), context_, stream_info);
 }
 
 ConnectionManager::~ConnectionManager() = default;
@@ -116,9 +222,6 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
   read_callbacks_->connection().addConnectionCallbacks(*this);
   read_callbacks_->connection().enableHalfClose(true);
-
-  auto stream_info = StreamInfo::StreamInfoImpl(time_source_, read_callbacks_->connection().addressProviderSharedPtr());
-  tra_client_->setRequestCallbacks(*this);
 }
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {
@@ -133,7 +236,7 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
   if (transactions_.find(k) != transactions_.end()) {
     // ACK_4XX metadata will updated later.
     return *transactions_.at(k);
-    }
+  }
   // }
 
   ActiveTransPtr new_trans = std::make_unique<ActiveTrans>(*this, metadata);
@@ -142,80 +245,6 @@ DecoderEventHandler& ConnectionManager::newDecoderEventHandler(MessageMetadataSh
 
   return *transactions_.at(k);
 }
-
-void ConnectionManager::complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) {
-    switch (type) {
-    case TrafficRoutingAssistant::ResponseType::CreateLskpmcResp: {
-      ENVOY_LOG(trace, "=== CreateLskpmcResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::UpdateLskpmcResp: {
-      ENVOY_LOG(trace, "=== UpdateLskpmcResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::RetrieveLskpmcResp: {
-      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveLskpmcResponse>(resp).lskpmcs();
-      for (auto & item : lskpmcs) {
-        if (!item.second.empty()) {
-          decoder_->metadata()->setDestination(item.second);
-          p_cookie_ip_map_->emplace(item);
-	}
-        ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
-      }
-
-      this->continueHanding();
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::DeleteLskpmcResp: {
-      ENVOY_LOG(trace, "=== DeleteLskpmcResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::SubscribeLskpmcResp: {
-      ENVOY_LOG(trace, "=== SubscribeLskpmcResp");
-      auto lskpmcs = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeLskpmcResponse>(resp).lskpmcs();
-      for (auto& item : lskpmcs) {
-        ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
-        p_cookie_ip_map_->emplace(item);
-      }
-    }
-    case TrafficRoutingAssistant::ResponseType::CreateXafiResp: {
-      ENVOY_LOG(trace, "=== CreateXafiResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::UpdateXafiResp: {
-      ENVOY_LOG(trace, "=== UpdateXafiResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::RetrieveXafiResp: {
-      auto xafis = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::RetrieveXafiResponse>(resp).xafis();
-      for (auto & item : xafis ) {
-        if (!item.second.empty()) {
-          decoder_->metadata()->setDestination(item.second);
-          xafi_ip_map_->emplace(item);
-	}
-        ENVOY_LOG(trace, "=== RetrieveXafiResp {}={}", item.first, item.second);
-      }
-
-      this->continueHanding();
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::DeleteXafiResp: {
-      ENVOY_LOG(trace, "=== DeleteXafiResp");
-      break;
-    }
-    case TrafficRoutingAssistant::ResponseType::SubscribeXafiResp: {
-      ENVOY_LOG(trace, "=== SubscribeXafiResp");
-      auto xafis = absl::any_cast<envoy::extensions::filters::network::sip_proxy::tra::v3::SubscribeXafiResponse>(resp).xafis();
-      for (auto& item : xafis) {
-        ENVOY_LOG(debug, "tra update {}={}", item.first, item.second);
-        xafi_ip_map_->emplace(item);
-      }
-    }
-    default:
-      break;
-    }
-  }
-
 
 bool ConnectionManager::ResponseDecoder::onData(MessageMetadataSharedPtr metadata) {
   metadata_ = metadata;
