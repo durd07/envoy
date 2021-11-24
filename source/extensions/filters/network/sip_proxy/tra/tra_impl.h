@@ -28,8 +28,10 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace TrafficRoutingAssistant {
 
-using TrafficRoutingAssistantAsyncRequestCallbacks = Grpc::AsyncRequestCallbacks<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>;
-using TrafficRoutingAssistantAsyncStreamCallbacks = Grpc::AsyncStreamCallbacks<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>;
+using TrafficRoutingAssistantAsyncRequestCallbacks = Grpc::AsyncRequestCallbacks<
+    envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>;
+using TrafficRoutingAssistantAsyncStreamCallbacks = Grpc::AsyncStreamCallbacks<
+    envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>;
 
 // TODO(htuch): We should have only one client per thread, but today we create one per filter stack.
 // This will require support for more than one outstanding request per client (limit() assumes only
@@ -50,49 +52,57 @@ public:
 
   void closeStream() override;
 
-  void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void createXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void updateXafi(const std::pair<std::string &&, std::string &&> && xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void retrieveXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void deleteXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
-  void subscribeXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) override;
-
+  void createTrafficRoutingAssistant(const std::string& type,
+                                     const absl::flat_hash_map<std::string, std::string>& data,
+                                     Tracing::Span& parent_span,
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void updateTrafficRoutingAssistant(const std::string& type,
+                                     const absl::flat_hash_map<std::string, std::string>& data,
+                                     Tracing::Span& parent_span,
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void retrieveTrafficRoutingAssistant(const std::string& type,
+		                       const std::string& key,
+                                       Tracing::Span& parent_span,
+                                       const StreamInfo::StreamInfo& stream_info) override;
+  void deleteTrafficRoutingAssistant(const std::string& type,
+		                     const std::string& key,
+                                     Tracing::Span& parent_span,
+                                     const StreamInfo::StreamInfo& stream_info) override;
+  void subscribeTrafficRoutingAssistant(const std::string& type,
+		                        Tracing::Span& parent_span,
+                                        const StreamInfo::StreamInfo& stream_info) override;
   // Grpc::AsyncRequestCallbacks
   void onCreateInitialMetadata(Http::RequestHeaderMap&) override {}
-  void onSuccess(std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&& response, Tracing::Span& span) override;
-  void onFailure(Grpc::Status::GrpcStatus status, const std::string& message, Tracing::Span& span) override;
+  void onSuccess(
+      std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
+          response,
+      Tracing::Span& span) override;
+  void onFailure(Grpc::Status::GrpcStatus status, const std::string& message,
+                 Tracing::Span& span) override;
 
   // Grpc::AsyncStreamCallbacks
-  void onReceiveMessage(std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&& message) override;
+  void onReceiveMessage(
+      std::unique_ptr<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>&&
+          message) override;
   void onReceiveInitialMetadata(Http::ResponseHeaderMapPtr&& metadata) override {
-	  UNREFERENCED_PARAMETER(metadata);
+    UNREFERENCED_PARAMETER(metadata);
   }
   void onReceiveTrailingMetadata(Http::ResponseTrailerMapPtr&& metadata) override {
-	  UNREFERENCED_PARAMETER(metadata);
+    UNREFERENCED_PARAMETER(metadata);
   };
   void onRemoteClose(Grpc::Status::GrpcStatus status, const std::string& message) override {
-	  UNREFERENCED_PARAMETER(status);
-	  UNREFERENCED_PARAMETER(message);
+    UNREFERENCED_PARAMETER(status);
+    UNREFERENCED_PARAMETER(message);
   };
 
 private:
   RequestCallbacks* callbacks_{};
-  Grpc::AsyncClient<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest, envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse> async_client_;
+  Grpc::AsyncClient<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest,
+                    envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceResponse>
+      async_client_;
   Grpc::AsyncRequest* request_{};
-  Grpc::AsyncStream<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest> stream_{};
+  Grpc::AsyncStream<envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceRequest>
+      stream_{};
   absl::optional<std::chrono::milliseconds> timeout_;
   const envoy::config::core::v3::ApiVersion transport_api_version_;
 };

@@ -98,21 +98,10 @@ FilterStatus Router::handleAffinity() {
 
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
-    if ((*callbacks_->pCookieIPMap())[key] != val) {
-      callbacks_->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-      callbacks_->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
-    }
-  }
-
-  if (metadata->xafiIpMap().has_value()) {
-    auto [key, val] = metadata->xafiIpMap().value();
-    if ((*callbacks_->xafiIPMap())[key] != val) {
-      callbacks_->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-      callbacks_->traClient()->updateXafi(metadata->xafiIpMap().value(),
-                                            Tracing::NullSpan::instance(),
-                                            callbacks_->streamInfo());
+    if (callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+      callbacks_->traHandler()->updateTrafficRoutingAssistant(
+          "lskpnc", metadata->pCookieIpMap().value().first,
+          metadata->pCookieIpMap().value().second);
     }
   }
 
@@ -248,16 +237,39 @@ FilterStatus Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionI
       ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_,
                        host->address()->ip()->addressAsString());
 
-      try {
-        transaction_info->getTransaction(std::string(metadata->transactionId().value()));
-      } catch (std::out_of_range const&) {
-        transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
-                                            callbacks_, upstream_request_);
-      }
+  if (auto upstream_request =
+          transaction_info->getUpstreamRequest(host->address()->ip()->addressAsString());
+      upstream_request != nullptr) {
+    // There is action connection, reuse it.
+    upstream_request_ = upstream_request;
+    upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_,
+                     host->address()->ip()->addressAsString());
+    try {
+      transaction_info->getTransaction(std::string(metadata->transactionId().value()));
+    } catch (std::out_of_range const&) {
+      transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
+                                          callbacks_, upstream_request_);
+    }
+  } else {
+    upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
+    upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(),
+                                            upstream_request_);
+    ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_,
+                     host->address()->ip()->addressAsString());
+
+    try {
+      transaction_info->getTransaction(std::string(metadata->transactionId().value()));
+    } catch (std::out_of_range const&) {
+      transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
+                                          callbacks_, upstream_request_);
     }
     lb_ret = true;
     return upstream_request_->start();
   }
+  return upstream_request_->start();
+}
 
 FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   bool upstream_request_started = false;
@@ -521,29 +533,12 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
     auto active_trans = parent_.getTransaction(std::string(transaction_id));
     if (active_trans) {
-      // p_cookie_ip_map_ = active_trans->pCookieIPMap();
-
       if (metadata->pCookieIpMap().has_value()) {
         ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
-        if ((*active_trans->pCookieIPMap())[key] != val) {
-          active_trans->pCookieIPMap()->emplace(metadata->pCookieIpMap().value());
-          active_trans->traClient()->updateLskpmc(metadata->pCookieIpMap().value(),
-                                                  Tracing::NullSpan::instance(),
-                                                  active_trans->streamInfo());
-        }
-      }
-
-      if (metadata->xafiIpMap().has_value()) {
-        ENVOY_LOG(trace, "update xafi-ip-map {}={}", metadata->xafiIpMap().value().first,
-                  metadata->xafiIpMap().value().second);
-        auto [key, val] = metadata->xafiIpMap().value();
-        if ((*active_trans->xafiIPMap())[key] != val) {
-          active_trans->xafiIPMap()->emplace(metadata->xafiIpMap().value());
-          active_trans->traClient()->updateXafi(metadata->xafiIpMap().value(),
-                                                  Tracing::NullSpan::instance(),
-                                                  active_trans->streamInfo());
+        if (active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+          active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
         }
       }
 

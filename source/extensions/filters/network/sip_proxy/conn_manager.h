@@ -13,6 +13,7 @@
 #include "common/config/utility.h"
 #include "common/stats/timespan_impl.h"
 #include "common/stream_info/stream_info_impl.h"
+#include "common/tracing/http_tracer_impl.h"
 
 #include "extensions/filters/network/sip_proxy/decoder.h"
 #include "extensions/filters/network/sip_proxy/filters/filter.h"
@@ -54,6 +55,7 @@ public:
   std::string name() const { return name_; }
   bool query() const { return query_; }
   bool subscribe() const { return subscribe_; }
+
 private:
   std::string name_;
   bool query_;
@@ -72,13 +74,36 @@ public:
   virtual const std::vector<CustomizedAffinity>& CustomizedAffinityList() const PURE;
 };
 
+class ConnectionManager;
+class TrafficRoutingAssistantHandler : public TrafficRoutingAssistant::RequestCallbacks,
+                                       public Logger::Loggable<Logger::Id::sip> {
+public:
+  TrafficRoutingAssistantHandler(
+      ConnectionManager& parent,
+      const envoy::extensions::filters::network::sip_proxy::tra::v3::TraServiceConfig& config,
+      Server::Configuration::FactoryContext& context, StreamInfo::StreamInfoImpl& stream_info);
+
+  void updateTrafficRoutingAssistant(const std::string& type, const std::string& key,
+                                     const std::string& val);
+  std::string retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key);
+  void deleteTrafficRoutingAssistant(const std::string& type, const std::string& key);
+  void subscribeTrafficRoutingAssistant(const std::string& type);
+  void complete(const TrafficRoutingAssistant::ResponseType& type, const std::string& message_type,
+                const absl::any& resp) override;
+
+private:
+  ConnectionManager& parent_;
+  std::shared_ptr<TrafficRoutingAssistantMap> traffic_routing_assistant_map_;
+  TrafficRoutingAssistant::ClientPtr tra_client_;
+  StreamInfo::StreamInfoImpl stream_info_;
+};
+
 /**
  * ConnectionManager is a Network::Filter that will perform Sip request handling on a connection.
  */
 class ConnectionManager : public Network::ReadFilter,
                           public Network::ConnectionCallbacks,
                           public DecoderCallbacks,
-                          public TrafficRoutingAssistant::RequestCallbacks,
                           Logger::Loggable<Logger::Id::sip> {
 public:
   ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
@@ -112,26 +137,10 @@ public:
     return config_.settings()->domainMatchParamName();
   }
 
-  std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
-    return p_cookie_ip_map_;
-  }
+  void setDestination(const std::string& data) { this->decoder_->metadata()->setDestination(data); }
 
-  void updatePCookieIPMap(std::string & key, std::string & val) override {
-	  p_cookie_ip_map_->emplace(std::make_pair(key, val));
-  }
-
-  std::shared_ptr<XafiIPMap> xafiIPMap() override {
-    return xafi_ip_map_;
-  }
-
-  void updateXafiIPMap(std::string & key, std::string & val) override {
-	  xafi_ip_map_->emplace(std::make_pair(key, val));
-  }
-
-  TrafficRoutingAssistant::ClientPtr & traClient() { return tra_client_; }
-
-  // TrafficRoutingAssistant::RequestCallbacks
-  void complete(TrafficRoutingAssistant::ResponseType type, absl::any resp) override;
+  void continueHanding();
+  std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
 
 private:
   friend class SipConnectionManagerTest;
@@ -170,22 +179,9 @@ private:
       return parent_.parent_.getDomainMatchParamName();
     }
 
-    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
-      return parent_.parent_.pCookieIPMap();
+    std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() {
+      return parent_.parent_.tra_handler_;
     }
-    void updatePCookieIPMap(std::string & key, std::string & val) override {
-	    UNREFERENCED_PARAMETER(key);
-	    UNREFERENCED_PARAMETER(val);
-    }
-
-    std::shared_ptr<XafiIPMap> xafiIPMap() override {
-      return parent_.parent_.xafiIPMap();
-    }
-    void updateXafiIPMap(std::string & key, std::string & val) override {
-	    UNREFERENCED_PARAMETER(key);
-	    UNREFERENCED_PARAMETER(val);
-    }
-
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;
@@ -217,14 +213,9 @@ private:
       return parent_.transactionInfos();
     }
     std::shared_ptr<SipSettings> settings() override { return parent_.settings(); }
+    std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() override { return parent_.traHandler(); }
     void onReset() override { return parent_.onReset(); }
-    TrafficRoutingAssistant::ClientPtr & traClient() override { return parent_.traClient(); };
-    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
-      return parent_.pCookieIPMap();
-    }
-    std::shared_ptr<XafiIPMap> xafiIPMap() override {
-      return parent_.xafiIPMap();
-    }
+
     void continueHanding() override { return parent_.continueHanding(); }
 
     ActiveTrans& parent_;
@@ -280,13 +271,7 @@ private:
     }
     std::shared_ptr<SipSettings> settings() override { return parent_.config_.settings(); }
     void onReset() override;
-    TrafficRoutingAssistant::ClientPtr & traClient() override { return parent_.traClient(); };
-    std::shared_ptr<PCookieIPMap> pCookieIPMap() override {
-      return parent_.pCookieIPMap();
-    }
-    std::shared_ptr<XafiIPMap> xafiIPMap() override {
-      return parent_.xafiIPMap();
-    }
+    std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() override { return parent_.tra_handler_; }
     void continueHanding() override { return parent_.continueHanding(); }
 
     // Sip::FilterChainFactoryCallbacks
@@ -327,7 +312,6 @@ private:
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
   void doDeferredTransDestroy(ActiveTrans& trans);
   void resetAllTrans(bool local_reset);
-  void continueHanding();
 
   Config& config_;
   SipFilterStats& stats_;
@@ -341,12 +325,11 @@ private:
   TimeSource& time_source_;
   Server::Configuration::FactoryContext& context_;
 
+  std::shared_ptr<TrafficRoutingAssistantHandler> tra_handler_;
+
   // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
-  std::shared_ptr<PCookieIPMap> p_cookie_ip_map_;
-  std::shared_ptr<XafiIPMap> xafi_ip_map_;
-  TrafficRoutingAssistant::ClientPtr tra_client_;
 };
 
 } // namespace SipProxy

@@ -21,16 +21,15 @@ namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
+class TrafficRoutingAssistantHandler;
 namespace SipFilters {
-
-using PCookieIPMap = std::map<std::string, std::string>;
-using XafiIPMap = std::map<std::string, std::string>;
 
 enum class ResponseStatus {
   MoreData = 0, // The upstream response requires more data.
   Complete = 1, // The upstream response is complete.
   Reset = 2,    // The upstream response is invalid and its connection must be reset.
 };
+
 
 /**
  * Decoder filter callbacks add additional callbacks.
@@ -93,9 +92,7 @@ public:
 
   virtual std::shared_ptr<Router::TransactionInfos> transactionInfos() PURE;
   virtual std::shared_ptr<SipProxy::SipSettings> settings() PURE;
-  virtual TrafficRoutingAssistant::ClientPtr & traClient() PURE;
-  virtual std::shared_ptr<PCookieIPMap> pCookieIPMap() PURE;
-  virtual std::shared_ptr<XafiIPMap> xafiIPMap() PURE;
+  virtual std::shared_ptr<SipProxy::TrafficRoutingAssistantHandler> traHandler() PURE;
   virtual void onReset() PURE;
   virtual void continueHanding() PURE;
 };

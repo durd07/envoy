@@ -12,6 +12,7 @@
 
 #include "absl/types/optional.h"
 #include "absl/types/any.h"
+#include "absl/container/flat_hash_map.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -20,16 +21,11 @@ namespace SipProxy {
 namespace TrafficRoutingAssistant {
 
 enum class ResponseType {
-  CreateLskpmcResp,
-  UpdateLskpmcResp,
-  RetrieveLskpmcResp,
-  DeleteLskpmcResp,
-  SubscribeLskpmcResp,
-  CreateXafiResp,
-  UpdateXafiResp,
-  RetrieveXafiResp,
-  DeleteXafiResp,
-  SubscribeXafiResp,
+  CreateResp,
+  UpdateResp,
+  RetrieveResp,
+  DeleteResp,
+  SubscribeResp,
   FailureResp,
 };
 
@@ -40,7 +36,7 @@ class RequestCallbacks {
 public:
   virtual ~RequestCallbacks() = default;
 
-  virtual void complete(ResponseType type, absl::any resp) PURE;
+  virtual void complete(const ResponseType& type, const std::string & message_type, const absl::any& resp) PURE;
 };
 
 /**
@@ -56,25 +52,25 @@ public:
 
   virtual void closeStream() PURE;
 
-  virtual void createLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void updateLskpmc(const std::pair<std::string &&, std::string &&> && lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void retrieveLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void deleteLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void subscribeLskpmc(const std::string lskpmc, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void createXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void updateXafi(const std::pair<std::string &&, std::string &&> && xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void retrieveXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void deleteXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
-
-  virtual void subscribeXafi(const std::string xafi, Tracing::Span& parent_span, const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void createTrafficRoutingAssistant(const std::string& type,
+                                             const absl::flat_hash_map<std::string, std::string>& data,
+                                             Tracing::Span& parent_span,
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void updateTrafficRoutingAssistant(const std::string& type,
+                                             const absl::flat_hash_map<std::string, std::string>& data,
+                                             Tracing::Span& parent_span,
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void retrieveTrafficRoutingAssistant(const std::string& type,
+		                               const std::string& key,
+                                               Tracing::Span& parent_span,
+                                               const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void deleteTrafficRoutingAssistant(const std::string& type,
+		                             const std::string& key,
+                                             Tracing::Span& parent_span,
+                                             const StreamInfo::StreamInfo& stream_info) PURE;
+  virtual void subscribeTrafficRoutingAssistant(const std::string& type,
+		                                Tracing::Span& parent_span,
+                                                const StreamInfo::StreamInfo& stream_info) PURE;
 };
 
 using ClientPtr = std::unique_ptr<Client>;
