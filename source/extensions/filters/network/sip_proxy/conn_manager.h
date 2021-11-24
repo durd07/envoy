@@ -85,17 +85,20 @@ public:
 
   void updateTrafficRoutingAssistant(const std::string& type, const std::string& key,
                                      const std::string& val);
-  std::string retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key);
+  std::string retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key, std::string& host);
   void deleteTrafficRoutingAssistant(const std::string& type, const std::string& key);
   void subscribeTrafficRoutingAssistant(const std::string& type);
   void complete(const TrafficRoutingAssistant::ResponseType& type, const std::string& message_type,
                 const absl::any& resp) override;
+  void doSubscribe(std::vector<CustomizedAffinity>& affinity_list);
 
 private:
   ConnectionManager& parent_;
   std::shared_ptr<TrafficRoutingAssistantMap> traffic_routing_assistant_map_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
   StreamInfo::StreamInfoImpl stream_info_;
+  std::vector<CustomizedAffinity>> affinity_list_;
+  std::map<std::string, bool> is_subscribe_map_;
 };
 
 /**

@@ -95,10 +95,12 @@ void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callb
 
 FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
+  std::string host;
 
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
-    if (callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+    callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
+    if (host != val) {
       callbacks_->traHandler()->updateTrafficRoutingAssistant(
           "lskpnc", metadata->pCookieIpMap().value().first,
           metadata->pCookieIpMap().value().second);
@@ -266,8 +268,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     metadata->resetDestination();
 
     ENVOY_LOG(debug, "call param map function of {}", metadata->destIter->first);
-    auto handle_ret =
-        handle_param_map_[metadata->destIter->first](metadata->destIter->first, metadata);
+    auto handle_ret = handleCustomizedAffinity(metadata->destIter->first, metadata->destinationMap[metadata->destIter->first], metadata);
 
     if (QueryStatus::IN_LOCAL_CACHE == handle_ret) {
       host = metadata->destination().value();
@@ -519,7 +520,9 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
-        if (active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key) != val) {
+	string host;
+        active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
+        if (host != val) {
           active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
         }
       }

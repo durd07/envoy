@@ -43,20 +43,29 @@ void TrafficRoutingAssistantHandler::updateTrafficRoutingAssistant(const std::st
   }
 }
 
-std::string
-TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
-                                                                const std::string& key) {
-  return (*traffic_routing_assistant_map_)[type][key];
-  // if ((*traffic_routing_assistant_map_)[type].find(key) !=
-  //     (*traffic_routing_assistant_map_)[type].end()) {
-  //   return (*traffic_routing_assistant_map_)[type][key];
-  // } else {
-  //   if (tra_client_) {
-  //     tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
-  //                                                  stream_info_);
-  //   }
-  //   return "";
-  // }
+QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
+                                                                            const std::string& key,
+                                                                            std::string& host) {
+  if ((*traffic_routing_assistant_map_)[type].find(key) !=
+      (*traffic_routing_assistant_map_)[type].end()) {
+    host = (*traffic_routing_assistant_map_)[type][key];
+    return QueryStatus::Continue;
+  }
+  for (const auto& aff : affinity_list_) {
+    if (type == aff.name()) {
+      if (aff.query() == true) {
+        if (tra_client_) {
+          tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+                                                       stream_info_);
+	  host = "";
+          return QueryStatus::Pending;
+        }
+      }
+      break;
+    }
+  }
+  host = "";
+  return QueryStatus::Stop;
 }
 
 void TrafficRoutingAssistantHandler::deleteTrafficRoutingAssistant(const std::string& type,
@@ -120,6 +129,17 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
   }
   default:
     break;
+  }
+}
+
+void TrafficRoutingAssistantHandler::doSubscribe(std::vector<CustomizedAffinity>& affinity_list) {
+  affinity_list_ = affinity_list;
+
+  for (const auto& aff : affinity_list) {
+    if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map.end()) {
+      subscribeTrafficRoutingAssistant(aff.name());
+      is_subscribe_map_[aff.name()] = true;
+    }
   }
 }
 

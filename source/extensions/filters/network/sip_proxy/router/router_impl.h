@@ -37,17 +37,6 @@ namespace NetworkFilters {
 namespace SipProxy {
 namespace Router {
 
-enum class QueryStatus {
-  // Do grpc query
-  REMOTE_QUERY,
-
-  // Existed in local cache
-  IN_LOCAL_CACHE,
-
-  // Not existed in local cache
-  NOT_IN_LOCAL_CACHE
-};
-
 class RouteEntryImplBase : public RouteEntry,
                            public Route,
                            public std::enable_shared_from_this<RouteEntryImplBase> {
@@ -288,14 +277,7 @@ public:
   Router(Upstream::ClusterManager& cluster_manager, const std::string& stat_prefix,
          Stats::Scope& scope, Server::Configuration::FactoryContext& context)
       : cluster_manager_(cluster_manager), stats_(generateStats(stat_prefix, scope)),
-        context_(context) {
-    handle_param_map_["lkspmc"] =
-        std::bind(&Router::handleLskpmc, this, std::placeholders::_1, std::placeholders::_2);
-    handle_param_map_["x-suri"] =
-        std::bind(&Router::handleXsuri, this, std::placeholders::_1, std::placeholders::_2);
-    handle_param_map_["ep"] =
-        std::bind(&Router::handleEp, this, std::placeholders::_1, std::placeholders::_2);
-  }
+        context_(context) {}
 
   // SipFilters::DecoderFilter
   void onDestroy() override;
@@ -335,28 +317,23 @@ private:
   FilterStatus messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
 		  MessageMetadataSharedPtr metadata, std::string dest, bool &lb_ret);
 
-  QueryStatus handleEp(std::string ep, MessageMetadataSharedPtr metadata) {
-    metadata->setDestination(metadata->destinationMap()[ep]);
-    ENVOY_LOG(trace, "Set destination from EP {}", metadata->destinationMap()[ep]);
-    return QueryStatus::IN_LOCAL_CACHE;
-  }
+  QueryStatus handleCustomizedAffinity(std::string type, std::string key, MessageMetadataSharedPtr metadata) {
+    std::string host;
+    QueryStatus ret;
 
-  QueryStatus handleXsuri(std::string xsuri, MessageMetadataSharedPtr metadata) {
-    UNREFERENCED_PARAMETER(xsuri); 
-    UNREFERENCED_PARAMETER(metadata); 
-    return QueryStatus::NOT_IN_LOCAL_CACHE;
-  }
-
-  QueryStatus handleLskpmc(std::string lskpmc, MessageMetadataSharedPtr metadata) {
-    if (!callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", lskpmc).empty()) {
-      auto host = callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", lskpmc);
-      metadata->setDestination(host);
-      ENVOY_LOG(trace, "Set destination from lskpmc cache {}={}", lskpmc, host);
-      return QueryStatus::IN_LOCAL_CACHE;
+    if( type == "ep" ) {
+      host = metadata->destinationMap()[key];
+      ret = QueryStatus::Continue;
     } else {
-      // retrieveTrafficRoutingAssistant will query TRA async.
-      return QueryStatus::NOT_IN_LOCAL_CACHE;
+      ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, host);
     }
+
+    if( ret == QueryStatus::Continue)
+    {
+       metadata->setDestination(host);
+       ENVOY_LOG(trace, "Set destination from local cache {} = {} ", type, key);
+    }
+    return ret;
   }
 
   Upstream::ClusterManager& cluster_manager_;
@@ -374,8 +351,6 @@ private:
   std::shared_ptr<SipSettings> settings_;
   Server::Configuration::FactoryContext& context_;
   bool continue_handling_;
-
-  std::map<std::string, std::function<QueryStatus(std::string, MessageMetadataSharedPtr)>> handle_param_map_;
 };
 
 class ThreadLocalActiveConn;
