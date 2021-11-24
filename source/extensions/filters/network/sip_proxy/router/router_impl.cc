@@ -268,12 +268,12 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     metadata->resetDestination();
 
     ENVOY_LOG(debug, "call param map function of {}", metadata->destIter->first);
-    auto handle_ret = handleCustomizedAffinity(metadata->destIter->first, metadata->destinationMap[metadata->destIter->first], metadata);
+    auto handle_ret = handleCustomizedAffinity(metadata->destIter->first, metadata->destinationMap()[metadata->destIter->first], metadata);
 
-    if (QueryStatus::IN_LOCAL_CACHE == handle_ret) {
+    if (QueryStatus::Continue == handle_ret) {
       host = metadata->destination().value();
       metadata->destIter++;
-    } else if (QueryStatus::REMOTE_QUERY == handle_ret) {
+    } else if (QueryStatus::Pending == handle_ret) {
       ENVOY_LOG(debug, "do remote query for {}", metadata->destIter->first);
       return FilterStatus::StopIteration;
     } else {
@@ -520,7 +520,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
-	string host;
+	std::string host;
         active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
         if (host != val) {
           active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);

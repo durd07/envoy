@@ -9,7 +9,7 @@ namespace SipProxy {
 
 enum class QueryStatus {
   // Do grpc query
-  PENDING,
+  Pending,
 
   // Existed in local cache
   Continue,

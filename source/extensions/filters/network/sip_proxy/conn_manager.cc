@@ -136,7 +136,7 @@ void TrafficRoutingAssistantHandler::doSubscribe(std::vector<CustomizedAffinity>
   affinity_list_ = affinity_list;
 
   for (const auto& aff : affinity_list) {
-    if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map.end()) {
+    if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map_.end()) {
       subscribeTrafficRoutingAssistant(aff.name());
       is_subscribe_map_[aff.name()] = true;
     }
