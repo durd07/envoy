@@ -40,13 +40,16 @@ public:
   absl::optional<absl::string_view> topRoute() { return top_route_; }
   absl::optional<absl::string_view> domain() { return domain_; }
   absl::optional<absl::string_view> transactionId() { return transaction_id_; }
-  absl::optional<absl::string_view> destination() { return destination_; }
-  std::map<std::string, std::string>& paramMap() {return param_map_;};
-  std::map<std::string, std::string>& destinationMap() { return destination_map_; }
+  std::string destination() { return destination_; }
+  std::map<std::string, std::string>& paramMap() { return param_map_; };
+  std::vector<std::pair<std::string, std::string>>& destinationList() { return destination_list_; }
   std::map<std::string, bool>& queryMap() { return query_map_; }
   std::map<std::string, bool>& subscribeMap() { return subscribe_map_; }
-  void addDestination(std::string param, std::string value) { destination_map_[param] = value;}
+  void addDestination(std::string param, std::string value) {
+    destination_list_.emplace_back(std::make_pair(param, value));
+  }
   void addParam(std::string param, std::string value) { param_map_[param] = value; }
+  void resetParam() { param_map_.clear(); }
   void addQuery(std::string param, bool value) { query_map_[param] = value; }
   void addSubscribe(std::string param, bool value) { subscribe_map_[param] = value; }
 
@@ -57,7 +60,7 @@ public:
   void setRespMethodType(MethodType data) { resp_method_type_ = data; }
   void setOperation(Operation op) { operation_list_.emplace_back(op); }
   void setEP(absl::string_view data) { ep_ = data; }
-  void setPCookieIpMap(std::pair<std::string, std::string> && data) { p_cookie_ip_map_ = data; }
+  void setPCookieIpMap(std::pair<std::string, std::string>&& data) { p_cookie_ip_map_ = data; }
 
   void setRequestURI(absl::string_view data) { request_uri_ = data; }
   void setTopRoute(absl::string_view data) { top_route_ = data; }
@@ -81,7 +84,8 @@ public:
 
     // Compare the domain
     if (domain != ownDomain) {
-      ENVOY_LOG(trace, "header {} domain:{} is not equal to own_domain:{}, don't add EP.", header, domain, ownDomain);
+      ENVOY_LOG(trace, "header {} domain:{} is not equal to own_domain:{}, don't add EP.", header,
+                domain, ownDomain);
       return;
     }
 
@@ -108,7 +112,8 @@ public:
       // auto xsuri = header.find("sip:pcsf-cfed");
       auto xsuri = header.find("x-suri=sip:");
       if (xsuri != absl::string_view::npos) {
-        setOperation(Operation(OperationType::Delete, rawOffset + xsuri + strlen("x-suri="), DeleteOperationValue(4)));
+        setOperation(Operation(OperationType::Delete, rawOffset + xsuri + strlen("x-suri="),
+                               DeleteOperationValue(4)));
       }
     }
   }
@@ -128,12 +133,12 @@ public:
     transaction_id_ = data.substr(start_index, end_index - start_index);
   }
 
-  void setDestination(absl::string_view destination) { destination_ = destination; }
-  void resetDestination() { destination_.reset(); }
+  void setDestination(std::string destination) { destination_ = destination; }
+  void resetDestination() { destination_.clear(); }
   /*only used in UT*/
   void resetTransactionId() { transaction_id_.reset(); }
 
-  std::map<std::string, std::string>::iterator destIter;
+  std::vector<std::pair<std::string, std::string>>::iterator destIter;
 
 private:
   MsgType msg_type_;
@@ -151,11 +156,11 @@ private:
   absl::optional<absl::string_view> top_route_{};
   absl::optional<absl::string_view> domain_{};
   absl::optional<absl::string_view> transaction_id_{};
-  absl::optional<absl::string_view> destination_{};
+  std::string destination_ = "";
   // Params get from Top Route header
   std::map<std::string, std::string> param_map_{};
   // Destination get from param_map_ ordered by CustomizedAffinity, not queried
-  std::map<std::string, std::string> destination_map_{};
+  std::vector<std::pair<std::string, std::string>> destination_list_{};
   // Could do remote query for this param
   std::map<std::string, bool> query_map_{};
   // Could do remote subscribe for this param

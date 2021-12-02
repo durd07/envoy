@@ -33,19 +33,17 @@ ProtocolOptionsConfigImpl::ProtocolOptionsConfigImpl(
     : session_affinity_(config.session_affinity()),
       registration_affinity_(config.registration_affinity()) {
 
-  for(const auto& affinity: config.customized_affinity()) {
+  for (const auto& affinity : config.customized_affinity()) {
     CustomizedAffinity aff(affinity.key_name(), affinity.query(), affinity.subscribe());
     customized_affinity_list_.emplace_back(aff);
-  }
-  std::cout <<"DDD Customized Affinity:\n";
-  for(auto& aff: customized_affinity_list_) {
-	  std::cout << aff.name() << "  " << aff.query() << "  " << aff.subscribe() << std::endl;
   }
 }
 
 bool ProtocolOptionsConfigImpl::sessionAffinity() const { return session_affinity_; }
 bool ProtocolOptionsConfigImpl::registrationAffinity() const { return registration_affinity_; }
-const std::vector<CustomizedAffinity>& ProtocolOptionsConfigImpl::CustomizedAffinityList() const { return customized_affinity_list_; }
+const std::vector<CustomizedAffinity>& ProtocolOptionsConfigImpl::CustomizedAffinityList() const {
+  return customized_affinity_list_;
+}
 
 Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromProtoTyped(
     const envoy::extensions::filters::network::sip_proxy::v3::SipProxy& proto_config,
@@ -75,12 +73,12 @@ Network::FilterFactoryCb SipProxyFilterConfigFactory::createFilterFactoryFromPro
     transaction_infos->emplace(cluster, transaction_info_ptr);
   }
 
-  return [filter_config, &context,
-          transaction_infos](Network::FilterManager& filter_manager) -> void {
-    filter_manager.addReadFilter(
-        std::make_shared<ConnectionManager>(*filter_config, context.api().randomGenerator(),
-                                            context.dispatcher().timeSource(), context, transaction_infos));
-  };
+  return
+      [filter_config, &context, transaction_infos](Network::FilterManager& filter_manager) -> void {
+        filter_manager.addReadFilter(std::make_shared<ConnectionManager>(
+            *filter_config, context.api().randomGenerator(), context.dispatcher().timeSource(),
+            context, transaction_infos));
+      };
 }
 
 /**

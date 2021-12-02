@@ -43,9 +43,8 @@ void TrafficRoutingAssistantHandler::updateTrafficRoutingAssistant(const std::st
   }
 }
 
-QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
-                                                                            const std::string& key,
-                                                                            std::string& host) {
+QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(
+    const std::string& type, const std::string& key, std::string& host) {
   if ((*traffic_routing_assistant_map_)[type].find(key) !=
       (*traffic_routing_assistant_map_)[type].end()) {
     host = (*traffic_routing_assistant_map_)[type][key];
@@ -149,13 +148,7 @@ ConnectionManager::ConnectionManager(Config& config, Random::RandomGenerator& ra
                                      std::shared_ptr<Router::TransactionInfos> transaction_infos)
     : config_(config), stats_(config_.stats()), decoder_(std::make_unique<Decoder>(*this)),
       random_generator_(random_generator), time_source_(time_source), context_(context),
-      transaction_infos_(transaction_infos) {
-
-  auto stream_info = StreamInfo::StreamInfoImpl(
-      time_source_, read_callbacks_->connection().addressProviderSharedPtr());
-  tra_handler_ = std::make_shared<TrafficRoutingAssistantHandler>(
-      *this, config.settings()->traServiceConfig(), context_, stream_info);
-}
+      transaction_infos_(transaction_infos) {}
 
 ConnectionManager::~ConnectionManager() = default;
 
@@ -242,6 +235,11 @@ void ConnectionManager::initializeReadFilterCallbacks(Network::ReadFilterCallbac
 
   read_callbacks_->connection().addConnectionCallbacks(*this);
   read_callbacks_->connection().enableHalfClose(true);
+
+  auto stream_info = StreamInfo::StreamInfoImpl(
+      time_source_, read_callbacks_->connection().addressProviderSharedPtr());
+  tra_handler_ = std::make_shared<TrafficRoutingAssistantHandler>(
+      *this, config_.settings()->traServiceConfig(), context_, stream_info);
 }
 
 void ConnectionManager::onEvent(Network::ConnectionEvent event) {

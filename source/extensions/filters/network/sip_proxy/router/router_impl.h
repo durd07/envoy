@@ -299,10 +299,10 @@ public:
   }
 
   bool shouldSelectAnotherHost(const Upstream::Host& host) override {
-    if (!metadata_->destination().has_value()) {
+    if (!metadata_->destination().empty()) {
       return false;
     }
-    return host.address()->ip()->addressAsString() != metadata_->destination().value();
+    return host.address()->ip()->addressAsString() != metadata_->destination();
   }
 
 private:
@@ -315,26 +315,11 @@ private:
 
   FilterStatus handleAffinity();
   FilterStatus messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transaction_info,
-		  MessageMetadataSharedPtr metadata, std::string dest, bool &lb_ret);
+                                              MessageMetadataSharedPtr metadata, std::string dest,
+                                              bool& lb_ret);
 
-  QueryStatus handleCustomizedAffinity(std::string type, std::string key, MessageMetadataSharedPtr metadata) {
-    std::string host;
-    QueryStatus ret;
-
-    if( type == "ep" ) {
-      host = metadata->destinationMap()[key];
-      ret = QueryStatus::Continue;
-    } else {
-      ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, host);
-    }
-
-    if( ret == QueryStatus::Continue)
-    {
-       metadata->setDestination(host);
-       ENVOY_LOG(trace, "Set destination from local cache {} = {} ", type, key);
-    }
-    return ret;
-  }
+  QueryStatus handleCustomizedAffinity(std::string type, std::string key,
+                                       MessageMetadataSharedPtr metadata);
 
   Upstream::ClusterManager& cluster_manager_;
   RouterStats stats_;

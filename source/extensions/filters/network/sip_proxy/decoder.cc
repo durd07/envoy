@@ -280,7 +280,7 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   if (!isFirstRoute()) {
     return 0;
   }
-  setFirstRoute(false); 
+  setFirstRoute(false);
 
   Decoder::getParamFromHeader(header, metadata());
 
@@ -354,7 +354,7 @@ int Decoder::HeaderHandler::processPCookieIPMap(absl::string_view& header) {
 
   metadata()->setPCookieIpMap(std::make_pair(std::string(lskpmc), std::string(ip)));
   metadata()->setOperation(Operation(OperationType::Delete, rawOffset(),
-                                       DeleteOperationValue(header.length() + strlen("\r\n"))));
+                                     DeleteOperationValue(header.length() + strlen("\r\n"))));
   return 0;
 }
 //
@@ -691,13 +691,19 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
   std::size_t pos = 0;
   std::string pattern = "(.*)=(.*?)>*";
 
-  ENVOY_LOG(debug, "DDD header: {}", header);
+  // If have both topline and top route, only keep one
+  metadata->resetParam();
+
+  // Has "SIP/2.0" in top line
+  // Eg: INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0
+  if (std::size_t found = header.find(" SIP"); found != std::string_view::npos) {
+    header = static_cast<std::string>(header).substr(0, found);
+  }
 
   ENVOY_LOG(debug, "DDD Parameter in TopRoute/TopLine");
-  while ( std::size_t found = header.find_first_of(";", pos)) {
+  while (std::size_t found = header.find_first_of(";", pos)) {
     std::string str;
-    if (found == std::string_view::npos)
-    {
+    if (found == std::string_view::npos) {
       str = static_cast<std::string>(header).substr(pos);
     } else {
       str = static_cast<std::string>(header).substr(pos, found - pos);
@@ -707,23 +713,19 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
     std::string value = "";
     re2::RE2::FullMatch(static_cast<std::string>(str), pattern, &param, &value);
 
-    if (param.size() > 0 && value.size() > 0 ) {
-      if(value.find("sip:") != std::string_view::npos)
-      {
+    if (param.size() > 0 && value.size() > 0) {
+      if (value.find("sip:") != std::string_view::npos) {
         value = value.substr(std::strlen("sip:"));
       }
-      if(value.size() > 0 )
-      {
-         std::size_t comma = value.find(":");
-         if( comma != std::string_view::npos ) {
-           value = value.substr(0,comma);
-	 }
+      if (value.size() > 0) {
+        std::size_t comma = value.find(":");
+        if (comma != std::string_view::npos) {
+          value = value.substr(0, comma);
+        }
       }
-      if(value.size() > 0 ){
-  ENVOY_LOG(debug, "{} = {}", param, value);
-  
-        if( param == "opaque" )
-        {
+      if (value.size() > 0) {
+        ENVOY_LOG(debug, "{} = {}", param, value);
+        if (param == "opaque") {
           metadata->addParam("ep", value);
         } else {
           metadata->addParam(param, value);
@@ -731,8 +733,7 @@ void Decoder::getParamFromHeader(absl::string_view header, MessageMetadataShared
       }
     }
 
-    if( found == std::string_view::npos)
-    {
+    if (found == std::string_view::npos) {
       break;
     }
     pos = found + 1;

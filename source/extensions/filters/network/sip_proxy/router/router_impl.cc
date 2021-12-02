@@ -93,6 +93,31 @@ void Router::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callb
   settings_ = callbacks_->settings();
 }
 
+QueryStatus Router::handleCustomizedAffinity(std::string type, std::string key,
+                                             MessageMetadataSharedPtr metadata) {
+  QueryStatus ret;
+  std::string host;
+
+  if (type == "ep") {
+    for (auto dest : metadata->destinationList()) {
+      ret = QueryStatus::Stop;
+      if (dest.first == type) {
+        host = key;
+        ret = QueryStatus::Continue;
+        break;
+      }
+    }
+  } else {
+    ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, host);
+  }
+
+  if (ret == QueryStatus::Continue) {
+    metadata->setDestination(host);
+    ENVOY_LOG(debug, "Set destination from local cache {} = {} ", type, metadata->destination());
+  }
+  return ret;
+}
+
 FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
   std::string host;
@@ -102,7 +127,7 @@ FilterStatus Router::handleAffinity() {
     callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
     if (host != val) {
       callbacks_->traHandler()->updateTrafficRoutingAssistant(
-          "lskpnc", metadata->pCookieIpMap().value().first,
+          "lskpmc", metadata->pCookieIpMap().value().first,
           metadata->pCookieIpMap().value().second);
     }
   }
@@ -117,28 +142,17 @@ FilterStatus Router::handleAffinity() {
 
   if ((options->registrationAffinity() || options->sessionAffinity()) &&
       !options->CustomizedAffinityList().empty() && !metadata->paramMap().empty()) {
-    ENVOY_LOG(debug, "DDD DestinationMap: \n");
     for (const auto& aff : options->CustomizedAffinityList()) {
-      ENVOY_LOG(debug, "DDD Affinity = {}\n", aff.name());
       for (auto [param, value] : metadata->paramMap()) {
-        ENVOY_LOG(debug, "DDD param = {}\n", param);
         if (param == aff.name()) {
-          ENVOY_LOG(debug, "DDD {} = {}\n", param, aff.name());
           metadata->addDestination(param, value);
           metadata->addQuery(param, aff.query());
           metadata->addSubscribe(param, aff.subscribe());
         }
       }
     }
-    metadata->destIter = metadata->destinationMap().begin();
+    metadata->destIter = metadata->destinationList().begin();
   }
-
-  // No destinationMap selected
-  /* DDD
-  if (metadata->destinationMap().empty()) {
-    return FilterStatus::StopIteration;
-  }
-  */
 
   return FilterStatus::Continue;
 }
@@ -262,22 +276,24 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
   auto& transaction_info = (*transaction_infos_)[cluster_->name()];
 
-  while (!metadata->destinationMap().empty() &&
-         metadata->destIter != metadata->destinationMap().end()) {
+  while (!metadata->destinationList().empty() &&
+         metadata->destIter != metadata->destinationList().end()) {
     std::string host;
     metadata->resetDestination();
 
-    ENVOY_LOG(debug, "call param map function of {}", metadata->destIter->first);
-    auto handle_ret = handleCustomizedAffinity(metadata->destIter->first, metadata->destinationMap()[metadata->destIter->first], metadata);
+    ENVOY_STREAM_LOG(debug, "call param map function of {}", *callbacks_, metadata->destIter->first);
+    auto handle_ret =
+        handleCustomizedAffinity(metadata->destIter->first, metadata->destIter->second, metadata);
 
     if (QueryStatus::Continue == handle_ret) {
-      host = metadata->destination().value();
+      host = metadata->destination();
+      ENVOY_STREAM_LOG(debug, "get existing destination {}", *callbacks_, host);
       metadata->destIter++;
     } else if (QueryStatus::Pending == handle_ret) {
-      ENVOY_LOG(debug, "do remote query for {}", metadata->destIter->first);
+      ENVOY_STREAM_LOG(debug, "do remote query for {}", *callbacks_, metadata->destIter->first);
       return FilterStatus::StopIteration;
     } else {
-      ENVOY_LOG(debug, "no existing destiantion for {}", metadata->destIter->first);
+      ENVOY_STREAM_LOG(debug, "no existing destintion for {}", *callbacks_, metadata->destIter->first);
       metadata->destIter++;
       continue;
     }
@@ -295,6 +311,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
         transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                             callbacks_, upstream_request_);
       }
+      ENVOY_STREAM_LOG(trace, "call upstream_request_->start()", *callbacks_);
       return upstream_request_->start();
     }
     ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
@@ -520,7 +537,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
         ENVOY_LOG(trace, "update p-cookie-ip-map {}={}", metadata->pCookieIpMap().value().first,
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
-	std::string host;
+        std::string host;
         active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
         if (host != val) {
           active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
