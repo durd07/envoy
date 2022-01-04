@@ -596,12 +596,20 @@ int Decoder::decode() {
       current_header_ = HeaderType::Other;
 
       handler = MessageFactory::create(metadata->methodType(), *this);
+
+      metadata->addMsgHeader(HeaderType::TopLine, sip_line);
     } else {
       // Normal Header Line
       absl::string_view sip_line = msg.substr(0, crlf);
       auto [current_header, header_value] = sipHeaderType(sip_line);
       this->current_header_ = current_header;
       handler->parseHeader(current_header, sip_line);
+
+      if (current_header == HeaderType::Other) {
+        metadata->addMsgHeader(current_header, sip_line);
+      } else {
+        metadata->addMsgHeader(current_header, header_value);
+      }
     }
 
     msg = msg.substr(crlf + strlen("\r\n"));

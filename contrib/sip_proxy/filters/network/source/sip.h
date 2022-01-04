@@ -5,7 +5,7 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
-enum class HeaderType {
+enum HeaderType {
   TopLine,
   CallId,
   Via,
@@ -22,7 +22,8 @@ enum class HeaderType {
   Auth,
   PCookieIPMap,
   Other,
-  InvalidFormat
+  InvalidFormat,
+  HeaderMaxNum
 };
 
 enum class MsgType { Request, Response, ErrorMsg };
