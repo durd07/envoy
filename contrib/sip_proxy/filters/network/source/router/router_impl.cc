@@ -142,7 +142,8 @@ FilterStatus Router::handleAffinity() {
   }
 
   if ((options->registrationAffinity() || options->sessionAffinity()) &&
-      !options->customizedAffinityList().empty() && !metadata->paramMap().empty()) {
+      !options->customizedAffinityList().empty() && !metadata->paramMap().empty() &&
+      metadata->destinationList().empty()) {
     for (const auto& aff : options->customizedAffinityList()) {
       for (auto [param, value] : metadata->paramMap()) {
         if (param == aff.name()) {
@@ -170,9 +171,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   if (!route_) {
     ENVOY_STREAM_LOG(debug, "no route match domain {}", *callbacks_, metadata->domain().value());
     stats_.route_missing_.inc();
-    callbacks_->sendLocalReply(AppException(AppExceptionType::UnknownMethod, "no route for method"),
-                               true);
-    std::cout << "DDD ---------------1\n";
+    throw AppException(AppExceptionType::UnknownMethod, "no route for method");
     return FilterStatus::StopIteration;
   }
 
@@ -184,9 +183,8 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   if (!cluster) {
     ENVOY_STREAM_LOG(debug, "unknown cluster '{}'", *callbacks_, cluster_name);
     stats_.unknown_cluster_.inc();
-    callbacks_->sendLocalReply(AppException(AppExceptionType::InternalError,
-                                            fmt::format("unknown cluster '{}'", cluster_name)),
-                               true);
+    throw AppException(AppExceptionType::InternalError,
+                       fmt::format("unknown cluster '{}'", cluster_name));
     return FilterStatus::StopIteration;
   }
 
@@ -196,10 +194,8 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
 
   if (cluster_->maintenanceMode()) {
     stats_.upstream_rq_maintenance_mode_.inc();
-    callbacks_->sendLocalReply(
-        AppException(AppExceptionType::InternalError,
-                     fmt::format("maintenance mode for cluster '{}'", cluster_name)),
-        true);
+    throw AppException(AppExceptionType::InternalError,
+                       fmt::format("maintenance mode for cluster '{}'", cluster_name));
     return FilterStatus::StopIteration;
   }
 
@@ -216,11 +212,11 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
                                        bool& lb_ret) {
   auto conn_pool = thread_local_cluster_->tcpConnPool(Upstream::ResourcePriority::Default, this);
   if (!conn_pool) {
-    stats_.no_healthy_upstream_.inc();
-    callbacks_->sendLocalReply(
-        AppException(AppExceptionType::InternalError,
-                     fmt::format("no healthy upstream for '{}'", cluster_->name())),
-        true);
+    if (dest.empty()) {
+      stats_.no_healthy_upstream_.inc();
+      throw AppException(AppExceptionType::InternalError,
+                     fmt::format("no healthy upstream for '{}'", cluster_->name()));
+    }
     return FilterStatus::StopIteration;
   }
 
@@ -265,6 +261,8 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
     lb_ret = true;
     return upstream_request_->start();
   }
+
+  lb_ret = true;
   return upstream_request_->start();
 }
 
@@ -460,9 +458,8 @@ void UpstreamRequest::onUpstreamHostSelected(Upstream::HostDescriptionConstShare
 void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
   switch (reason) {
   case ConnectionPool::PoolFailureReason::Overflow:
-    callbacks_->sendLocalReply(
-        AppException(AppExceptionType::InternalError, "sip upstream request: too many connections"),
-        true);
+    throw AppException(AppExceptionType::InternalError,
+                       "sip upstream request: too many connections");
     break;
   case ConnectionPool::PoolFailureReason::LocalConnectionFailure:
     // Should only happen if we closed the connection, due to an error condition, in which case

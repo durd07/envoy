@@ -19,13 +19,11 @@ class Encoder : public Logger::Loggable<Logger::Id::filter> {
 public:
   virtual ~Encoder() = default;
   virtual void encode(const MessageMetadataSharedPtr& metadata, Buffer::Instance& out) PURE;
-  virtual void createFinalResponse(const MessageMetadataSharedPtr& metadata, std::string rCode, std::string reason, Buffer::Instance& out) PURE;
 };
 
 class EncoderImpl : public Encoder {
 public:
   void encode(const MessageMetadataSharedPtr& metadata, Buffer::Instance& out) override;
-  void createFinalResponse(const MessageMetadataSharedPtr& metadata, std::string rCode, std::string reason, Buffer::Instance& out) override;
 };
 
 } // namespace SipProxy
