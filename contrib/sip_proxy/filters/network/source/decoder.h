@@ -51,7 +51,8 @@ private:
 class DecoderStateMachine : public Logger::Loggable<Logger::Id::filter> {
 public:
   DecoderStateMachine(MessageMetadataSharedPtr& metadata, DecoderEventHandler& handler)
-      : metadata_(metadata), handler_(handler), state_(State::TransportBegin) {}
+      : metadata_(metadata), handler_(handler), state_(State::TransportBegin),
+        last_state_(State::TransportBegin) {}
 
   /**
    * Consumes as much data from the configured Buffer as possible and executes
@@ -66,7 +67,7 @@ public:
    * ProtocolState::Done
    * @throw Envoy Exception if thrown by the underlying Protocol
    */
-  State run();
+  State run(bool continue_handling = false);
 
   /**
    * @return the current ProtocolState
@@ -103,6 +104,7 @@ private:
   MessageMetadataSharedPtr metadata_;
   DecoderEventHandler& handler_;
   State state_;
+  State last_state_;
 };
 
 using DecoderStateMachinePtr = std::unique_ptr<DecoderStateMachine>;

@@ -50,12 +50,18 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
   }
 }
 
-State DecoderStateMachine::run() {
+State DecoderStateMachine::run(bool continue_handling) {
+  // Need to back to last state for continue handling
+  if (continue_handling) {
+    state_ = last_state_;
+  }
+
   while (state_ != State::Done) {
     ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(state_));
 
     DecoderStatus s = handleState();
 
+    last_state_ = state_;
     state_ = s.next_state_;
 
     ASSERT(s.filter_status_.has_value());
@@ -86,7 +92,7 @@ void Decoder::complete() {
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
   if (continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
-    State rv = state_machine_->run();
+    State rv = state_machine_->run(true);
 
     if (rv == State::Done) {
       complete();
