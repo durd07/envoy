@@ -54,12 +54,13 @@ QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(cons
   for (const auto& aff : affinity_list_) {
     if (type == aff.name()) {
       if (aff.query() == true) {
-        if (tra_client_) {
-          tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
-                                                       stream_info_);
-          host = "";
-          return QueryStatus::Pending;
-        }
+        this->parent_.pushIntoPendingList(type, key, nullptr, [&]() {
+          if (tra_client_) {
+            tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+                                                         stream_info_);
+            host = "";
+          }
+        });
       }
       break;
     }
@@ -103,9 +104,11 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
             .data();
     for (const auto& item : resp_data) {
       if (!item.second.empty()) {
-        (*traffic_routing_assistant_map_)[message_type].emplace(item);
-        parent_.setDestination(item.second);
-        parent_.continueHanding();
+        parent_.onResponse(type, item.first, [&](MessageMetadataSharedPtr metadata) {
+          (*traffic_routing_assistant_map_)[message_type].emplace(item);
+          parent_.setDestination(item.second);
+          parent_.continueHanding(metadata);
+        });
       }
       ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
     }
@@ -173,6 +176,18 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
 }
 
 void ConnectionManager::continueHanding() { decoder_->onData(request_buffer_, true); }
+
+// PendingListHandler
+void ConnectionManager::pushIntoPendingList(const std::string& type, const std::string& key,
+                                            const MessageMetadataSharedPtr& metadata,
+                                            std::function<void(void)> func) {
+  pending_list_.pushIntoPendingList(type, key, metadata, func);
+}
+
+void ConnectionManager::onResponse(const std::string& type, const std::string& key,
+                                   std::function<void(MessageMetadataSharedPtr)> func) {
+  pending_list_.onResponse(type, key, func);
+}
 
 void ConnectionManager::dispatch() { decoder_->onData(request_buffer_); }
 

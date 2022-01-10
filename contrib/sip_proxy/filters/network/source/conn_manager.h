@@ -22,6 +22,7 @@
 #include "contrib/sip_proxy/filters/network/source/protocol.h"
 #include "contrib/sip_proxy/filters/network/source/stats.h"
 #include "contrib/sip_proxy/filters/network/source/tra/tra_impl.h"
+#include <functional>
 
 namespace Envoy {
 namespace Extensions {
@@ -47,11 +48,8 @@ public:
  */
 class CustomizedAffinity {
 public:
-  CustomizedAffinity(std::string name, bool query, bool subscribe) {
-    name_ = name;
-    query_ = query;
-    subscribe_ = subscribe;
-  };
+  CustomizedAffinity(std::string& name, bool& query, bool& subscribe)
+      : name_(name), query_(query), subscribe_(subscribe) {}
   std::string name() const { return name_; }
   bool query() const { return query_; }
   bool subscribe() const { return subscribe_; }
@@ -102,12 +100,20 @@ private:
   std::map<std::string, bool> is_subscribe_map_;
 };
 
+class PendingListHandler {
+public:
+  virtual ~PendingListHandler() = default;
+  virtual void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) PURE;
+  virtual void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) PURE;
+};
+
 /**
  * ConnectionManager is a Network::Filter that will perform Sip request handling on a connection.
  */
 class ConnectionManager : public Network::ReadFilter,
                           public Network::ConnectionCallbacks,
                           public DecoderCallbacks,
+                          public PendingListHandler,
                           Logger::Loggable<Logger::Id::connection> {
 public:
   ConnectionManager(Config& config, Random::RandomGenerator& random_generator,
@@ -155,6 +161,10 @@ public:
 
   void continueHanding();
   std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
+
+  // PendingListHandler
+  void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) override;
+  void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) override;
 
 private:
   friend class SipConnectionManagerTest;
@@ -324,7 +334,61 @@ private:
     std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   };
 
-  using ActiveTransPtr = std::unique_ptr<ActiveTrans>;
+  using ActiveTransPtr = std::shared_ptr<ActiveTrans>;
+
+  /**
+   * In order to handle TRA retrieve async, introduce PendingList to hold current
+   * message(activetrans). described as below:
+   *
+   * --> tra_query_request
+   *     --> has local cache
+   *         --> pending_list[base_uri] has value
+   *             --> hold current message into pending_list with base_uri as key
+   *         --> pending_list[base_uri] no value
+   *             --> do tra query
+   *             --> hold current message into pending_list with base_uri as key
+   *     --> no  local cache
+   *         --> full_uri as key
+   *         --> hold current message into pending_list;
+   *
+   * --> tra_query_response_arrived
+   *     --> handle all messages in same query
+   *         --> continue_to_handle
+   */
+  class PendingList {
+  public:
+    PendingList() = default;
+    PendingList(std::vector<CustomizedAffinity>& affinity_list) {
+      for (const auto& x : affinity_list) {
+        cached_[x.name()] = x.subscribe();
+      }
+    }
+
+    void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) {
+      if (cached_[type]) {
+        if (pending_list_[type + key].empty()) {
+          // need to do tra query
+          func();
+        }
+        pending_list_[type + key].emplace_back(metadata);
+      } else {
+        func();
+        pending_list_[type + key].emplace_back(metadata);
+      }
+    }
+
+    void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) {
+      for (auto& metadata : pending_list_[type + key]) {
+        func(metadata);
+      }
+
+      pending_list_[key].clear();
+    }
+
+  private:
+    absl::flat_hash_map<std::string, bool> cached_;
+    absl::flat_hash_map<std::string, std::list<MessageMetadataSharedPtr>> pending_list_;
+  };
 
   void dispatch();
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
@@ -348,6 +412,8 @@ private:
   // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
+
+  PendingList pending_list_;
 };
 
 } // namespace SipProxy

@@ -167,6 +167,7 @@ private:
 
   int decode();
 
+private:
   HeaderType currentHeader() { return current_header_; }
   size_t rawOffset() { return raw_offset_; }
   void setCurrentHeader(HeaderType data) { current_header_ = data; }
@@ -266,7 +267,6 @@ private:
 
   protected:
     std::shared_ptr<HeaderHandler> handler_;
-    // Decoder& parent_;
   };
 
   class REGISTERHeaderHandler : public HeaderHandler {

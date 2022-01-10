@@ -45,7 +45,9 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
   case State::TransportEnd:
     return transportEnd();
   default:
-    /* test failed report "panic:     not reached" if reach here */
+    /**
+     * test failed report "panic:     not reached" if reach here
+     */
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
@@ -85,7 +87,9 @@ void Decoder::complete() {
 
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
   if (continue_handling) {
-    /* means previous handling suspended, continue handling last request,  */
+    /**
+     * means previous handling suspended, continue handling last request
+     */
     State rv = state_machine_->run();
 
     if (rv == State::Done) {
@@ -102,8 +106,6 @@ FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
 }
 
 int Decoder::reassemble(Buffer::Instance& data) {
-  // ENVOY_LOG(trace, "received --> {}\n{}", data.length(), data.toString());
-
   Buffer::Instance& remaining_data = data;
 
   int ret = 0;
@@ -113,10 +115,11 @@ int Decoder::reassemble(Buffer::Instance& data) {
   while (remaining_data.length() != 0) {
     ssize_t content_pos = remaining_data.search("\n\r\n", strlen("\n\r\n"), 0);
     if (content_pos != -1) {
-      // Get the Content-Length header value so that we can find
-      // out the full message length.
-      //
-      content_pos += 3; // move to the line after the CRLF line.
+      /**
+       * Get the Content-Length header value so that we can find
+       * out the full message length.
+       */
+      content_pos += strlen("\n\r\n"); // move to the line after the CRLF line.
 
       ssize_t content_length_start =
           remaining_data.search("Content-Length:", strlen("Content-Length:"), 0, content_pos);
@@ -126,11 +129,13 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       ssize_t content_length_end = remaining_data.search(
           "\r\n", strlen("\r\n"), content_length_start + strlen("Content-Length:"), content_pos);
-      /* The "\n\r\n" is always included in remaining_data, so could not return -1
-      if (content_length_end == -1) {
-        break;
-      }
-      */
+
+      /**
+       * The "\n\r\n" is always included in remaining_data, so could not return -1
+       * if (content_length_end == -1) {
+       *   break;
+       * }
+       */
 
       char len[10]{}; // temporary storage
       remaining_data.copyOut(content_length_start + strlen("Content-Length:"),
@@ -139,36 +144,30 @@ int Decoder::reassemble(Buffer::Instance& data) {
 
       clen = std::atoi(len);
 
-      // Fail if Content-Length is less then zero
-      //
-      /* atoi return value >= 0, could not < 0
-      if (clen < static_cast<size_t>(0)) {
-        break;
-      }
-      */
+      /**
+       * atoi return value >= 0, could not < 0
+       * if (clen < static_cast<size_t>(0)) {
+       *   break;
+       * }
+       */
 
       full_msg_len = content_pos + clen;
     }
 
-    // Check for partial message received.
-    //
+    /**
+     * Check for partial message received.
+     */
     if ((full_msg_len == 0) || (full_msg_len > remaining_data.length())) {
       break;
     } else {
-      // We have a full SIP message; put it on the dispatch queue.
-      //
+      /**
+       * We have a full SIP message; put it on the dispatch queue.
+       */
       Buffer::OwnedImpl message{};
       message.move(remaining_data, full_msg_len);
-      /* status not used
-      auto status = onDataReady(message);
-      */
       onDataReady(message);
       message.drain(message.length());
       full_msg_len = 0;
-      /* no handle for this if
-      if (status != FilterStatus::StopIteration) {
-        // break;
-      }*/
     }
   } // End of while (remaining_data_len > 0)
 
@@ -344,8 +343,9 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
   if (header.find("INVITE") != absl::string_view::npos) {
     metadata()->setRespMethodType(MethodType::Invite);
   } else {
-    /* need to set a value, else when processRecordRoute,
-     *(metadata()->respMethodType() != MethodType::Invite) always false
+    /**
+     * need to set a value, else when processRecordRoute,
+     * (metadata()->respMethodType() != MethodType::Invite) always false
      * TODO: need to handle non-invite 200OK
      */
     metadata()->setRespMethodType(MethodType::NullMethod);
@@ -583,10 +583,12 @@ int Decoder::decode() {
 
   while (!msg.empty()) {
     std::string::size_type crlf = msg.find("\r\n");
-    // After message reassemble, this condition could not be true
-    // if (crlf == absl::string_view::npos) {
-    //   break;
-    // }
+    /**
+     * After message reassemble, this condition could not be true
+     * if (crlf == absl::string_view::npos) {
+     *   break;
+     * }
+     */
 
     if (current_header_ == HeaderType::TopLine) {
       // Sip Request Line
