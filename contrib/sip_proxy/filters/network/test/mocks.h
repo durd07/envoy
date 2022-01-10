@@ -56,6 +56,7 @@ public:
   MOCK_METHOD(absl::string_view, getLocalIp, ());
   MOCK_METHOD(std::string, getOwnDomain, ());
   MOCK_METHOD(std::string, getDomainMatchParamName, ());
+  MOCK_METHOD(void , setMetadata, (MessageMetadataSharedPtr metadata));
 };
 
 class MockDirectResponse : public DirectResponse {

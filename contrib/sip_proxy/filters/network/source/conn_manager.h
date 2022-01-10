@@ -8,6 +8,7 @@
 #include "envoy/stats/timespan.h"
 #include "envoy/upstream/upstream.h"
 
+#include "metadata.h"
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/linked_object.h"
 #include "source/common/common/logger.h"
@@ -91,14 +92,13 @@ public:
   void subscribeTrafficRoutingAssistant(const std::string& type);
   void complete(const TrafficRoutingAssistant::ResponseType& type, const std::string& message_type,
                 const absl::any& resp) override;
-  void doSubscribe(std::vector<CustomizedAffinity>& affinity_list);
+  void doSubscribe(const std::vector<CustomizedAffinity>& affinity_list);
 
 private:
   ConnectionManager& parent_;
   std::shared_ptr<TrafficRoutingAssistantMap> traffic_routing_assistant_map_;
   TrafficRoutingAssistant::ClientPtr tra_client_;
   StreamInfo::StreamInfoImpl stream_info_;
-  std::vector<CustomizedAffinity> affinity_list_;
   std::map<std::string, bool> is_subscribe_map_;
 };
 
@@ -155,6 +155,7 @@ public:
 
   void continueHanding();
   std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
+  MessageMetadataSharedPtr metadata() {return metadata_;}
 
 private:
   friend class SipConnectionManagerTest;
@@ -196,6 +197,8 @@ private:
     std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() {
       return parent_.parent_.tra_handler_;
     }
+
+    void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;};
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;
@@ -330,6 +333,7 @@ private:
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
   void doDeferredTransDestroy(ActiveTrans& trans);
   void resetAllTrans(bool local_reset);
+  void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;}
 
   Config& config_;
   SipFilterStats& stats_;
@@ -348,6 +352,7 @@ private:
   // This is used in Router, put here to pass to Router
   std::shared_ptr<Router::TransactionInfos> transaction_infos_;
   std::shared_ptr<SipSettings> sip_settings_;
+  MessageMetadataSharedPtr metadata_;
 };
 
 } // namespace SipProxy

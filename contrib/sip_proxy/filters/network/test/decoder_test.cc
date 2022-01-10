@@ -546,19 +546,6 @@ TEST_F(SipDecoderTest, DecodeNOTIFY) {
   EXPECT_EQ(0U, store_.counter("test.response").value());
 }
 
-TEST_F(SipDecoderTest, HandleState) {
-  MessageMetadataSharedPtr metadata;
-  MockDecoderEventHandler handler;
-  DecoderStateMachine machine(metadata, handler);
-  /* TODO  panic:     not reached
-  machine.setCurrentState(State::WaitForData);
-  */
-  machine.setCurrentState(State::MessageEnd);
-  EXPECT_CALL(handler, messageEnd()).WillOnce(Return(FilterStatus::StopIteration));
-  machine.run();
-  EXPECT_EQ(State::TransportEnd, machine.currentState());
-}
-
 TEST_F(SipDecoderTest, HeaderTest) {
   StateNameValues stateNameValues_;
   EXPECT_EQ("Done", stateNameValues_.name(State::Done));

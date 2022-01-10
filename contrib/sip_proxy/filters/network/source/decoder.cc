@@ -35,7 +35,7 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::transportEnd() {
 }
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
-  switch (state_) {
+  switch (metadata_->state()) {
   case State::TransportBegin:
     return transportBegin();
   case State::MessageBegin:
@@ -44,25 +44,21 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
     return messageEnd();
   case State::TransportEnd:
     return transportEnd();
+  case State::HandleAffinity:
+    return messageBegin();
   default:
     /* test failed report "panic:     not reached" if reach here */
     NOT_REACHED_GCOVR_EXCL_LINE;
   }
 }
 
-State DecoderStateMachine::run(bool continue_handling) {
-  // Need to back to last state for continue handling
-  if (continue_handling) {
-    state_ = last_state_;
-  }
-
-  while (state_ != State::Done) {
-    ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(state_));
+State DecoderStateMachine::run() {
+  while (metadata_->state() != State::Done) {
+    ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
 
     DecoderStatus s = handleState();
 
-    last_state_ = state_;
-    state_ = s.next_state_;
+    metadata_->setState(s.next_state_);
 
     ASSERT(s.filter_status_.has_value());
     if (s.filter_status_.value() == FilterStatus::StopIteration) {
@@ -70,7 +66,7 @@ State DecoderStateMachine::run(bool continue_handling) {
     }
   }
 
-  return state_;
+  return metadata_->state();
 }
 
 Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
@@ -92,7 +88,7 @@ void Decoder::complete() {
 FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
   if (continue_handling) {
     /* means previous handling suspended, continue handling last request,  */
-    State rv = state_machine_->run(true);
+    State rv = state_machine_->run();
 
     if (rv == State::Done) {
       complete();
@@ -185,6 +181,7 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
+  callbacks_.setMetadata(metadata_);
 
   decode();
 

@@ -141,6 +141,9 @@ FilterStatus Router::handleAffinity() {
     return FilterStatus::Continue;
   }
 
+  // Do subscribe
+  callbacks_->traHandler()->doSubscribe(options->customizedAffinityList());
+
   if ((options->registrationAffinity() || options->sessionAffinity()) &&
       !options->customizedAffinityList().empty() && !metadata->paramMap().empty() &&
       metadata->destinationList().empty()) {
@@ -215,7 +218,7 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
     if (dest.empty()) {
       stats_.no_healthy_upstream_.inc();
       throw AppException(AppExceptionType::InternalError,
-                     fmt::format("no healthy upstream for '{}'", cluster_->name()));
+                         fmt::format("no healthy upstream for '{}'", cluster_->name()));
     }
     return FilterStatus::StopIteration;
   }
@@ -258,8 +261,6 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
       transaction_info->insertTransaction(std::string(metadata->transactionId().value()),
                                           callbacks_, upstream_request_);
     }
-    lb_ret = true;
-    return upstream_request_->start();
   }
 
   lb_ret = true;
@@ -276,13 +277,13 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
 
   auto& transaction_info = (*transaction_infos_)[cluster_->name()];
 
-  while (!metadata->destinationList().empty() &&
-         metadata->destIter != metadata->destinationList().end()) {
+  if (!metadata->destinationList().empty() &&
+      metadata->destIter != metadata->destinationList().end()) {
     std::string host;
     metadata->resetDestination();
 
-    ENVOY_STREAM_LOG(debug, "call param map function of {}", *callbacks_,
-                     metadata->destIter->first);
+    ENVOY_STREAM_LOG(debug, "call param map function of {}({})", *callbacks_,
+                     metadata->destIter->first, metadata->destIter->second);
     auto handle_ret =
         handleCustomizedAffinity(metadata->destIter->first, metadata->destIter->second, metadata);
 
@@ -292,12 +293,17 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       metadata->destIter++;
     } else if (QueryStatus::Pending == handle_ret) {
       ENVOY_STREAM_LOG(debug, "do remote query for {}", *callbacks_, metadata->destIter->first);
+      // Need to wait remote query reponse,
+      // after reponse back, still back with current affinity
+      metadata->setState(State::HandleAffinity);
       return FilterStatus::StopIteration;
     } else {
       ENVOY_STREAM_LOG(debug, "no existing destintion for {}", *callbacks_,
                        metadata->destIter->first);
+      // Need to try next affinity
       metadata->destIter++;
-      continue;
+      metadata->setState(State::HandleAffinity);
+      return FilterStatus::Continue;
     }
 
     if (auto upstream_request = transaction_info->getUpstreamRequest(std::string(host));
@@ -314,7 +320,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
                                             callbacks_, upstream_request_);
       }
       ENVOY_STREAM_LOG(trace, "call upstream_request_->start()", *callbacks_);
-      return upstream_request_->start();
+      // Continue: continue to messageEnd, StopIteration: continue to next affinity
+      if (FilterStatus::StopIteration == upstream_request->start()) {
+        metadata->setState(State::HandleAffinity);
+      }
+      return FilterStatus::Continue;
     }
     ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
 
@@ -322,22 +332,27 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     lb_ret =
         messageHandlerWithLoadbalancer(transaction_info, metadata, host, upstream_request_started);
     if (upstream_request_started) {
-      return lb_ret;
+      // Continue: continue to messageEnd
+      // StopIteration: continue to next affinity
+      if (lb_ret == FilterStatus::StopIteration) {
+        metadata->setState(State::HandleAffinity);
+      }
+    } else {
+      // continue to next affinity
+      metadata->setState(State::HandleAffinity);
     }
-  }
+    // Continue: continue to messageEnd
+    return FilterStatus::Continue;
+  } else {
 
-  ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
-  metadata->resetDestination();
-  return messageHandlerWithLoadbalancer(transaction_info, metadata, "", upstream_request_started);
+    ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
+    metadata->resetDestination();
+    // Last affinity
+    return messageHandlerWithLoadbalancer(transaction_info, metadata, "", upstream_request_started);
+  }
 }
 
 FilterStatus Router::messageEnd() {
-  // In case pool is not ready, save this into pending_request.
-  if (upstream_request_->connectionState() != ConnectionState::Connected) {
-    upstream_request_->addIntoPendingRequest(metadata_);
-    return FilterStatus::Continue;
-  }
-
   Buffer::OwnedImpl transport_buffer;
 
   // set EP/Opaque, used in upstream

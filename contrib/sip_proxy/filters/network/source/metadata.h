@@ -18,6 +18,23 @@ namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
+
+#define ALL_PROTOCOL_STATES(FUNCTION)                                                              \
+  FUNCTION(StopIteration)                                                                          \
+  FUNCTION(WaitForData)                                                                            \
+  FUNCTION(TransportBegin)                                                                         \
+  FUNCTION(MessageBegin)                                                                           \
+  FUNCTION(MessageEnd)                                                                             \
+  FUNCTION(TransportEnd)                                                                           \
+  FUNCTION(HandleAffinity)                                                                           \
+  FUNCTION(Done)
+
+/**
+ * ProtocolState represents a set of states used in a state machine to decode
+ * Sip requests and responses.
+ */
+enum class State { ALL_PROTOCOL_STATES(GENERATE_ENUM) };
+
 // Message header list
 // HeaderType|TO/FROM-------------------string
 //           |
@@ -68,6 +85,7 @@ public:
   void addSubscribe(std::string param, bool value) { subscribe_map_[param] = value; }
 
   std::string& rawMsg() { return raw_msg_; }
+  State state(){return state_;};
 
   void setMsgType(MsgType data) { msg_type_ = data; }
   void setMethodType(MethodType data) { method_type_ = data; }
@@ -81,6 +99,7 @@ public:
   void setDomain(absl::string_view header, std::string domain_matched_param_name) {
     domain_ = getDomain(header, domain_matched_param_name);
   }
+  void setState(State state){state_ = state;};
 
   void addEPOperation(size_t raw_offset, absl::string_view& header, std::string own_domain,
                       std::string domain_matched_param_name) {
@@ -240,6 +259,7 @@ private:
   std::map<std::string, bool> subscribe_map_{};
 
   std::string raw_msg_{};
+  State state_{State::TransportBegin};
 
   absl::string_view getDomain(absl::string_view header, std::string domain_matched_param_name) {
     // ENVOY_LOG(error, "header: {}\ndomain_matched_param_name: {}", header,

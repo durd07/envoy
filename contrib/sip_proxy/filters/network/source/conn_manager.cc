@@ -51,17 +51,12 @@ QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(cons
     host = (*traffic_routing_assistant_map_)[type][key];
     return QueryStatus::Continue;
   }
-  for (const auto& aff : affinity_list_) {
-    if (type == aff.name()) {
-      if (aff.query() == true) {
-        if (tra_client_) {
-          tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
-                                                       stream_info_);
-          host = "";
-          return QueryStatus::Pending;
-        }
-      }
-      break;
+  if (parent_.metadata()->queryMap()[type] == true) {
+    if (tra_client_) {
+      tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+                                                   stream_info_);
+      host = "";
+      return QueryStatus::Pending;
     }
   }
   host = "";
@@ -132,9 +127,8 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
   }
 }
 
-void TrafficRoutingAssistantHandler::doSubscribe(std::vector<CustomizedAffinity>& affinity_list) {
-  affinity_list_ = affinity_list;
-
+void TrafficRoutingAssistantHandler::doSubscribe(
+    const std::vector<CustomizedAffinity>& affinity_list) {
   for (const auto& aff : affinity_list) {
     if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map_.end()) {
       subscribeTrafficRoutingAssistant(aff.name());

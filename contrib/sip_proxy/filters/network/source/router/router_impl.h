@@ -288,6 +288,7 @@ public:
   FilterStatus transportEnd() override;
   FilterStatus messageBegin(MessageMetadataSharedPtr metadata) override;
   FilterStatus messageEnd() override;
+  
 
   // Upstream::LoadBalancerContext
   const Network::Connection* downstreamConnection() const override;
@@ -365,10 +366,12 @@ public:
   absl::string_view getLocalIp() override;
   std::string getOwnDomain() override;
   std::string getDomainMatchParamName() override;
+  void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;}
 
 private:
   UpstreamRequest& parent_;
   DecoderPtr decoder_;
+  MessageMetadataSharedPtr metadata_;
 };
 
 using ResponseDecoderPtr = std::unique_ptr<ResponseDecoder>;
@@ -407,15 +410,6 @@ public:
   void onBelowWriteBufferLowWatermark() override {}
 
   void setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks);
-
-  void addIntoPendingRequest(MessageMetadataSharedPtr metadata) {
-    if (pending_request_.size() < 1000000) {
-      pending_request_.push_back(metadata);
-    } else {
-      ENVOY_LOG(warn, "pending request is full, drop this request. size {} request {}",
-                pending_request_.size(), metadata->rawMsg());
-    }
-  }
 
   ConnectionState connectionState() { return conn_state_; }
   void setConnectionState(ConnectionState state) { conn_state_ = state; }
