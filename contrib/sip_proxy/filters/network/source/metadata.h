@@ -10,6 +10,7 @@
 
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
+#include "absl/types/variant.h"
 #include "contrib/sip_proxy/filters/network/source/operation.h"
 #include "contrib/sip_proxy/filters/network/source/sip.h"
 
@@ -18,6 +19,36 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
+#define ALL_PROTOCOL_STATES(FUNCTION)                                                              \
+  FUNCTION(StopIteration)                                                                          \
+  FUNCTION(WaitForData)                                                                            \
+  FUNCTION(TransportBegin)                                                                         \
+  FUNCTION(MessageBegin)                                                                           \
+  FUNCTION(MessageEnd)                                                                             \
+  FUNCTION(TransportEnd)                                                                           \
+  FUNCTION(HandleAffinity)                                                                           \
+  FUNCTION(Done)
+
+/**
+ * ProtocolState represents a set of states used in a state machine to decode
+ * Sip requests and responses.
+ */
+enum class State { ALL_PROTOCOL_STATES(GENERATE_ENUM) };
+
+// Message header list
+// HeaderType|TO/FROM-------------------string
+//           |
+//           |ROUTE--------------string
+//           |           |
+//           |           |-------string
+//           |
+//           |OTHERS----|HEADER-------------string
+//                               |
+//                               |----------string
+using StringHeader = absl::string_view;
+using VectorHeader = std::vector<absl::string_view>;
+using VectorPairHeader = std::vector<std::pair<absl::string_view, std::vector<absl::string_view>>>;
+using HeaderLine = absl::variant<StringHeader, VectorHeader, VectorPairHeader>;
 /**
  * MessageMetadata encapsulates metadata about Sip messages. The various fields are considered
  * optional since they may come from either the transport or protocol in some cases. Unless
@@ -54,6 +85,7 @@ public:
   void addSubscribe(std::string param, bool value) { subscribe_map_[param] = value; }
 
   std::string& rawMsg() { return raw_msg_; }
+  State state(){return state_;};
 
   void setMsgType(MsgType data) { msg_type_ = data; }
   void setMethodType(MethodType data) { method_type_ = data; }
@@ -67,6 +99,7 @@ public:
   void setDomain(absl::string_view header, std::string domain_matched_param_name) {
     domain_ = getDomain(header, domain_matched_param_name);
   }
+  void setState(State state){state_ = state;};
 
   void addEPOperation(size_t raw_offset, absl::string_view& header, std::string own_domain,
                       std::string domain_matched_param_name) {
@@ -138,6 +171,63 @@ public:
   void resetDestination() { destination_.clear(); }
   /*only used in UT*/
   void resetTransactionId() { transaction_id_.reset(); }
+  void addMsgHeader(HeaderType type, absl::string_view value) {
+    // ENVOY_LOG(error, "type:{}, value:{}", type, value);
+    absl::string_view t, v;
+    switch (type) {
+    case HeaderType::TopLine:
+    case HeaderType::To:
+    case HeaderType::From:
+    case HeaderType::CallId:
+    case HeaderType::Cseq:
+    case HeaderType::Event:
+    case HeaderType::PCookieIPMap:
+      msg_header_list_[type] = value;
+      break;
+    case HeaderType::Via:
+    case HeaderType::Route:
+    case HeaderType::Contact:
+    case HeaderType::RRoute:
+    case HeaderType::Path:
+    case HeaderType::SRoute:
+    case HeaderType::WAuth:
+    case HeaderType::Auth:
+      try {
+        absl::get<VectorHeader>(msg_header_list_[type]).emplace_back(value);
+      } catch (absl::bad_variant_access) {
+        msg_header_list_[type] = VectorHeader{value};
+      }
+      break;
+    case HeaderType::Other:
+      t = value.substr(0, value.find_first_of(": "));
+      v = value.substr(value.find_first_of(": ") + strlen(": "),
+                       value.length() - t.length() - strlen(": "));
+      // ENVOY_LOG(error, "t:{}, v:{}", t, v);
+      try {
+        auto headerIter = absl::get<VectorPairHeader>(msg_header_list_[type]).begin();
+        while (headerIter != absl::get<VectorPairHeader>(msg_header_list_[type]).end()) {
+          if (std::string(headerIter->first) == std::string(t)) {
+            headerIter->second.emplace_back(v);
+            break;
+          }
+          headerIter++;
+        }
+
+        // No vector under this type t
+        if (headerIter == absl::get<VectorPairHeader>(msg_header_list_[type]).end()) {
+          std::vector<absl::string_view> list{v};
+          absl::get<VectorPairHeader>(msg_header_list_[type]).emplace_back(std::make_pair(t, list));
+        }
+      } catch (absl::bad_variant_access) { // No vector under Other
+        std::vector<absl::string_view> list{v};
+        msg_header_list_[type] = VectorPairHeader{std::make_pair(t, list)};
+      }
+      break;
+    default:
+      break;
+    }
+  }
+  std::vector<HeaderLine>& msgHeaderList() { return msg_header_list_; }
 
   std::vector<std::pair<std::string, std::string>>::iterator destIter;
 
@@ -146,6 +236,7 @@ private:
   MethodType method_type_;
   MethodType resp_method_type_;
   std::vector<Operation> operation_list_;
+  std::vector<HeaderLine> msg_header_list_{HeaderType::HeaderMaxNum};
   absl::optional<absl::string_view> ep_{};
   absl::optional<absl::string_view> pep_{};
   absl::optional<absl::string_view> route_ep_{};
@@ -168,6 +259,7 @@ private:
   std::map<std::string, bool> subscribe_map_{};
 
   std::string raw_msg_{};
+  State state_{State::TransportBegin};
 
   absl::string_view getDomain(absl::string_view header, std::string domain_matched_param_name) {
     // ENVOY_LOG(error, "header: {}\ndomain_matched_param_name: {}", header,

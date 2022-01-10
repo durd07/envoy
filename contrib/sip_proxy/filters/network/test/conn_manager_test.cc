@@ -443,6 +443,7 @@ settings:
   const std::string SIP_INVITE_FULL =
       "INVITE sip:User.0000@tas01.defult.svc.cluster.local SIP/2.0\x0d\x0a"
       "Via: SIP/2.0/TCP 11.0.0.10:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
+      "Via: SIP/2.0/TCP 11.0.0.11:15060;branch=z9hG4bK-3193-1-0\x0d\x0a"
       "From: <sip:User.0001@tas01.defult.svc.cluster.local>;tag=1\x0d\x0a"
       "To: <sip:User.0000@tas01.defult.svc.cluster.local>\x0d\x0a"
       "Call-ID: 1-3193@11.0.0.10\x0d\x0a"

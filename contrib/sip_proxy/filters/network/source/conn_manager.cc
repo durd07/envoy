@@ -51,20 +51,16 @@ QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(cons
     host = (*traffic_routing_assistant_map_)[type][key];
     return QueryStatus::Continue;
   }
-  for (const auto& aff : affinity_list_) {
-    if (type == aff.name()) {
-      if (aff.query() == true) {
-        this->parent_.pushIntoPendingList(type, key, nullptr, [&]() {
-          if (tra_client_) {
-            tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
-                                                         stream_info_);
-            host = "";
-          }
-        });
+
+  if (parent_.metadata()->queryMap()[type] == true) {
+    this->parent_.pushIntoPendingList(type, key, nullptr, [&]() {
+      if (tra_client_) {
+        tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
+                                                     stream_info_);
+        host = "";
       }
-      break;
+    });
     }
-  }
   host = "";
   return QueryStatus::Stop;
 }
@@ -135,9 +131,8 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
   }
 }
 
-void TrafficRoutingAssistantHandler::doSubscribe(std::vector<CustomizedAffinity>& affinity_list) {
-  affinity_list_ = affinity_list;
-
+void TrafficRoutingAssistantHandler::doSubscribe(
+    const std::vector<CustomizedAffinity>& affinity_list) {
   for (const auto& aff : affinity_list) {
     if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map_.end()) {
       subscribeTrafficRoutingAssistant(aff.name());
@@ -175,7 +170,35 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
   return Network::FilterStatus::StopIteration;
 }
 
-void ConnectionManager::continueHanding() { decoder_->onData(request_buffer_, true); }
+void ConnectionManager::continueHanding() {
+  try {
+    decoder_->onData(request_buffer_, true);
+  } catch (const AppException& ex) {
+    ENVOY_LOG(debug, "sip application exception: {}", ex.what());
+    sendLocalReply(*(decoder_->metadata()), ex, true);
+  } catch (const EnvoyException& ex) {
+    ENVOY_CONN_LOG(debug, "sip error: {}", read_callbacks_->connection(), ex.what());
+
+    // Transport/protocol mismatch (including errors in automatic detection). Just hang up
+    // since we don't know how to encode a response.
+    read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
+  }
+}
+
+void ConnectionManager::dispatch() {
+  try {
+    decoder_->onData(request_buffer_);
+  } catch (const AppException& ex) {
+    ENVOY_LOG(debug, "sip application exception: {}", ex.what());
+    sendLocalReply(*(decoder_->metadata()), ex, true);
+  } catch (const EnvoyException& ex) {
+    ENVOY_CONN_LOG(debug, "sip error: {}", read_callbacks_->connection(), ex.what());
+
+    // Transport/protocol mismatch (including errors in automatic detection). Just hang up
+    // since we don't know how to encode a response.
+    read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
+  }
+}
 
 // PendingListHandler
 void ConnectionManager::pushIntoPendingList(const std::string& type, const std::string& key,
@@ -189,8 +212,6 @@ void ConnectionManager::onResponse(const std::string& type, const std::string& k
   pending_list_.onResponse(type, key, func);
 }
 
-void ConnectionManager::dispatch() { decoder_->onData(request_buffer_); }
-
 void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectResponse& response,
                                        bool end_stream) {
   if (read_callbacks_->connection().state() == Network::Connection::State::Closed) {
@@ -198,15 +219,11 @@ void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectRe
   }
 
   Buffer::OwnedImpl buffer;
-  const DirectResponse::ResponseType result = response.encode(metadata, buffer);
-
-  Buffer::OwnedImpl response_buffer;
 
   metadata.setEP(getLocalIp());
-  std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
-  encoder->encode(std::make_shared<MessageMetadata>(metadata), response_buffer);
+  const DirectResponse::ResponseType result = response.encode(metadata, buffer);
 
-  read_callbacks_->connection().write(response_buffer, end_stream);
+  read_callbacks_->connection().write(buffer, end_stream);
   if (end_stream) {
     read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
   }
@@ -322,6 +339,7 @@ FilterStatus ConnectionManager::ResponseDecoder::transportEnd() {
 
   metadata_->setEP(getLocalIp());
   std::shared_ptr<Encoder> encoder = std::make_shared<EncoderImpl>();
+
   encoder->encode(metadata_, buffer);
 
   ENVOY_STREAM_LOG(info, "send response {}\n{}", parent_, buffer.length(), buffer.toString());

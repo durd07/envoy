@@ -14,6 +14,7 @@
 #include "contrib/sip_proxy/filters/network/test/utility.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <stdio.h>
 
 using testing::NiceMock;
 using testing::Return;
@@ -138,6 +139,7 @@ settings:
 )EOF";
 
 TEST_F(SipDecoderTest, DecodeINVITE) {
+	std::cout << "DDD=============1\n";
   initializeFilter(yaml);
 
   const std::string SIP_INVITE_FULL =
@@ -153,11 +155,16 @@ TEST_F(SipDecoderTest, DecodeINVITE) {
       "CSeq: 1 INVITE\x0d\x0a"
       "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
       "Max-Forwards: 70\x0d\x0a"
+      "P-Charging-Vector: orig-ioi=ims.com;term-ioi= ims.com\x0d\x0a"
+      "P-Charging-Vector: orig-ioi=ims1.com;term-ioi= ims1.com\x0d\x0a"
+      "P-Charging-Function-Addresses: ccf=0.0.0.0\x0d\x0a"
       "Content-Length:  0\x0d\x0a"
       "\x0d\x0a";
 
   buffer_.add(SIP_INVITE_FULL);
+	std::cout << "DDD=============2\n";
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
+	std::cout << "DDD=============3\n";
 
   EXPECT_EQ(1U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());
@@ -537,19 +544,6 @@ TEST_F(SipDecoderTest, DecodeNOTIFY) {
   EXPECT_EQ(1U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());
   EXPECT_EQ(0U, store_.counter("test.response").value());
-}
-
-TEST_F(SipDecoderTest, HandleState) {
-  MessageMetadataSharedPtr metadata;
-  MockDecoderEventHandler handler;
-  DecoderStateMachine machine(metadata, handler);
-  /* TODO  panic:     not reached
-  machine.setCurrentState(State::WaitForData);
-  */
-  machine.setCurrentState(State::MessageEnd);
-  EXPECT_CALL(handler, messageEnd()).WillOnce(Return(FilterStatus::StopIteration));
-  machine.run();
-  EXPECT_EQ(State::TransportEnd, machine.currentState());
 }
 
 TEST_F(SipDecoderTest, HeaderTest) {

@@ -35,7 +35,7 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::transportEnd() {
 }
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
-  switch (state_) {
+  switch (metadata_->state()) {
   case State::TransportBegin:
     return transportBegin();
   case State::MessageBegin:
@@ -44,6 +44,8 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
     return messageEnd();
   case State::TransportEnd:
     return transportEnd();
+  case State::HandleAffinity:
+    return messageBegin();
   default:
     /**
      * test failed report "panic:     not reached" if reach here
@@ -53,12 +55,12 @@ DecoderStateMachine::DecoderStatus DecoderStateMachine::handleState() {
 }
 
 State DecoderStateMachine::run() {
-  while (state_ != State::Done) {
-    ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(state_));
+  while (metadata_->state() != State::Done) {
+    ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
 
     DecoderStatus s = handleState();
 
-    state_ = s.next_state_;
+    metadata_->setState(s.next_state_);
 
     ASSERT(s.filter_status_.has_value());
     if (s.filter_status_.value() == FilterStatus::StopIteration) {
@@ -66,7 +68,7 @@ State DecoderStateMachine::run() {
     }
   }
 
-  return state_;
+  return metadata_->state();
 }
 
 Decoder::Decoder(DecoderCallbacks& callbacks) : callbacks_(callbacks) {}
@@ -178,6 +180,7 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
+  callbacks_.setMetadata(metadata_);
 
   decode();
 
@@ -598,12 +601,20 @@ int Decoder::decode() {
       current_header_ = HeaderType::Other;
 
       handler = MessageFactory::create(metadata->methodType(), *this);
+
+      metadata->addMsgHeader(HeaderType::TopLine, sip_line);
     } else {
       // Normal Header Line
       absl::string_view sip_line = msg.substr(0, crlf);
       auto [current_header, header_value] = sipHeaderType(sip_line);
       this->current_header_ = current_header;
       handler->parseHeader(current_header, sip_line);
+
+      if (current_header == HeaderType::Other) {
+        metadata->addMsgHeader(current_header, sip_line);
+      } else {
+        metadata->addMsgHeader(current_header, header_value);
+      }
     }
 
     msg = msg.substr(crlf + strlen("\r\n"));

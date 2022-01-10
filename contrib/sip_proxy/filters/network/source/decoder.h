@@ -16,21 +16,6 @@ namespace SipProxy {
 
 using TrafficRoutingAssistantMap = std::map<std::string, std::map<std::string, std::string>>;
 
-#define ALL_PROTOCOL_STATES(FUNCTION)                                                              \
-  FUNCTION(StopIteration)                                                                          \
-  FUNCTION(WaitForData)                                                                            \
-  FUNCTION(TransportBegin)                                                                         \
-  FUNCTION(MessageBegin)                                                                           \
-  FUNCTION(MessageEnd)                                                                             \
-  FUNCTION(TransportEnd)                                                                           \
-  FUNCTION(Done)
-
-/**
- * ProtocolState represents a set of states used in a state machine to decode
- * Sip requests and responses.
- */
-enum class State { ALL_PROTOCOL_STATES(GENERATE_ENUM) };
-
 class StateNameValues {
 public:
   static const std::string& name(State state) {
@@ -46,12 +31,12 @@ private:
 };
 
 /**
- * DecoderStateMachine is the Sip message state machine
+ * DecoderStateMachet bne is the Sip message state machine
  */
 class DecoderStateMachine : public Logger::Loggable<Logger::Id::filter> {
 public:
   DecoderStateMachine(MessageMetadataSharedPtr& metadata, DecoderEventHandler& handler)
-      : metadata_(metadata), handler_(handler), state_(State::TransportBegin) {}
+      : metadata_(metadata), handler_(handler) {}
 
   /**
    * Consumes as much data from the configured Buffer as possible and executes
@@ -68,15 +53,6 @@ public:
    */
   State run();
 
-  /**
-   * @return the current ProtocolState
-   */
-  State currentState() const { return state_; }
-
-  /**
-   * Set the current state. Used for testing only.
-   */
-  void setCurrentState(State state) { state_ = state; }
 
 private:
   friend class SipDecoderTest;
@@ -102,7 +78,6 @@ private:
 
   MessageMetadataSharedPtr metadata_;
   DecoderEventHandler& handler_;
-  State state_;
 };
 
 using DecoderStateMachinePtr = std::unique_ptr<DecoderStateMachine>;
@@ -118,6 +93,7 @@ public:
   virtual absl::string_view getLocalIp() PURE;
   virtual std::string getOwnDomain() PURE;
   virtual std::string getDomainMatchParamName() PURE;
+  virtual void setMetadata(MessageMetadataSharedPtr metadata) PURE;
 };
 
 /**
