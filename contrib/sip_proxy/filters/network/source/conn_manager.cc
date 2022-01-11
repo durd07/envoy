@@ -45,6 +45,7 @@ void TrafficRoutingAssistantHandler::updateTrafficRoutingAssistant(const std::st
 
 QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
                                                                             const std::string& key,
+                                                                            const MessageMetadataSharedPtr metadata,
                                                                             std::string& host) {
   if ((*traffic_routing_assistant_map_)[type].find(key) !=
       (*traffic_routing_assistant_map_)[type].end()) {
@@ -52,15 +53,15 @@ QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(cons
     return QueryStatus::Continue;
   }
 
-  if (parent_.metadata()->queryMap()[type] == true) {
-    this->parent_.pushIntoPendingList(type, key, nullptr, [&]() {
+  if (metadata->queryMap()[type]) {
+    this->parent_.pushIntoPendingList(type, key, metadata, [&]() {
       if (tra_client_) {
         tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
                                                      stream_info_);
         host = "";
       }
     });
-    }
+  }
   host = "";
   return QueryStatus::Stop;
 }

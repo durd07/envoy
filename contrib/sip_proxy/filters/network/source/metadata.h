@@ -49,6 +49,7 @@ using StringHeader = absl::string_view;
 using VectorHeader = std::vector<absl::string_view>;
 using VectorPairHeader = std::vector<std::pair<absl::string_view, std::vector<absl::string_view>>>;
 using HeaderLine = absl::variant<StringHeader, VectorHeader, VectorPairHeader>;
+
 /**
  * MessageMetadata encapsulates metadata about Sip messages. The various fields are considered
  * optional since they may come from either the transport or protocol in some cases. Unless

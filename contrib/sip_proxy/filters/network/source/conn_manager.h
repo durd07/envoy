@@ -84,7 +84,7 @@ public:
 
   void updateTrafficRoutingAssistant(const std::string& type, const std::string& key,
                                      const std::string& val);
-  QueryStatus retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key,
+  QueryStatus retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key, const MessageMetadataSharedPtr metadata,
                                               std::string& host);
   void deleteTrafficRoutingAssistant(const std::string& type, const std::string& key);
   void subscribeTrafficRoutingAssistant(const std::string& type);
@@ -103,8 +103,11 @@ private:
 class PendingListHandler {
 public:
   virtual ~PendingListHandler() = default;
-  virtual void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) PURE;
-  virtual void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) PURE;
+  virtual void pushIntoPendingList(const std::string& type, const std::string& key,
+                                   const MessageMetadataSharedPtr& metadata,
+                                   std::function<void(void)> func) PURE;
+  virtual void onResponse(const std::string& type, const std::string& key,
+                          std::function<void(MessageMetadataSharedPtr)> func) PURE;
 };
 
 /**
@@ -164,8 +167,11 @@ public:
   MessageMetadataSharedPtr metadata() {return metadata_;}
 
   // PendingListHandler
-  void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) override;
-  void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) override;
+  void pushIntoPendingList(const std::string& type, const std::string& key,
+                           const MessageMetadataSharedPtr& metadata,
+                           std::function<void(void)> func) override;
+  void onResponse(const std::string& type, const std::string& key,
+                  std::function<void(MessageMetadataSharedPtr)> func) override;
 
 private:
   friend class SipConnectionManagerTest;
@@ -367,7 +373,9 @@ private:
       }
     }
 
-    void pushIntoPendingList(const std::string& type, const std::string& key, const MessageMetadataSharedPtr& metadata, std::function<void(void)> func) {
+    void pushIntoPendingList(const std::string& type, const std::string& key,
+                             const MessageMetadataSharedPtr& metadata,
+                             std::function<void(void)> func) {
       if (cached_[type]) {
         if (pending_list_[type + key].empty()) {
           // need to do tra query
@@ -380,7 +388,8 @@ private:
       }
     }
 
-    void onResponse(const std::string& type, const std::string& key, std::function<void(MessageMetadataSharedPtr)> func) {
+    void onResponse(const std::string& type, const std::string& key,
+                    std::function<void(MessageMetadataSharedPtr)> func) {
       for (auto& metadata : pending_list_[type + key]) {
         func(metadata);
       }

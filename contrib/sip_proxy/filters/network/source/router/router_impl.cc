@@ -109,7 +109,7 @@ QueryStatus Router::handleCustomizedAffinity(std::string type, std::string key,
       }
     }
   } else {
-    ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, host);
+    ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, metadata_, host);
   }
 
   if (QueryStatus::Continue == ret) {
@@ -125,7 +125,7 @@ FilterStatus Router::handleAffinity() {
 
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
-    callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
+    callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, metadata_, host);
     if (host != val) {
       callbacks_->traHandler()->updateTrafficRoutingAssistant(
           "lskpmc", metadata->pCookieIpMap().value().first,
@@ -558,7 +558,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
         std::string host;
-        active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
+        active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, metadata_, host);
         if (host != val) {
           active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
         }
