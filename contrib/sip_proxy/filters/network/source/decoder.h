@@ -2,6 +2,7 @@
 
 #include "envoy/buffer/buffer.h"
 
+#include "metadata.h"
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"

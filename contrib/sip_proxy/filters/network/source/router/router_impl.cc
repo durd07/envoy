@@ -239,6 +239,7 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
     // There is action connection, reuse it.
     upstream_request_ = upstream_request;
     upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    upstream_request_->setMetadata(metadata);
     ENVOY_STREAM_LOG(debug, "reuse upstream request for {}", *callbacks_,
                      host->address()->ip()->addressAsString());
     try {
@@ -250,6 +251,7 @@ Router::messageHandlerWithLoadbalancer(std::shared_ptr<TransactionInfo> transact
   } else {
     upstream_request_ = std::make_shared<UpstreamRequest>(*conn_pool, transaction_info);
     upstream_request_->setDecoderFilterCallbacks(*callbacks_);
+    upstream_request_->setMetadata(metadata);
     transaction_info->insertUpstreamRequest(host->address()->ip()->addressAsString(),
                                             upstream_request_);
     ENVOY_STREAM_LOG(debug, "create new upstream request {}", *callbacks_,
@@ -271,7 +273,9 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
   bool upstream_request_started = false;
   FilterStatus lb_ret;
 
-  if (upstream_request_ != nullptr) {
+  // ACK_4XX reuse
+  if (upstream_request_ != nullptr &&
+      upstream_request_->connectionState() == ConnectionState::Connected) {
     return FilterStatus::Continue;
   }
 
@@ -290,7 +294,6 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (QueryStatus::Continue == handle_ret) {
       host = metadata->destination();
       ENVOY_STREAM_LOG(debug, "get existing destination {}", *callbacks_, host);
-      metadata->destIter++;
     } else if (QueryStatus::Pending == handle_ret) {
       ENVOY_STREAM_LOG(debug, "do remote query for {}", *callbacks_, metadata->destIter->first);
       // Need to wait remote query reponse,
@@ -303,6 +306,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       // Need to try next affinity
       metadata->destIter++;
       metadata->setState(State::HandleAffinity);
+      ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
       return FilterStatus::Continue;
     }
 
@@ -311,6 +315,7 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       // There is action connection, reuse it.
       ENVOY_STREAM_LOG(trace, "reuse upstream request from {}", *callbacks_, host);
       upstream_request_ = upstream_request;
+      upstream_request_->setMetadata(metadata);
       upstream_request_->setDecoderFilterCallbacks(*callbacks_);
 
       try {
@@ -322,8 +327,11 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
       ENVOY_STREAM_LOG(trace, "call upstream_request_->start()", *callbacks_);
       // Continue: continue to messageEnd, StopIteration: continue to next affinity
       if (FilterStatus::StopIteration == upstream_request->start()) {
-        metadata->setState(State::HandleAffinity);
+        // Defer to handle in upstream request onPoolReady or onPoolFailure
+        ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
+        return FilterStatus::StopIteration;
       }
+      metadata->destIter++;
       return FilterStatus::Continue;
     }
     ENVOY_STREAM_LOG(trace, "no destination preset select with load balancer.", *callbacks_);
@@ -334,14 +342,15 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     if (upstream_request_started) {
       // Continue: continue to messageEnd
       // StopIteration: continue to next affinity
-      if (lb_ret == FilterStatus::StopIteration) {
-        metadata->setState(State::HandleAffinity);
-      }
+      // Defer to handle in upstream request onPoolReady or onPoolFailure
+      return FilterStatus::StopIteration;
     } else {
       // continue to next affinity
       metadata->setState(State::HandleAffinity);
+      ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
     }
     // Continue: continue to messageEnd
+    metadata->destIter++;
     return FilterStatus::Continue;
   } else {
 
@@ -438,6 +447,14 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason, ab
   ENVOY_LOG(info, "on pool failure");
   conn_state_ = ConnectionState::NotConnected;
   conn_pool_handle_ = nullptr;
+
+  // Continue to next affinity
+  // callbacks_->metadata()->setState(State::HandleAffinity);
+  if (metadata_->destIter != metadata_->destinationList().end()) {
+    metadata_->destIter++;
+    metadata_->setState(State::HandleAffinity);
+    callbacks_->continueHanding();
+  }
 
   // Mimic an upstream reset.
   onUpstreamHostSelected(host);

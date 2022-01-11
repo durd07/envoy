@@ -91,7 +91,6 @@ public:
   virtual std::shared_ptr<SipProxy::TrafficRoutingAssistantHandler> traHandler() PURE;
   virtual void onReset() PURE;
   virtual void continueHanding() PURE;
-  //virtual void setCurrentState(State state) PURE;
 };
 
 /**

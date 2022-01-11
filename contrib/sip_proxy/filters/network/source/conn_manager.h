@@ -164,7 +164,7 @@ public:
 
   void continueHanding();
   std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
-  MessageMetadataSharedPtr metadata() {return metadata_;}
+  MessageMetadataSharedPtr metadata() { return metadata_; }
 
   // PendingListHandler
   void pushIntoPendingList(const std::string& type, const std::string& key,
