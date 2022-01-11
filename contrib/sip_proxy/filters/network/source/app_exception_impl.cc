@@ -59,6 +59,12 @@ DirectResponse::ResponseType AppException::encode(MessageMetadata& metadata,
   output += std::string(absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::Cseq]));
   output += "\r\n";
 
+  // Failed Reason
+  output += "Reason: ";
+  //output += std::string(absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::Cseq]));
+  output += std::string(what());
+  output += "\r\n";
+
   // Content-length
   output += "Content-Length: 0";
   output += "\r\n";

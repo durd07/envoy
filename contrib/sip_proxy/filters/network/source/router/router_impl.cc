@@ -144,16 +144,23 @@ FilterStatus Router::handleAffinity() {
   // Do subscribe
   callbacks_->traHandler()->doSubscribe(options->customizedAffinityList());
 
-  if ((options->registrationAffinity() || options->sessionAffinity()) &&
-      !options->customizedAffinityList().empty() && !metadata->paramMap().empty() &&
-      metadata->destinationList().empty()) {
-    for (const auto& aff : options->customizedAffinityList()) {
-      for (auto [param, value] : metadata->paramMap()) {
-        if (param == aff.name()) {
-          metadata->addDestination(param, value);
-          metadata->addQuery(param, aff.query());
-          metadata->addSubscribe(param, aff.subscribe());
+  if (metadata->destinationList().empty()) {
+    if (!options->customizedAffinityList().empty() && !metadata->paramMap().empty()) {
+      for (const auto& aff : options->customizedAffinityList()) {
+        if (auto search = metadata->paramMap().find(aff.name());
+            search != metadata->paramMap().end()) {
+          metadata->addDestination(aff.name(), metadata->paramMap()[aff.name()]);
+          metadata->addQuery(aff.name(), aff.query());
+          metadata->addSubscribe(aff.name(), aff.subscribe());
         }
+      }
+    } else if ((metadata->methodType() != MethodType::Register && options->sessionAffinity()) ||
+               (metadata->methodType() == MethodType::Register &&
+                options->registrationAffinity())) {
+      if (auto search = metadata->paramMap().find("ep"); search != metadata->paramMap().end()) {
+        metadata->addDestination("ep", metadata->paramMap()["ep"]);
+        metadata->addQuery("ep", false);
+        metadata->addSubscribe("ep", false);
       }
     }
     metadata->destIter = metadata->destinationList().begin();
