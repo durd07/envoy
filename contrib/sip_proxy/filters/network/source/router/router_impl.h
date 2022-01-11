@@ -426,6 +426,8 @@ public:
   }
 
   std::shared_ptr<TransactionInfo> transactionInfo() { return transaction_info_; }
+  void setMetadata(MessageMetadataSharedPtr metadata) { metadata_ = metadata; }
+  MessageMetadataSharedPtr metadata() { return metadata_; }
 
 private:
   Upstream::TcpPoolData& conn_pool_;
@@ -437,7 +439,7 @@ private:
 
   std::shared_ptr<TransactionInfo> transaction_info_;
   SipFilters::DecoderFilterCallbacks* callbacks_{};
-  std::list<MessageMetadataSharedPtr> pending_request_;
+  MessageMetadataSharedPtr metadata_;
   Buffer::OwnedImpl upstream_buffer_;
 
   bool request_complete_ : 1;

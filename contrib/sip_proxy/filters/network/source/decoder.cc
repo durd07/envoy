@@ -19,18 +19,22 @@ namespace NetworkFilters {
 namespace SipProxy {
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::transportBegin() {
+  metadata_->setState(State::MessageBegin);
   return {State::MessageBegin, handler_.transportBegin(metadata_)};
 }
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::messageBegin() {
+  metadata_->setState(State::MessageEnd);
   return {State::MessageEnd, handler_.messageBegin(metadata_)};
 }
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::messageEnd() {
+  metadata_->setState(State::TransportEnd);
   return {State::TransportEnd, handler_.messageEnd()};
 }
 
 DecoderStateMachine::DecoderStatus DecoderStateMachine::transportEnd() {
+  metadata_->setState(State::Done);
   return {State::Done, handler_.transportEnd()};
 }
 
@@ -57,8 +61,6 @@ State DecoderStateMachine::run() {
     ENVOY_LOG(trace, "sip: state {}", StateNameValues::name(metadata_->state()));
 
     DecoderStatus s = handleState();
-
-    metadata_->setState(s.next_state_);
 
     ASSERT(s.filter_status_.has_value());
     if (s.filter_status_.value() == FilterStatus::StopIteration) {

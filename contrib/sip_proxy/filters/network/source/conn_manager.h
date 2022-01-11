@@ -155,7 +155,7 @@ public:
 
   void continueHanding();
   std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
-  MessageMetadataSharedPtr metadata() {return metadata_;}
+  MessageMetadataSharedPtr metadata() { return metadata_; }
 
 private:
   friend class SipConnectionManagerTest;

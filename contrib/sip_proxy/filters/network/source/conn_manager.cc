@@ -97,12 +97,12 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
             envoy::extensions::filters::network::sip_proxy::tra::v3alpha::RetrieveResponse>(resp)
             .data();
     for (const auto& item : resp_data) {
+      ENVOY_LOG(trace, "=== RetrieveResp {}={}", item.first, item.second);
       if (!item.second.empty()) {
         (*traffic_routing_assistant_map_)[message_type].emplace(item);
         parent_.setDestination(item.second);
         parent_.continueHanding();
       }
-      ENVOY_LOG(trace, "=== RetrieveLskpmcResp {}={}", item.first, item.second);
     }
 
     break;
