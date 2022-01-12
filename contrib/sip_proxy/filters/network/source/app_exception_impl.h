@@ -11,7 +11,9 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
 
-struct AppException : public EnvoyException, public DirectResponse {
+struct AppException : public EnvoyException,
+                      public DirectResponse,
+                      Logger::Loggable<Logger::Id::connection> {
   AppException(AppExceptionType type, const std::string& what)
       : EnvoyException(what), type_(type) {}
   AppException(const AppException& ex) : EnvoyException(ex.what()), type_(ex.type_) {}

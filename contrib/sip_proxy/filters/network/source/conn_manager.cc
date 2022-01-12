@@ -171,7 +171,7 @@ void ConnectionManager::continueHanding() {
     decoder_->onData(request_buffer_, true);
   } catch (const AppException& ex) {
     ENVOY_LOG(debug, "sip application exception: {}", ex.what());
-    sendLocalReply(*(decoder_->metadata()), ex, true);
+    sendLocalReply(*(decoder_->metadata()), ex, false);
   } catch (const EnvoyException& ex) {
     ENVOY_CONN_LOG(debug, "sip error: {}", read_callbacks_->connection(), ex.what());
 
@@ -186,7 +186,7 @@ void ConnectionManager::dispatch() {
     decoder_->onData(request_buffer_);
   } catch (const AppException& ex) {
     ENVOY_LOG(debug, "sip application exception: {}", ex.what());
-    sendLocalReply(*(decoder_->metadata()), ex, true);
+    sendLocalReply(*(decoder_->metadata()), ex, false);
   } catch (const EnvoyException& ex) {
     ENVOY_CONN_LOG(debug, "sip error: {}", read_callbacks_->connection(), ex.what());
 
@@ -199,6 +199,7 @@ void ConnectionManager::dispatch() {
 void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectResponse& response,
                                        bool end_stream) {
   if (read_callbacks_->connection().state() == Network::Connection::State::Closed) {
+    ENVOY_LOG(debug, "Connection state is closed");
     return;
   }
 
@@ -420,7 +421,7 @@ void ConnectionManager::ActiveTrans::onReset() { parent_.doDeferredTransDestroy(
 
 void ConnectionManager::ActiveTrans::onError(const std::string& what) {
   if (metadata_) {
-    sendLocalReply(AppException(AppExceptionType::ProtocolError, what), true);
+    sendLocalReply(AppException(AppExceptionType::ProtocolError, what), false);
     return;
   }
 
@@ -476,7 +477,7 @@ ConnectionManager::ActiveTrans::upstreamData(MessageMetadataSharedPtr metadata) 
     ENVOY_LOG(error, "sip response application error: {}", ex.what());
     // parent_.stats_.response_decoding_error_.inc();
 
-    sendLocalReply(ex, true);
+    sendLocalReply(ex, false);
     return SipFilters::ResponseStatus::Reset;
   } catch (const EnvoyException& ex) {
     ENVOY_CONN_LOG(error, "sip response error: {}", parent_.read_callbacks_->connection(),
