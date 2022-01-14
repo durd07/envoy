@@ -14,6 +14,7 @@
 #include "contrib/envoy/extensions/filters/network/sip_proxy/v3alpha/route.pb.h"
 #include "contrib/sip_proxy/filters/network/source/app_exception_impl.h"
 #include "contrib/sip_proxy/filters/network/source/encoder.h"
+#include "contrib/sip_proxy/filters/network/source/conn_manager.h"
 #include "contrib/sip_proxy/filters/network/source/filters/well_known_names.h"
 
 namespace Envoy {
@@ -109,7 +110,7 @@ QueryStatus Router::handleCustomizedAffinity(std::string type, std::string key,
       }
     }
   } else {
-    ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, metadata_, host);
+    ret = callbacks_->traHandler()->retrieveTrafficRoutingAssistant(type, key, *callbacks_, host);
   }
 
   if (QueryStatus::Continue == ret) {
@@ -125,7 +126,7 @@ FilterStatus Router::handleAffinity() {
 
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
-    callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, metadata_, host);
+    callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, *callbacks_, host);
     if (host != val) {
       callbacks_->traHandler()->updateTrafficRoutingAssistant(
           "lskpmc", metadata->pCookieIpMap().value().first,
@@ -391,8 +392,7 @@ void Router::cleanup() { upstream_request_.reset(); }
 
 UpstreamRequest::UpstreamRequest(Upstream::TcpPoolData& pool,
                                  std::shared_ptr<TransactionInfo> transaction_info)
-    : conn_pool_(pool), transaction_info_(transaction_info), /*request_complete_(false),*/
-      /*response_started_(false),*/ response_complete_(false) {}
+    : conn_pool_(pool), transaction_info_(transaction_info) {}
 
 UpstreamRequest::~UpstreamRequest() {
   if (conn_pool_handle_) {
@@ -402,6 +402,8 @@ UpstreamRequest::~UpstreamRequest() {
 
 FilterStatus UpstreamRequest::start() {
   if (conn_state_ == ConnectionState::Connecting) {
+    callbacks_->pushIntoPendingList("connection_pending", conn_pool_.host()->address()->asString(),
+                                   *callbacks_, std::function<void(void)>{});
     return FilterStatus::StopIteration;
   } else if (conn_state_ == ConnectionState::Connected) {
     return FilterStatus::Continue;
@@ -453,7 +455,7 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason, ab
   if (metadata_->destIter != metadata_->destinationList().end()) {
     metadata_->destIter++;
     metadata_->setState(State::HandleAffinity);
-    callbacks_->continueHanding();
+    callbacks_->continueHanding(host->address()->asString());
   }
 
   // Mimic an upstream reset.
@@ -472,14 +474,10 @@ void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_
   conn_data_->addUpstreamCallbacks(*this);
   conn_pool_handle_ = nullptr;
 
-  conn_state_ = ConnectionState::Connected;
+  setConnectionState(ConnectionState::Connected);
 
-  onRequestStart(continue_handling);
-}
-
-void UpstreamRequest::onRequestStart(bool continue_handling) {
   if (continue_handling) {
-    callbacks_->continueHanding();
+    callbacks_->continueHanding(host->address()->asString());
   }
 }
 
@@ -575,7 +573,7 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
                   metadata->pCookieIpMap().value().second);
         auto [key, val] = metadata->pCookieIpMap().value();
         std::string host;
-        active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, metadata_, host);
+        active_trans->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, *active_trans, host);
         if (host != val) {
           active_trans->traHandler()->updateTrafficRoutingAssistant("lskpmc", key, val);
         }

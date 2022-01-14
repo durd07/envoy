@@ -3,7 +3,7 @@
 #include "envoy/common/exception.h"
 
 #include "contrib/sip_proxy/filters/network/source/metadata.h"
-#include "contrib/sip_proxy/filters/network/source/protocol.h"
+#include "contrib/sip_proxy/filters/network/source/utility.h"
 #include "contrib/sip_proxy/filters/network/source/sip.h"
 
 namespace Envoy {

@@ -13,6 +13,7 @@
 #include "absl/types/variant.h"
 #include "contrib/sip_proxy/filters/network/source/operation.h"
 #include "contrib/sip_proxy/filters/network/source/sip.h"
+//#include "contrib/sip_proxy/filters/network/source/decoder.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -26,7 +27,7 @@ namespace SipProxy {
   FUNCTION(MessageBegin)                                                                           \
   FUNCTION(MessageEnd)                                                                             \
   FUNCTION(TransportEnd)                                                                           \
-  FUNCTION(HandleAffinity)                                                                           \
+  FUNCTION(HandleAffinity)                                                                         \
   FUNCTION(Done)
 
 /**
@@ -86,7 +87,7 @@ public:
   void addSubscribe(std::string param, bool value) { subscribe_map_[param] = value; }
 
   std::string& rawMsg() { return raw_msg_; }
-  State state(){return state_;};
+  State state() { return state_; };
 
   void setMsgType(MsgType data) { msg_type_ = data; }
   void setMethodType(MethodType data) { method_type_ = data; }
@@ -100,7 +101,7 @@ public:
   void setDomain(absl::string_view header, std::string domain_matched_param_name) {
     domain_ = getDomain(header, domain_matched_param_name);
   }
-  void setState(State state){state_ = state;};
+  void setState(State state) { state_ = state; };
 
   void addEPOperation(size_t raw_offset, absl::string_view& header, std::string own_domain,
                       std::string domain_matched_param_name) {

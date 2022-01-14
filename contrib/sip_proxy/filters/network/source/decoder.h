@@ -8,7 +8,7 @@
 #include "source/common/common/logger.h"
 
 #include "contrib/sip_proxy/filters/network/source/filters/filter.h"
-#include "contrib/sip_proxy/filters/network/source/protocol.h"
+#include "contrib/sip_proxy/filters/network/source/utility.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -54,7 +54,6 @@ public:
    */
   State run();
 
-
 private:
   friend class SipDecoderTest;
   struct DecoderStatus {
@@ -94,7 +93,6 @@ public:
   virtual absl::string_view getLocalIp() PURE;
   virtual std::string getOwnDomain() PURE;
   virtual std::string getDomainMatchParamName() PURE;
-  virtual void setMetadata(MessageMetadataSharedPtr metadata) PURE;
 };
 
 /**
@@ -119,6 +117,18 @@ public:
   std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
 
   MessageMetadataSharedPtr metadata() { return metadata_; }
+
+  FilterStatus restore(DecoderEventHandler & decoder_event_handler) {
+    metadata_ = decoder_event_handler.metadata();
+    state_machine_ = std::make_unique<DecoderStateMachine>(metadata_, request_->handler_);
+    State rv = state_machine_->run();
+
+    if (rv == State::Done) {
+      complete();
+    }
+
+    return FilterStatus::StopIteration;
+  }
 
 private:
   friend class SipConnectionManagerTest;
@@ -363,7 +373,6 @@ private:
   ActiveRequestPtr request_;
   MessageMetadataSharedPtr metadata_;
   DecoderStateMachinePtr state_machine_;
-  bool start_new_message_{true};
 };
 
 using DecoderPtr = std::unique_ptr<Decoder>;

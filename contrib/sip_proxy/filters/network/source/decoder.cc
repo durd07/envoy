@@ -80,7 +80,6 @@ void Decoder::complete() {
   request_.reset();
   metadata_.reset();
   state_machine_ = nullptr;
-  start_new_message_ = true;
 
   current_header_ = HeaderType::TopLine;
   raw_offset_ = 0;
@@ -98,13 +97,9 @@ FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
 
     if (rv == State::Done) {
       complete();
-      reassemble(data);
     }
   } else {
-    if (start_new_message_) {
-      start_new_message_ = false;
-      reassemble(data);
-    }
+    reassemble(data);
   }
   return FilterStatus::StopIteration;
 }
@@ -179,10 +174,9 @@ int Decoder::reassemble(Buffer::Instance& data) {
 }
 
 FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
-  ENVOY_LOG(info, "SIP onDataReady {}\n{}", data.length(), data.toString());
+  ENVOY_LOG(debug, "SIP onDataReady {}\n{}", data.length(), data.toString());
 
   metadata_ = std::make_shared<MessageMetadata>(data.toString());
-  callbacks_.setMetadata(metadata_);
 
   decode();
 

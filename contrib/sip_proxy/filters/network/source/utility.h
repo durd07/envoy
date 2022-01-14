@@ -4,13 +4,16 @@
 
 #include "contrib/envoy/extensions/filters/network/sip_proxy/tra/v3alpha/tra.pb.h"
 #include "contrib/envoy/extensions/filters/network/sip_proxy/tra/v3alpha/tra.pb.validate.h"
-#include "contrib/sip_proxy/filters/network/source/conn_state.h"
 #include "contrib/sip_proxy/filters/network/source/metadata.h"
+#include "contrib/sip_proxy/filters/network/source/decoder_events.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace SipProxy {
+namespace SipFilters {
+class DecoderFilterCallbacks;
+}
 
 class SipSettings {
 public:
@@ -66,6 +69,58 @@ public:
    */
   virtual ResponseType encode(MessageMetadata& metadata, Buffer::Instance& buffer) const PURE;
 };
+
+/**
+ * In order to handle TRA retrieve async, introduce PendingList to hold current
+ * message(activetrans). described as below:
+ *
+ * --> tra_query_request
+ *     --> has local cache
+ *         --> pending_list[base_uri] has value
+ *             --> hold current message into pending_list with base_uri as key
+ *         --> pending_list[base_uri] no value
+ *             --> do tra query
+ *             --> hold current message into pending_list with base_uri as key
+ *     --> no  local cache
+ *         --> full_uri as key
+ *         --> hold current message into pending_list;
+ *
+ * --> tra_query_response_arrived
+ *     --> handle all messages in same query
+ *         --> continue_to_handle
+ */
+class PendingList {
+public:
+  PendingList() = default;
+
+  void pushIntoPendingList(const std::string& type, const std::string& key,
+                           SipFilters::DecoderFilterCallbacks& activetrans,
+                           std::function<void(void)> func);
+
+  // TODO this should be enhanced to save index in hash table keyed with
+  // transaction_id to improve search performace
+  void eraseActiveTransFromPendingList(std::string& transaction_id);
+
+  void onResponseHandleForPendingList(const std::string& type, const std::string& key,
+                                      std::function<void(DecoderEventHandler&)> func);
+
+private:
+  absl::flat_hash_map<std::string,
+                      std::list<std::reference_wrapper<SipFilters::DecoderFilterCallbacks>>>
+      pending_list_;
+};
+
+class PendingListHandler {
+public:
+  virtual ~PendingListHandler() = default;
+  virtual void pushIntoPendingList(const std::string& type, const std::string& key,
+                                   SipFilters::DecoderFilterCallbacks& activetrans,
+                                   std::function<void(void)> func) PURE;
+  virtual void onResponseHandleForPendingList(const std::string& type, const std::string& key,
+                                              std::function<void(DecoderEventHandler&)> func) PURE;
+  virtual void eraseActiveTransFromPendingList(std::string& transaction_id) PURE;
+};
+
 } // namespace SipProxy
 } // namespace NetworkFilters
 } // namespace Extensions

@@ -14,7 +14,7 @@ envoy_cc_library(
     srcs = ["app_exception_impl.cc"],
     hdrs = ["app_exception_impl.h"],
     deps = [
-        ":protocol_interface",
+        ":utility_interface",
         ":sip_lib",
         "//envoy/buffer:buffer_interface",
     ],
@@ -28,7 +28,7 @@ envoy_cc_contrib_extension(
         ":app_exception_lib",
         ":conn_manager_lib",
         ":decoder_lib",
-        ":protocol_interface",
+        ":utility_interface",
         "//contrib/sip_proxy/filters/network/source/filters:filter_config_interface",
         "//contrib/sip_proxy/filters/network/source/filters:well_known_names",
         "//contrib/sip_proxy/filters/network/source/router:router_lib",
@@ -48,7 +48,7 @@ envoy_cc_library(
         ":app_exception_lib",
         ":decoder_lib",
         ":encoder_lib",
-        ":protocol_interface",
+        ":utility_lib",
         ":stats_lib",
         "//contrib/sip_proxy/filters/network/source/router:router_interface",
         "//contrib/sip_proxy/filters/network/source/tra:tra_lib",
@@ -84,7 +84,7 @@ envoy_cc_library(
     hdrs = ["decoder.h"],
     deps = [
         ":app_exception_lib",
-        ":protocol_interface",
+        ":utility_interface",
         ":stats_lib",
         "//contrib/sip_proxy/filters/network/source/filters:filter_interface",
         "//source/common/buffer:buffer_lib",
@@ -97,7 +97,7 @@ envoy_cc_library(
     hdrs = ["encoder.h"],
     deps = [
         ":app_exception_lib",
-        ":protocol_interface",
+        ":utility_interface",
         ":stats_lib",
         "//contrib/sip_proxy/filters/network/source/filters:filter_interface",
         "//source/common/buffer:buffer_lib",
@@ -113,6 +113,7 @@ envoy_cc_library(
     external_deps = ["abseil_optional"],
     deps = [
         ":sip_lib",
+#        ":decoder_lib",
         "//envoy/buffer:buffer_interface",
         "//source/common/common:macros",
         "//source/common/http:header_map_lib",
@@ -120,9 +121,18 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "protocol_interface",
+    name = "utility_lib",
+    srcs = ["utility.cc"],
+    deps = [
+        ":utility_interface",
+        "//contrib/sip_proxy/filters/network/source/filters:filter_interface",
+    ],
+)
+
+envoy_cc_library(
+    name = "utility_interface",
     hdrs = [
-        "protocol.h",
+        "utility.h",
     ],
     external_deps = ["abseil_optional"],
     deps = [

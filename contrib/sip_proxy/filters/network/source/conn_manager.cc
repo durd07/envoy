@@ -7,7 +7,6 @@
 
 #include "contrib/sip_proxy/filters/network/source/app_exception_impl.h"
 #include "contrib/sip_proxy/filters/network/source/encoder.h"
-#include "contrib/sip_proxy/filters/network/source/protocol.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -43,18 +42,17 @@ void TrafficRoutingAssistantHandler::updateTrafficRoutingAssistant(const std::st
   }
 }
 
-QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(const std::string& type,
-                                                                            const std::string& key,
-                                                                            const MessageMetadataSharedPtr metadata,
-                                                                            std::string& host) {
+QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(
+    const std::string& type, const std::string& key,
+    SipFilters::DecoderFilterCallbacks& activetrans, std::string& host) {
   if ((*traffic_routing_assistant_map_)[type].find(key) !=
       (*traffic_routing_assistant_map_)[type].end()) {
     host = (*traffic_routing_assistant_map_)[type][key];
     return QueryStatus::Continue;
   }
 
-  if (metadata->queryMap()[type]) {
-    this->parent_.pushIntoPendingList(type, key, metadata, [&]() {
+  if (activetrans.metadata()->queryMap()[type]) {
+    this->parent_.pushIntoPendingList(type, key, activetrans, [&]() {
       if (tra_client_) {
         tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
                                                      stream_info_);
@@ -102,11 +100,12 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
     for (const auto& item : resp_data) {
       ENVOY_LOG(trace, "=== RetrieveResp {}={}", item.first, item.second);
       if (!item.second.empty()) {
-        parent_.onResponse(type, item.first, [&](MessageMetadataSharedPtr metadata) {
-          (*traffic_routing_assistant_map_)[message_type].emplace(item);
-          parent_.setDestination(item.second);
-          parent_.continueHanding(metadata);
-        });
+        parent_.onResponseHandleForPendingList(
+            message_type, item.first, [&](DecoderEventHandler& decoder_event_handler) {
+              (*traffic_routing_assistant_map_)[message_type].emplace(item);
+              parent_.setDestination(item.second);
+              parent_.continueHanding(decoder_event_handler);
+            });
       }
     }
 
@@ -171,8 +170,15 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
   return Network::FilterStatus::StopIteration;
 }
 
-void ConnectionManager::continueHanding() {
+void ConnectionManager::continueHanding(const std::string & key) {
+  onResponseHandleForPendingList("connection_pending", key, [&](DecoderEventHandler& decoder_event_handler) {
+    continueHanding(decoder_event_handler);
+  });
+}
+
+void ConnectionManager::continueHanding(DecoderEventHandler& decoder_event_handler) {
   try {
+    decoder_->restore(decoder_event_handler);
     decoder_->onData(request_buffer_, true);
   } catch (const AppException& ex) {
     ENVOY_LOG(debug, "sip application exception: {}", ex.what());
@@ -199,18 +205,6 @@ void ConnectionManager::dispatch() {
     // since we don't know how to encode a response.
     read_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
   }
-}
-
-// PendingListHandler
-void ConnectionManager::pushIntoPendingList(const std::string& type, const std::string& key,
-                                            const MessageMetadataSharedPtr& metadata,
-                                            std::function<void(void)> func) {
-  pending_list_.pushIntoPendingList(type, key, metadata, func);
-}
-
-void ConnectionManager::onResponse(const std::string& type, const std::string& key,
-                                   std::function<void(MessageMetadataSharedPtr)> func) {
-  pending_list_.onResponse(type, key, func);
 }
 
 void ConnectionManager::sendLocalReply(MessageMetadata& metadata, const DirectResponse& response,

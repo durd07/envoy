@@ -22,11 +22,13 @@
 #include "absl/types/optional.h"
 #include "contrib/envoy/extensions/filters/network/sip_proxy/tra/v3alpha/tra.pb.h"
 #include "contrib/envoy/extensions/filters/network/sip_proxy/v3alpha/route.pb.h"
-#include "contrib/sip_proxy/filters/network/source/conn_manager.h"
+#include "contrib/sip_proxy/filters/network/source/utility.h"
 #include "contrib/sip_proxy/filters/network/source/decoder_events.h"
+#include "contrib/sip_proxy/filters/network/source/decoder.h"
 #include "contrib/sip_proxy/filters/network/source/filters/factory_base.h"
 #include "contrib/sip_proxy/filters/network/source/filters/filter.h"
 #include "contrib/sip_proxy/filters/network/source/router/router.h"
+#include "contrib/sip_proxy/filters/network/source/conn_state.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -288,7 +290,7 @@ public:
   FilterStatus transportEnd() override;
   FilterStatus messageBegin(MessageMetadataSharedPtr metadata) override;
   FilterStatus messageEnd() override;
-  
+  MessageMetadataSharedPtr metadata() override { return metadata_; }
 
   // Upstream::LoadBalancerContext
   const Network::Connection* downstreamConnection() const override;
@@ -339,7 +341,6 @@ private:
   // bool continue_handling_;
 };
 
-class ThreadLocalActiveConn;
 class ResponseDecoder : public DecoderCallbacks,
                         public DecoderEventHandler,
                         public Logger::Loggable<Logger::Id::filter> {
@@ -357,6 +358,7 @@ public:
   FilterStatus messageEnd() override { return FilterStatus::Continue; };
   FilterStatus transportBegin(MessageMetadataSharedPtr metadata) override;
   FilterStatus transportEnd() override { return FilterStatus::Continue; }
+  MessageMetadataSharedPtr metadata() override { return metadata_; }
 
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override {
@@ -366,7 +368,6 @@ public:
   absl::string_view getLocalIp() override;
   std::string getOwnDomain() override;
   std::string getDomainMatchParamName() override;
-  void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;}
 
 private:
   UpstreamRequest& parent_;
@@ -397,9 +398,6 @@ public:
   void onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn,
                    Upstream::HostDescriptionConstSharedPtr host) override;
 
-  void onRequestStart(bool continue_handling = false);
-  void onRequestComplete();
-  void onResponseComplete();
   void onUpstreamHostSelected(Upstream::HostDescriptionConstSharedPtr host);
   void onResetStream(ConnectionPool::PoolFailureReason reason);
 
@@ -441,9 +439,6 @@ private:
   SipFilters::DecoderFilterCallbacks* callbacks_{};
   MessageMetadataSharedPtr metadata_;
   Buffer::OwnedImpl upstream_buffer_;
-
-  bool request_complete_ : 1;
-  bool response_complete_ : 1;
 };
 
 } // namespace Router
