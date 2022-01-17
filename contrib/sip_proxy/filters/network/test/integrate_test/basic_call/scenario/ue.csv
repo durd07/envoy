@@ -1,0 +1,4 @@
+SEQUENTIAL,PRINTF=9999,PRINTFOFFSET=0001
+User.%0.4d;User.0000;15306;tafe.default.svc.nokia.local;+16749155000;pcsf-atcf.imsgroup0-000.hft49.ims.fs5000lab.com;tas01.defult.svc.cluster.local;1;newsys;9745320019
+User.%0.4d;User.0000;15306;tafe.default.svc.nokia.local;+16749155000;pcsf-atcf.imsgroup0-000.hft49.ims.fs5000lab.com;tas01.defult.svc.cluster.local;1;newsys;9745320019
+User.%0.4d;User.0000;15306;scfe.default.svc.nokia.local;+16749155000;pcsf-atcf.imsgroup0-000.hft49.ims.fs5000lab.com;tas01.defult.svc.cluster.local;1;newsys;9745320019

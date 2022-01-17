@@ -1,0 +1,113 @@
+static_resources:
+  listeners:
+  - name: listener_0
+    address:
+      socket_address: { address: 11.0.0.1, port_value: 5060 }
+    filter_chains:
+    - filters:
+      - name: envoy.sip_proxy
+        typed_config:
+           "@type": type.googleapis.com/envoy.extensions.filters.network.sip_proxy.v3alpha.SipProxy
+           stat_prefix: egress_sip
+           route_config:
+             routes:
+             - match:
+                domain: "icscf-internal.cncs.svc.cluster.local"
+               route:
+                cluster: egress_sip1
+             - match:
+                domain: "scscf-internal.cncs.svc.cluster.local"
+               route:
+                cluster: egress_sip2
+           settings:
+             transaction_timeout: 32s
+             own_domain: "pcsf-cfed.cncs.svc.cluster.local"
+             domain_match_parameter_name: x-suri
+             tra_service_config:
+               grpc_service:
+                 envoy_grpc:
+                   cluster_name: tra_service
+               timeout: 2s
+               transport_api_version: V3
+
+  clusters:
+  - name: egress_sip1
+    type: strict_dns
+    connect_timeout: 2s
+    lb_policy: ROUND_ROBIN
+    dns_refresh_rate: 5s
+    typed_extension_protocol_options:
+      envoy.filters.network.sip_proxy:
+        "@type": type.googleapis.com/envoy.extensions.filters.network.sip_proxy.v3alpha.SipProtocolOptions
+        session_affinity: true
+        registration_affinity: true
+        customized_affinity:
+        - key_name: xafi
+          query: true
+          subscribe: false
+        - key_name: lskpmc
+          query: false
+          subscribe: true
+        - key_name: ep
+          query: false
+          subscribe: false 
+    load_assignment:
+      cluster_name: egress_sip
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 12.0.0.1
+                port_value: 5060
+                protocol: TCP
+  - name: egress_sip2
+    type: strict_dns
+    connect_timeout: 2s
+    lb_policy: ROUND_ROBIN
+    dns_refresh_rate: 5s
+    typed_extension_protocol_options:
+      envoy.filters.network.sip_proxy:
+        "@type": type.googleapis.com/envoy.extensions.filters.network.sip_proxy.v3alpha.SipProtocolOptions
+        session_affinity: true
+        registration_affinity: true
+        customized_affinity:
+        - key_name: xafi
+          query: true
+          subscribe: false
+        - key_name: lskpmc
+          query: false
+          subscribe: true
+        - key_name: ep
+          query: false
+          subscribe: false 
+    load_assignment:
+      cluster_name: egress_sip
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 13.0.0.1
+                port_value: 5060
+                protocol: TCP
+  - name: tra_service
+    type: strict_dns
+    connect_timeout: 2s
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options: {} # enable H2 protocol
+    dns_refresh_rate: 5s
+    load_assignment:
+      cluster_name: tra_service
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: 50053
+                protocol: TCP
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address: { address: 11.0.0.1, port_value: 9657 }
