@@ -1,8 +1,10 @@
 *** Settings ***
 Library           Process
+Library           RequestsLibrary
 
 *** Variables ***
 ${ENVOY_BIN}    /source/build/envoy/source/exe/envoy-contrib/envoy
+${TRA_BIN}    /usr/local/bin/tra
 
 *** Keywords ***
 Start Envoy
@@ -14,3 +16,13 @@ Start Envoy
 Stop Envoy
     [Arguments]    ${envoy}
     ${result} =    Terminate Process    ${envoy}
+
+Start Tra
+    Start Process    /usr/local/bin/tra    shell=True
+    Sleep    1 secs
+    &{lskpmcs} =    Create Dictionary    S3F2=12.0.0.1
+    Log    ${lskpmcs}
+    ${resp} =    POST    http://localhost:50052/lskpmcs    json=${lskpmcs}
+
+    ${resp}=    GET  http://localhost:50052/lskpmcs    expected_status=200
+    Log    ${resp}
