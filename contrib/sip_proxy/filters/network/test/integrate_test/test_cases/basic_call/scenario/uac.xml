@@ -14,7 +14,7 @@
         Call-ID: [call_id]
         CSeq: [cseq] INVITE
         Supported: 100rel
-        Route: <sip:[field3]:[field2];role=anch;lr;transport=tcp;x-suri=sip:scscf-internal.cncs.svc.cluster.local:15090;xafi=13001;lskpmc=S1F1>
+        Route: <sip:[field3]:[field2];role=anch;lr;transport=tcp;x-suri=sip:icscf-internal.cncs.svc.cluster.local:15090;xafi=13001;lskpmc=S1F1>
         Record-Route: <sip:[field3]:[field2];role=anch;lr;transport=tcp;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:15090;xkey=001>
         Contact: <sip:[field3]:[field2];role=anch;lr;transport=tcp;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:15090>
         P-Asserted-Identity: <sip:[field0]@[field6]>

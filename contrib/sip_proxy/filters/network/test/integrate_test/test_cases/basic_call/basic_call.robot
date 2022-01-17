@@ -1,9 +1,12 @@
 *** Settings ***
-Resource    resources/common.robot
-Resource    resources/envoy.robot
-Resource    resources/sipp.robot
+Resource    ../../resources/common.robot
+Resource    ../../resources/envoy.robot
+Resource    ../../resources/sipp.robot
+
 Suite Setup    Network Preparation
+
 Test Teardown    Terminate All Processes    kill=True
+
 Test Timeout    20 sec
 
 *** Test Cases ***
