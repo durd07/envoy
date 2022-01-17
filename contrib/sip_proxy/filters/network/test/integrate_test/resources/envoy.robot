@@ -1,6 +1,7 @@
 *** Settings ***
 Library           Process
 Library           RequestsLibrary
+Resource          common.robot
 
 *** Variables ***
 ${ENVOY_BIN}    /source/build/envoy/source/exe/envoy-contrib/envoy
@@ -19,7 +20,7 @@ Stop Envoy
 
 Start Tra
     Start Process    /usr/local/bin/tra    shell=True
-    Sleep    1 secs
+    Wait For Socket Listened    50052
     &{lskpmcs} =    Create Dictionary    S3F2=12.0.0.1
     Log    ${lskpmcs}
     ${resp} =    POST    http://localhost:50052/lskpmcs    json=${lskpmcs}
