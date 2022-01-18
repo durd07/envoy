@@ -1,5 +1,22 @@
 # Sip Proxy Integrate Test
 
+## start the build container
+
+```
+./ci/run_envoy_docker.sh bash
+```
+
+> The build container window should keep open, because `run_envoy_docker` start the container with command `docker run -rm -it`
+
+## Build Envoy
+
+```
+export BUILD_DIR=/source/build
+cd /source && ./ci/do_ci.sh bazel.release
+```
+
+## Test
+
 ln -s /source/contrib/sip_proxy/filters/network/test/integrate_test /test
 
 export http_proxy=http://10.158.100.9:8080
@@ -8,6 +25,7 @@ apt update
 apt install vim
 
 ## Install Sipp
+
 ```
 apt install -y pkg-config dh-autoreconf ncurses-dev build-essential libssl-dev libpcap-dev libncurses5-dev libsctp-dev lksctp-tools cmake
 git clone https://github.com/SIPp/sipp.git
@@ -18,6 +36,7 @@ make install
 ```
 
 ## Install Tra
+
 ```
 apt install -y protobuf-compiler
 
@@ -39,17 +58,20 @@ make server
 ```
 
 or you can download the binary directly
+
 ```
 wget -O /usr/local/bin/tra https://github.com/durd07/tra/releases/download/v0.0.1-v3alpha/tra_server-ubuntu1804
 chmod +x /usr/local/bin/tra
 ```
 
 ## Install RobotFramework
+
 ```
 pip3 install robotframework robotframework-requests
 ```
 
 ## Debug coredump
+
 ```
 ulimit -c unlimited
 
