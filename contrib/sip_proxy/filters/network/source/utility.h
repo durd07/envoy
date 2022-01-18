@@ -89,7 +89,7 @@ public:
  *     --> handle all messages in same query
  *         --> continue_to_handle
  */
-class PendingList {
+class PendingList : public Logger::Loggable<Logger::Id::filter> {
 public:
   PendingList() = default;
 

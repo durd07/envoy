@@ -96,8 +96,9 @@ FilterStatus Decoder::onData(Buffer::Instance& data, bool continue_handling) {
     State rv = state_machine_->run();
 
     if (rv == State::Done) {
-      complete();
+      //complete();
     }
+    complete();
   } else {
     reassemble(data);
   }
@@ -185,8 +186,9 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
   State rv = state_machine_->run();
 
   if (rv == State::Done) {
-    complete();
+    //complete();
   }
+  complete();
 
   return FilterStatus::StopIteration;
 }

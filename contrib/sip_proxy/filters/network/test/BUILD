@@ -16,7 +16,7 @@ envoy_cc_mock(
     hdrs = ["mocks.h"],
     deps = [
         "//contrib/sip_proxy/filters/network/source:conn_manager_lib",
-        "//contrib/sip_proxy/filters/network/source:protocol_interface",
+        "//contrib/sip_proxy/filters/network/source:utility_interface",
         "//contrib/sip_proxy/filters/network/source/filters:factory_base_lib",
         "//contrib/sip_proxy/filters/network/source/filters:filter_interface",
         "//contrib/sip_proxy/filters/network/source/router:router_interface",

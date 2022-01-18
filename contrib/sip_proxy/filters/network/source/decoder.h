@@ -119,7 +119,9 @@ public:
   MessageMetadataSharedPtr metadata() { return metadata_; }
 
   FilterStatus restore(DecoderEventHandler & decoder_event_handler) {
+    complete();
     metadata_ = decoder_event_handler.metadata();
+    request_ = std::make_unique<ActiveRequest>(decoder_event_handler);
     state_machine_ = std::make_unique<DecoderStateMachine>(metadata_, request_->handler_);
     State rv = state_machine_->run();
 

@@ -9,6 +9,7 @@ namespace SipProxy {
 void PendingList::pushIntoPendingList(const std::string& type, const std::string& key,
                                       SipFilters::DecoderFilterCallbacks& activetrans,
                                       std::function<void(void)> func) {
+  ENVOY_LOG(debug, "PUSH {}-{} {} into PendigList", type, key, activetrans.transactionId());
   if (activetrans.metadata()->queryMap()[type]) {
     if (pending_list_[type + key].empty()) {
       // need to do tra query
@@ -24,6 +25,7 @@ void PendingList::pushIntoPendingList(const std::string& type, const std::string
 // TODO this should be enhanced to save index in hash table keyed with
 // transaction_id to improve search performace
 void PendingList::eraseActiveTransFromPendingList(std::string& transaction_id) {
+  ENVOY_LOG(debug, "POP {} from PendigList", transaction_id);
   for (auto& item : pending_list_) {
     for (auto it = item.second.begin(); it != item.second.end();) {
       if ((*it).get().transactionId() == transaction_id) {
