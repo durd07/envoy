@@ -3,11 +3,11 @@ Library           Process
 
 *** Variables ***
 ${SIPP_BIN}    /usr/local/bin/sipp
-${CSVF_PATH}   scenario/ue.csv
+${CSVF_PATH}   /test/scenario/ue.csv
 
-${SIPC_XML_SF_PATH}    scenario/uac.xml
+${SIPC_XML_SF_PATH}    /test/scenario/uac.xml
 ${SIPC_OPTIONS}    -t t1 -max_socket 2000 -l 10000 -m 10 -r 10 -rp 1s -fd 500  -default_behaviors all -trace_err -error_file ${OUTPUT DIR}/error-uac.log -trace_stat -stf ${OUTPUT DIR}/stats-uac.csv -watchdog_minor_threshold 2000 -watchdog_major_threshold 6000 -trace_msg -trace_logs $*
-${SIPS_XML_SF_PATH}    scenario/uas.xml
+${SIPS_XML_SF_PATH}    /test/scenario/uas.xml
 ${SIPS_OPTIONS}    -t t1 -m 10 -max_socket 10 -trace_err -error_file ${OUTPUT DIR}/error-uas.log -trace_stat -stf ${OUTPUT DIR}/stats-uas.csv -watchdog_minor_threshold 2000 -watchdog_major_threshold 6000 -trace_msg -trace_logs $*
 
 *** Keywords ***

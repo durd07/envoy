@@ -12,7 +12,7 @@ Start Envoy
     [Arguments]    ${name}    ${config_file}    ${base_id}    ${log_level}    ${log_path}
     ${result} =    Run Process    ss -lntp   shell=True
     Log    ${result.stdout}
-    ${envoy} =    Start Process    ${ENVOY_BIN} -c ${config_file} --base-id ${base_id} --log-level ${log_level} --log-path ${OUTPUT DIR}/${log_path}    shell=True
+    ${envoy} =    Start Process    ${ENVOY_BIN} -c /test/envoy/${config_file} --base-id ${base_id} --log-level ${log_level} --log-path ${OUTPUT DIR}/${log_path}    shell=True
 
 Stop Envoy
     [Arguments]    ${envoy}
@@ -21,9 +21,15 @@ Stop Envoy
 Start Tra
     Start Process    /usr/local/bin/tra    shell=True
     Wait For Socket Listened    50052
-    &{lskpmcs} =    Create Dictionary    S3F2=12.0.0.1
-    Log    ${lskpmcs}
-    ${resp} =    POST    http://localhost:50052/lskpmcs    json=${lskpmcs}
+
+    #&{lskpmcs} =    Create Dictionary    S3F2=12.0.0.1
+    #Log    ${lskpmcs}
+    #${resp} =    POST    http://localhost:50052/lskpmcs    json=${lskpmcs}
 
     ${resp}=    GET  http://localhost:50052/lskpmcs    expected_status=200
     Log    ${resp}
+
+Update Tra
+    [Arguments]    ${path}    &{data}
+    Log    ${data}
+    ${resp} =    POST    http://localhost:50052/${path}    json=${data}

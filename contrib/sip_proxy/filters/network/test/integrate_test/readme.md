@@ -1,5 +1,7 @@
 # Sip Proxy Integrate Test
 
+ln -s /source/contrib/sip_proxy/filters/network/test/integrate_test /test
+
 export http_proxy=http://10.158.100.9:8080
 export https_proxy=http://10.158.100.9:8080
 apt update
@@ -45,4 +47,14 @@ chmod +x /usr/local/bin/tra
 ## Install RobotFramework
 ```
 pip3 install robotframework robotframework-requests
+```
+
+## Debug coredump
+```
+ulimit -c unlimited
+
+/proc/sys/kernel/core_pattern
+#echo "core-%e-%p-%s-%t" > /proc/sys/kernel/core_pattern
+
+sudo coredumpctl info
 ```
