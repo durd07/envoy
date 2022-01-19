@@ -251,6 +251,18 @@ elif [[ "$CI_TARGET" == "bazel.debug" ]]; then
   echo "bazel debug build with tests..."
   bazel_envoy_binary_build debug
   exit 0
+elif [[ "$CI_TARGET" == "bazel.contrib_release" ]]; then
+  setup_clang_toolchain
+
+  echo "bazel contrib release build..."
+  bazel_contrib_binary_build release
+  exit 0
+elif [[ "$CI_TARGET" == "bazel.contrib_debug" ]]; then
+  setup_clang_toolchain
+
+  echo "bazel contrib debug build..."
+  bazel_contrib_binary_build debug
+  exit 0
 elif [[ "$CI_TARGET" == "bazel.debug.server_only" ]]; then
   setup_clang_toolchain
   echo "bazel debug build..."
