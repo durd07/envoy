@@ -564,7 +564,7 @@ bool ResponseDecoder::onData(Buffer::Instance& data) {
 }
 
 FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) {
-  ENVOY_LOG(trace, "ResponseDecoder {}", metadata->rawMsg());
+  ENVOY_LOG(trace, "ResponseDecoder\n{}", metadata->rawMsg());
   if (metadata->transactionId().has_value()) {
     auto transaction_id = metadata->transactionId().value();
 
