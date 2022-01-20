@@ -85,7 +85,7 @@ public:
   void updateTrafficRoutingAssistant(const std::string& type, const std::string& key,
                                      const std::string& val);
   QueryStatus retrieveTrafficRoutingAssistant(const std::string& type, const std::string& key,
-                                              SipFilters::DecoderFilterCallbacks& metadata,
+                                              SipFilters::DecoderFilterCallbacks& activetrans,
                                               std::string& host);
   void deleteTrafficRoutingAssistant(const std::string& type, const std::string& key);
   void subscribeTrafficRoutingAssistant(const std::string& type);
@@ -151,10 +151,8 @@ public:
     return config_.settings()->domainMatchParamName();
   }
 
-  void setDestination(const std::string& data) { this->decoder_->metadata()->setDestination(data); }
-
   void continueHanding(const std::string& key);
-  void continueHanding(DecoderEventHandler& decoder_event_handler);
+  void continueHanding(MessageMetadataSharedPtr metadata, DecoderEventHandler& decoder_event_handler);
   std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() { return this->tra_handler_; }
 
   // PendingListHandler
@@ -164,7 +162,7 @@ public:
     return pending_list_.pushIntoPendingList(type, key, activetrans, func);
   }
   void onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                      std::function<void(DecoderEventHandler&)> func) override {
+                                      std::function<void(MessageMetadataSharedPtr metadata, DecoderEventHandler&)> func) override {
     return pending_list_.onResponseHandleForPendingList(type, key, func);
   }
   void eraseActiveTransFromPendingList(std::string& transaction_id) override {
@@ -188,7 +186,6 @@ private:
       return FilterStatus::Continue;
     }
     FilterStatus transportEnd() override;
-    MessageMetadataSharedPtr metadata() override { return parent_.metadata(); }
 
     // DecoderCallbacks
     DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override {
@@ -251,6 +248,7 @@ private:
     void continueHanding(const std::string& key) override { return parent_.continueHanding(key); }
     MessageMetadataSharedPtr metadata() override { return parent_.metadata(); }
 
+    // PendingListHandler
     void pushIntoPendingList(const std::string& type, const std::string& key,
                                      SipFilters::DecoderFilterCallbacks& activetrans,
                                      std::function<void(void)> func) override {
@@ -260,7 +258,7 @@ private:
       UNREFERENCED_PARAMETER(func);
     }
     void onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                   std::function<void(DecoderEventHandler&)> func) override {
+                                   std::function<void(MessageMetadataSharedPtr, DecoderEventHandler&)> func) override {
       UNREFERENCED_PARAMETER(type);
       UNREFERENCED_PARAMETER(key);
       UNREFERENCED_PARAMETER(func);
@@ -305,7 +303,6 @@ private:
     FilterStatus transportEnd() override;
     FilterStatus messageBegin(MessageMetadataSharedPtr metadata) override;
     FilterStatus messageEnd() override;
-    MessageMetadataSharedPtr metadata() override { return metadata_; }
 
     // PendingListHandler
     void pushIntoPendingList(const std::string& type, const std::string& key,
@@ -314,7 +311,7 @@ private:
       return parent_.pushIntoPendingList(type, key, activetrans, func);
     }
     void onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                        std::function<void(DecoderEventHandler&)> func) override {
+                                        std::function<void(MessageMetadataSharedPtr metadata, DecoderEventHandler&)> func) override {
       return parent_.onResponseHandleForPendingList(type, key, func);
     }
     void eraseActiveTransFromPendingList(std::string& transaction_id) override {
@@ -346,7 +343,7 @@ private:
     void addDecoderFilter(SipFilters::DecoderFilterSharedPtr filter) override {
       ActiveTransDecoderFilterPtr wrapper =
           std::make_unique<ActiveTransDecoderFilter>(*this, filter);
-      filter->setDecoderFilterCallbacks(*wrapper);
+      filter->setDecoderFilterCallbacks(wrapper->parent_);
       LinkedList::moveIntoListBack(std::move(wrapper), decoder_filters_);
     }
 
@@ -355,6 +352,7 @@ private:
 
     void createFilterChain();
     void onError(const std::string& what);
+    MessageMetadataSharedPtr metadata() override { return metadata_; }
 
     ConnectionManager& parent_;
     Stats::TimespanPtr request_timer_;

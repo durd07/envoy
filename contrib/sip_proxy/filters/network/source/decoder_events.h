@@ -56,7 +56,6 @@ public:
    * @return FilterStatus to indicate if filter chain iteration should continue
    */
   virtual FilterStatus messageEnd() PURE;
-  virtual MessageMetadataSharedPtr metadata() PURE;
 };
 
 using DecoderEventHandlerSharedPtr = std::shared_ptr<DecoderEventHandler>;

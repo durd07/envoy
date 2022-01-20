@@ -290,7 +290,6 @@ public:
   FilterStatus transportEnd() override;
   FilterStatus messageBegin(MessageMetadataSharedPtr metadata) override;
   FilterStatus messageEnd() override;
-  MessageMetadataSharedPtr metadata() override { return metadata_; }
 
   // Upstream::LoadBalancerContext
   const Network::Connection* downstreamConnection() const override;
@@ -358,7 +357,6 @@ public:
   FilterStatus messageEnd() override { return FilterStatus::Continue; };
   FilterStatus transportBegin(MessageMetadataSharedPtr metadata) override;
   FilterStatus transportEnd() override { return FilterStatus::Continue; }
-  MessageMetadataSharedPtr metadata() override { return metadata_; }
 
   // DecoderCallbacks
   DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) override {

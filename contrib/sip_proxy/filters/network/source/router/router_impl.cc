@@ -403,7 +403,7 @@ UpstreamRequest::~UpstreamRequest() {
 FilterStatus UpstreamRequest::start() {
   if (conn_state_ == ConnectionState::Connecting) {
     callbacks_->pushIntoPendingList("connection_pending", conn_pool_.host()->address()->asString(),
-                                   *callbacks_, std::function<void(void)>{});
+                                   *callbacks_, [](){});
     return FilterStatus::StopIteration;
   } else if (conn_state_ == ConnectionState::Connected) {
     return FilterStatus::Continue;
@@ -416,6 +416,8 @@ FilterStatus UpstreamRequest::start() {
   if (handle) {
     // Pause while we wait for a connection.
     conn_pool_handle_ = handle;
+    callbacks_->pushIntoPendingList("connection_pending", conn_pool_.host()->address()->asString(),
+                                   *callbacks_, [](){});
     return FilterStatus::StopIteration;
   }
 
@@ -548,8 +550,8 @@ void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
     return;
   }
 
+  transaction_info_->deleteUpstreamRequest(upstream_host_->address()->ip()->addressAsString());
   releaseConnection(false);
-  transaction_info_->deleteUpstreamRequest(conn_pool_.host()->address()->ip()->addressAsString());
 }
 
 void UpstreamRequest::setDecoderFilterCallbacks(SipFilters::DecoderFilterCallbacks& callbacks) {

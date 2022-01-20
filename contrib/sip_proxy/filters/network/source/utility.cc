@@ -25,7 +25,7 @@ void PendingList::pushIntoPendingList(const std::string& type, const std::string
 // TODO this should be enhanced to save index in hash table keyed with
 // transaction_id to improve search performace
 void PendingList::eraseActiveTransFromPendingList(std::string& transaction_id) {
-  ENVOY_LOG(debug, "POP {} from PendigList", transaction_id);
+  ENVOY_LOG(debug, "ERASE {} from PendigList", transaction_id);
   for (auto& item : pending_list_) {
     for (auto it = item.second.begin(); it != item.second.end();) {
       if ((*it).get().transactionId() == transaction_id) {
@@ -38,12 +38,13 @@ void PendingList::eraseActiveTransFromPendingList(std::string& transaction_id) {
 }
 
 void PendingList::onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                                 std::function<void(DecoderEventHandler&)> func) {
-  for (auto& activetrans_ref : pending_list_[type + key]) {
-    func(dynamic_cast<DecoderEventHandler&>(activetrans_ref.get()));
+                                                 std::function<void(MessageMetadataSharedPtr, DecoderEventHandler&)> func) {
+  auto mylist = pending_list_[type + key];
+  for (auto& activetrans_ref : mylist) {
+    func(activetrans_ref.get().metadata(), dynamic_cast<DecoderEventHandler&>(activetrans_ref.get()));
   }
 
-  pending_list_[key].clear();
+  pending_list_[type + key].clear();
 }
 } // namespace SipProxy
 } // namespace NetworkFilters

@@ -102,7 +102,7 @@ public:
   void eraseActiveTransFromPendingList(std::string& transaction_id);
 
   void onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                      std::function<void(DecoderEventHandler&)> func);
+                                      std::function<void(MessageMetadataSharedPtr, DecoderEventHandler&)> func);
 
 private:
   absl::flat_hash_map<std::string,
@@ -117,7 +117,7 @@ public:
                                    SipFilters::DecoderFilterCallbacks& activetrans,
                                    std::function<void(void)> func) PURE;
   virtual void onResponseHandleForPendingList(const std::string& type, const std::string& key,
-                                              std::function<void(DecoderEventHandler&)> func) PURE;
+                                              std::function<void(MessageMetadataSharedPtr, DecoderEventHandler&)> func) PURE;
   virtual void eraseActiveTransFromPendingList(std::string& transaction_id) PURE;
 };
 

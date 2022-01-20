@@ -56,9 +56,10 @@ QueryStatus TrafficRoutingAssistantHandler::retrieveTrafficRoutingAssistant(
       if (tra_client_) {
         tra_client_->retrieveTrafficRoutingAssistant(type, key, Tracing::NullSpan::instance(),
                                                      stream_info_);
-        host = "";
       }
     });
+    host = "";
+    return QueryStatus::Pending;
   }
   host = "";
   return QueryStatus::Stop;
@@ -98,13 +99,18 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
             envoy::extensions::filters::network::sip_proxy::tra::v3alpha::RetrieveResponse>(resp)
             .data();
     for (const auto& item : resp_data) {
-      ENVOY_LOG(trace, "=== RetrieveResp {}={}", item.first, item.second);
+      ENVOY_LOG(trace, "=== RetrieveResp {} {}={}", message_type, item.first, item.second);
       if (!item.second.empty()) {
         parent_.onResponseHandleForPendingList(
-            message_type, item.first, [&](DecoderEventHandler& decoder_event_handler) {
+            message_type, item.first, [&](MessageMetadataSharedPtr metadata, DecoderEventHandler& decoder_event_handler) {
               (*traffic_routing_assistant_map_)[message_type].emplace(item);
-              parent_.setDestination(item.second);
-              parent_.continueHanding(decoder_event_handler);
+              metadata->setDestination(item.second);
+              parent_.continueHanding(metadata, decoder_event_handler);
+            });
+      } else {
+        parent_.onResponseHandleForPendingList(
+            message_type, item.first, [&](MessageMetadataSharedPtr metadata, DecoderEventHandler& decoder_event_handler) {
+              parent_.continueHanding(metadata, decoder_event_handler);
             });
       }
     }
@@ -171,14 +177,14 @@ Network::FilterStatus ConnectionManager::onData(Buffer::Instance& data, bool end
 }
 
 void ConnectionManager::continueHanding(const std::string & key) {
-  onResponseHandleForPendingList("connection_pending", key, [&](DecoderEventHandler& decoder_event_handler) {
-    continueHanding(decoder_event_handler);
+  onResponseHandleForPendingList("connection_pending", key, [&](MessageMetadataSharedPtr metadata, DecoderEventHandler& decoder_event_handler) {
+    continueHanding(metadata, decoder_event_handler);
   });
 }
 
-void ConnectionManager::continueHanding(DecoderEventHandler& decoder_event_handler) {
+void ConnectionManager::continueHanding(MessageMetadataSharedPtr metadata, DecoderEventHandler& decoder_event_handler) {
   try {
-    decoder_->restore(decoder_event_handler);
+    decoder_->restore(metadata, decoder_event_handler);
     decoder_->onData(request_buffer_, true);
   } catch (const AppException& ex) {
     ENVOY_LOG(debug, "sip application exception: {}", ex.what());
