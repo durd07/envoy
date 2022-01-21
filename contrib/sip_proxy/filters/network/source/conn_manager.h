@@ -296,6 +296,8 @@ private:
       for (auto& filter : decoder_filters_) {
         filter->handle_->onDestroy();
       }
+
+      eraseActiveTransFromPendingList(transaction_id_);
     }
 
     // DecoderEventHandler
