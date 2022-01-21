@@ -1,6 +1,7 @@
 #include "contrib/sip_proxy/filters/network/source/router/router_impl.h"
 
 #include <memory>
+#include <iostream>
 
 #include "envoy/upstream/cluster_manager.h"
 
@@ -37,12 +38,60 @@ RouteConstSharedPtr RouteEntryImplBase::clusterEntry(const MessageMetadata& meta
 
 GeneralRouteEntryImpl::GeneralRouteEntryImpl(
     const envoy::extensions::filters::network::sip_proxy::v3alpha::Route& route)
-    : RouteEntryImplBase(route), domain_(route.match().domain()) {}
+    : RouteEntryImplBase(route), domain_(route.match().domain()), header_(route.match().header()),
+      parameter_(route.match().parameter()) {}
 
 RouteConstSharedPtr GeneralRouteEntryImpl::matches(MessageMetadata& metadata) const {
-  bool matches = metadata.domain().value() == domain_ || domain_ == "*";
+  absl::string_view header = "";
+  // Default is route
+  HeaderType type = HeaderType::Route;
+  std::map<absl::string_view, HeaderType> sip_header_type_map = Envoy::Extensions::NetworkFilters::SipProxy::type_map.headerTypeMap();
 
-  if (matches) {
+  if (domain_.empty()) {
+    return nullptr;
+  }
+  if (domain_ == "*") {
+    ENVOY_LOG(trace, "Route matched with domain: {}", domain_);
+    return clusterEntry(metadata);
+  }
+
+  ENVOY_LOG(trace, "Do Route match with header: {}, parameter: {} and domain: {}", header_,
+            parameter_, domain_);
+
+  if (sip_header_type_map.find(header_) == sip_header_type_map.end()) {
+    ENVOY_LOG(error, "Could not found mapped header type of {} ", header_);
+    return nullptr;
+  }
+
+  type = sip_header_type_map[header_];
+
+  if (type == HeaderType::Other) {
+    // Default is Route
+    type = HeaderType::Route;
+  }
+
+  // get header
+  header = absl::get<VectorHeader>(metadata.msgHeaderList()[type])[0];
+
+  if (header.empty()) {
+    if (type == HeaderType::Route) {
+      // No Route, r-uri is used
+      header = absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::TopLine])[0];
+      ENVOY_LOG(debug, "No route, r-uri {} is used ", header);
+      if (header.empty()) {
+        ENVOY_LOG(debug, "r-uri is empty");
+        return nullptr;
+      }
+    } else {
+      ENVOY_LOG(debug, "header {} is empty", header_);
+      return nullptr;
+    }
+  }
+  auto domain = metadata.getDomainFromHeaderParameter(header, parameter_);
+  // if (domain_ == metadata.getDomainFromHeaderParameter(header, parameter_)) {
+  if (domain_ == domain) {
+    ENVOY_LOG(trace, "Route matched with header: {}, parameter: {} and domain: {}", header_,
+              parameter_, domain_);
     return clusterEntry(metadata);
   }
 
@@ -68,6 +117,7 @@ RouteConstSharedPtr RouteMatcher::route(MessageMetadata& metadata) const {
   for (const auto& route : routes_) {
     RouteConstSharedPtr route_entry = route->matches(metadata);
     if (nullptr != route_entry) {
+      ENVOY_LOG(debug, "route matched!");
       return route_entry;
     }
   }
@@ -123,6 +173,7 @@ FilterStatus Router::handleAffinity() {
   auto& metadata = metadata_;
   std::string host;
 
+  ENVOY_LOG(trace, "Updata pCookieIpMap in tra");
   if (metadata->pCookieIpMap().has_value()) {
     auto [key, val] = metadata->pCookieIpMap().value();
     callbacks_->traHandler()->retrieveTrafficRoutingAssistant("lskpmc", key, host);
@@ -133,6 +184,7 @@ FilterStatus Router::handleAffinity() {
     }
   }
 
+  ENVOY_LOG(trace, "Get Protocal Options Config");
   const std::shared_ptr<const ProtocolOptionsConfig> options =
       cluster_->extensionProtocolOptionsTyped<ProtocolOptionsConfig>(
           SipFilters::SipFilterNames::get().SipProxy);
@@ -141,17 +193,23 @@ FilterStatus Router::handleAffinity() {
     return FilterStatus::Continue;
   }
 
-  // Do subscribe
-  callbacks_->traHandler()->doSubscribe(options->customizedAffinityList());
+  metadata->setStopLoadBalance(options->customizedAffinity().stop_load_balance());
 
+  // Do subscribe
+  ENVOY_LOG(trace, "Tra handle do subscribe");
+  callbacks_->traHandler()->doSubscribe(options->customizedAffinity());
+
+  ENVOY_LOG(trace, "handle cutomiziedAffitniy");
+  auto entries = options->customizedAffinity().entries();
   if (metadata->destinationList().empty()) {
-    if (!options->customizedAffinityList().empty() && !metadata->paramMap().empty()) {
-      for (const auto& aff : options->customizedAffinityList()) {
-        if (auto search = metadata->paramMap().find(aff.name());
+    if (!options->customizedAffinity().entries().empty() && !metadata->paramMap().empty()) {
+      //for (const auto& aff : options->customizedAffinity().entries()) {
+      for (const auto& aff : entries) {
+        if (auto search = metadata->paramMap().find(aff.key_name());
             search != metadata->paramMap().end()) {
-          metadata->addDestination(aff.name(), metadata->paramMap()[aff.name()]);
-          metadata->addQuery(aff.name(), aff.query());
-          metadata->addSubscribe(aff.name(), aff.subscribe());
+          metadata->addDestination(aff.key_name(), metadata->paramMap()[aff.key_name()]);
+          metadata->addQuery(aff.key_name(), aff.query());
+          metadata->addSubscribe(aff.key_name(), aff.subscribe());
         }
       }
     } else if ((metadata->methodType() != MethodType::Register && options->sessionAffinity()) ||
@@ -179,7 +237,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   metadata_ = metadata;
   route_ = callbacks_->route();
   if (!route_) {
-    ENVOY_STREAM_LOG(debug, "no route match domain {}", *callbacks_, metadata->domain().value());
+    ENVOY_STREAM_LOG(debug, "no route matched", *callbacks_);
     stats_.route_missing_.inc();
     throw AppException(AppExceptionType::UnknownMethod, "no route for method");
     return FilterStatus::StopIteration;
@@ -199,8 +257,7 @@ FilterStatus Router::transportBegin(MessageMetadataSharedPtr metadata) {
   }
 
   cluster_ = cluster->info();
-  ENVOY_STREAM_LOG(debug, "cluster '{}' match domain {}", *callbacks_, cluster_name,
-                   std::string(metadata->domain().value()));
+  ENVOY_STREAM_LOG(debug, "cluster '{}' matched", *callbacks_, cluster_name);
 
   if (cluster_->maintenanceMode()) {
     stats_.upstream_rq_maintenance_mode_.inc();
@@ -360,11 +417,15 @@ FilterStatus Router::messageBegin(MessageMetadataSharedPtr metadata) {
     metadata->destIter++;
     return FilterStatus::Continue;
   } else {
-
     ENVOY_STREAM_LOG(debug, "no destination.", *callbacks_);
     metadata->resetDestination();
-    // Last affinity
-    return messageHandlerWithLoadbalancer(transaction_info, metadata, "", upstream_request_started);
+    if (!metadata->stopLoadBalance()) {
+      // Last affinity
+      return messageHandlerWithLoadbalancer(transaction_info, metadata, "",
+                                            upstream_request_started);
+    } else {
+      return FilterStatus::StopIteration;
+    }
   }
 }
 
@@ -604,10 +665,9 @@ FilterStatus ResponseDecoder::transportBegin(MessageMetadataSharedPtr metadata) 
 
 absl::string_view ResponseDecoder::getLocalIp() { return parent_.localAddress(); }
 
-std::string ResponseDecoder::getOwnDomain() { return parent_.transactionInfo()->getOwnDomain(); }
-
-std::string ResponseDecoder::getDomainMatchParamName() {
-  return parent_.transactionInfo()->getDomainMatchParamName();
+std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>
+ResponseDecoder::localServices() {
+  return parent_.transactionInfo()->localServices();
 }
 
 } // namespace Router

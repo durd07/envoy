@@ -1,4 +1,5 @@
 #include "contrib/sip_proxy/filters/network/source/app_exception_impl.h"
+#include "metadata.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -13,39 +14,51 @@ DirectResponse::ResponseType AppException::encode(MessageMetadata& metadata,
   output += "SIP/2.0 503 Service Unavaliable\r\n";
 
   // To
-  output += "To: ";
-  auto to = absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::To]);
-  output += std::string(to);
+  if (!absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::To]).empty()) {
+    output += "To: ";
+    auto to = absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::To])[0];
+    output += std::string(to);
 
-  if (to.find("tag=") == absl::string_view::npos) {
+    if (to.find("tag=") == absl::string_view::npos) {
 
-    // We could simply use the time of day as a tag; however, that is not unique
-    // enough.  So, let's perturb the time of day with a salt to get a better
-    // unique number.  The salt I am using here is the summation of each
-    // character of the proxy's IP address
-    output += ";tag=";
-    if (metadata.ep().has_value() && metadata.ep().value().length() > 0) {
-      output += std::string(metadata.ep().value());
+      // We could simply use the time of day as a tag; however, that is not unique
+      // enough.  So, let's perturb the time of day with a salt to get a better
+      // unique number.  The salt I am using here is the summation of each
+      // character of the proxy's IP address
+      output += ";tag=";
+      if (metadata.ep().has_value() && metadata.ep().value().length() > 0) {
+        output += std::string(metadata.ep().value());
+      }
+      std::time_t t;
+      long s = 0;
+      char buf[80];
+      t = time(&t);
+      s = std::labs(t - s);
+      sprintf(buf, "%lx", s);
+      output += buf;
     }
-    std::time_t t;
-    long s = 0;
-    char buf[80];
-    t = time(&t);
-    s = std::labs(t - s);
-    sprintf(buf, "%lx", s);
-    output += buf;
+    output += "\r\n";
+  } else {
+    ENVOY_LOG(error, "No \"To\" in received message");
   }
-  output += "\r\n";
 
   // From
-  output += "From: ";
-  output += std::string(absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::From]));
-  output += "\r\n";
+  if (!absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::From]).empty()) {
+    output += "From: ";
+    output += std::string(absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::From])[0]);
+    output += "\r\n";
+  } else {
+    ENVOY_LOG(error, "No \"From\" in received message");
+  }
 
   // Call-ID
-  output += "Call-ID: ";
-  output += std::string(absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::CallId]));
-  output += "\r\n";
+  if (!absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::From]).empty()) {
+    output += "Call-ID: ";
+    output += std::string(absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::CallId])[0]);
+    output += "\r\n";
+  } else {
+    ENVOY_LOG(error, "No \"Call-ID\" in received message");
+  }
 
   // Via
   for (auto via : absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::Via])) {
@@ -55,9 +68,13 @@ DirectResponse::ResponseType AppException::encode(MessageMetadata& metadata,
   }
 
   // CSeq
-  output += "CSeq: ";
-  output += std::string(absl::get<StringHeader>(metadata.msgHeaderList()[HeaderType::Cseq]));
-  output += "\r\n";
+  if (!absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::From]).empty()) {
+    output += "CSeq: ";
+    output += std::string(absl::get<VectorHeader>(metadata.msgHeaderList()[HeaderType::Cseq])[0]);
+    output += "\r\n";
+  } else {
+    ENVOY_LOG(error, "No \"Cseq\" in received message");
+  }
 
   // Failed Reason
   output += "Reason: ";

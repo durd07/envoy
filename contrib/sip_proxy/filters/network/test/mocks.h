@@ -13,6 +13,7 @@
 #include "contrib/sip_proxy/filters/network/source/metadata.h"
 #include "contrib/sip_proxy/filters/network/source/protocol.h"
 #include "contrib/sip_proxy/filters/network/source/router/router.h"
+#include "contrib/envoy/extensions/filters/network/sip_proxy/v3alpha/sip_proxy.pb.h"
 #include "gmock/gmock.h"
 
 using testing::NiceMock;
@@ -56,7 +57,11 @@ public:
   MOCK_METHOD(absl::string_view, getLocalIp, ());
   MOCK_METHOD(std::string, getOwnDomain, ());
   MOCK_METHOD(std::string, getDomainMatchParamName, ());
-  MOCK_METHOD(void , setMetadata, (MessageMetadataSharedPtr metadata));
+  MOCK_METHOD(void, setMetadata, (MessageMetadataSharedPtr metadata));
+  MOCK_METHOD(std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>, localServices, ());
+
+
+  std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService> local_services_;
 };
 
 class MockDirectResponse : public DirectResponse {

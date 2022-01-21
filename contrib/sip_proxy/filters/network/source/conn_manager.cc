@@ -105,6 +105,12 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
       }
     }
 
+    //If the wrong reponse received, then try next affinity
+    ENVOY_LOG(trace, "Wrong retrive reponse, try next affinity");
+    parent_.metadata()->destIter++;
+    parent_.metadata()->setState(State::HandleAffinity);
+    parent_.continueHanding();
+
     break;
   }
   case TrafficRoutingAssistant::ResponseType::DeleteResp: {
@@ -128,11 +134,11 @@ void TrafficRoutingAssistantHandler::complete(const TrafficRoutingAssistant::Res
 }
 
 void TrafficRoutingAssistantHandler::doSubscribe(
-    const std::vector<CustomizedAffinity>& affinity_list) {
-  for (const auto& aff : affinity_list) {
-    if (aff.subscribe() == true && is_subscribe_map_.find(aff.name()) == is_subscribe_map_.end()) {
-      subscribeTrafficRoutingAssistant(aff.name());
-      is_subscribe_map_[aff.name()] = true;
+    const envoy::extensions::filters::network::sip_proxy::v3alpha::CustomizedAffinity customized_affinity) {
+  for (const auto& aff : customized_affinity.entries()) {
+    if (aff.subscribe() == true && is_subscribe_map_.find(aff.key_name()) == is_subscribe_map_.end()) {
+      subscribeTrafficRoutingAssistant(aff.key_name());
+      is_subscribe_map_[aff.key_name()] = true;
     }
   }
 }

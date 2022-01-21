@@ -54,7 +54,6 @@ public:
    */
   State run();
 
-
 private:
   friend class SipDecoderTest;
   struct DecoderStatus {
@@ -92,8 +91,8 @@ public:
    */
   virtual DecoderEventHandler& newDecoderEventHandler(MessageMetadataSharedPtr metadata) PURE;
   virtual absl::string_view getLocalIp() PURE;
-  virtual std::string getOwnDomain() PURE;
-  virtual std::string getDomainMatchParamName() PURE;
+  virtual std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>
+  localServices() PURE;
   virtual void setMetadata(MessageMetadataSharedPtr metadata) PURE;
 };
 
@@ -115,8 +114,10 @@ public:
    * @throw EnvoyException on Sip protocol errors
    */
   FilterStatus onData(Buffer::Instance& data, bool continue_handling = false);
-  std::string getOwnDomain() { return callbacks_.getOwnDomain(); }
-  std::string getDomainMatchParamName() { return callbacks_.getDomainMatchParamName(); }
+  std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>
+  localServices() {
+    return callbacks_.localServices();
+  };
 
   MessageMetadataSharedPtr metadata() { return metadata_; }
 

@@ -10,11 +10,12 @@
 #include "contrib/sip_proxy/filters/network/source/config.h"
 #include "contrib/sip_proxy/filters/network/source/conn_manager.h"
 #include "contrib/sip_proxy/filters/network/source/decoder.h"
+#include "contrib/sip_proxy/filters/network/source/encoder.h"
 #include "contrib/sip_proxy/filters/network/test/mocks.h"
 #include "contrib/sip_proxy/filters/network/test/utility.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include <stdio.h>
+#include <cstdio>
 
 using testing::NiceMock;
 using testing::Return;
@@ -134,12 +135,16 @@ route_config:
       cluster: "test"
 settings:
   transaction_timeout: 32s
-  own_domain: pcsf-cfed.cncs.svc.cluster.local
-  domain_match_parameter_name: x-suri
+  local_services:
+  - domain: pcsf-cfed.cncs.svc.cluster.local
+    parameter : transport
+  - domain: pcsf-cfed.cncs.svc.cluster.local
+    parameter : x-suri
+  - domain: pcsf-cfed.cncs.svc.cluster.local
+    parameter : host
 )EOF";
 
 TEST_F(SipDecoderTest, DecodeINVITE) {
-	std::cout << "DDD=============1\n";
   initializeFilter(yaml);
 
   const std::string SIP_INVITE_FULL =
@@ -150,8 +155,9 @@ TEST_F(SipDecoderTest, DecodeINVITE) {
       "To: <sip:User.0000@tas01.defult.svc.cluster.local>\x0d\x0a"
       "From: <sip:User.0001@tas01.defult.svc.cluster.local>;tag=1\x0d\x0a"
       "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
-      "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
-      "Record-Route: <sip:+16959000000:15306;role=anch;lr;transport=udp>\x0d\x0a"
+      "Route: <sip:+16959000000:15306;role=anch;lr;transport=udp;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060>\x0d\x0a"
+      "Record-Route: <sip:+16959000000:15306;role=anch;lr;transport=udp;x-suri=sip:pcsf-cfed.cncs.svc.cluster.local:5060>\x0d\x0a"
+      "Service-Route: <sip:test@pcsf-cfed.cncs.svc.cluster.local;role=anch;lr;transport=udp;x-suri=sip:scsf-cfed.cncs.svc.cluster.local:5060>\x0d\x0a"
       "CSeq: 1 INVITE\x0d\x0a"
       "Contact: <sip:User.0001@11.0.0.10:15060;transport=TCP>\x0d\x0a"
       "Max-Forwards: 70\x0d\x0a"
@@ -162,9 +168,13 @@ TEST_F(SipDecoderTest, DecodeINVITE) {
       "\x0d\x0a";
 
   buffer_.add(SIP_INVITE_FULL);
-	std::cout << "DDD=============2\n";
   EXPECT_EQ(filter_->onData(buffer_, false), Network::FilterStatus::StopIteration);
-	std::cout << "DDD=============3\n";
+
+  Buffer::OwnedImpl response_buffer;
+  std::shared_ptr<EncoderImpl> encoder = std::make_shared<EncoderImpl>();
+  filter_->metadata()->setEP("1.1.1.1");
+  encoder->encode(filter_->metadata(), response_buffer);
+  std::cout << response_buffer.toString();
 
   EXPECT_EQ(1U, store_.counter("test.request").value());
   EXPECT_EQ(1U, stats_.request_active_.value());

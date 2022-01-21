@@ -44,26 +44,6 @@ public:
 };
 
 /**
- * Customized Affinity
- */
-class CustomizedAffinity {
-public:
-  CustomizedAffinity(std::string name, bool query, bool subscribe) {
-    name_ = name;
-    query_ = query;
-    subscribe_ = subscribe;
-  };
-  std::string name() const { return name_; }
-  bool query() const { return query_; }
-  bool subscribe() const { return subscribe_; }
-
-private:
-  std::string name_;
-  bool query_;
-  bool subscribe_;
-};
-
-/**
  * Extends Upstream::ProtocolOptionsConfig with Sip-specific cluster options.
  */
 class ProtocolOptionsConfig : public Upstream::ProtocolOptionsConfig {
@@ -72,7 +52,7 @@ public:
 
   virtual bool sessionAffinity() const PURE;
   virtual bool registrationAffinity() const PURE;
-  virtual const std::vector<CustomizedAffinity>& customizedAffinityList() const PURE;
+  virtual envoy::extensions::filters::network::sip_proxy::v3alpha::CustomizedAffinity customizedAffinity() const PURE;
 };
 
 class ConnectionManager;
@@ -92,7 +72,7 @@ public:
   void subscribeTrafficRoutingAssistant(const std::string& type);
   void complete(const TrafficRoutingAssistant::ResponseType& type, const std::string& message_type,
                 const absl::any& resp) override;
-  void doSubscribe(const std::vector<CustomizedAffinity>& affinity_list);
+  void doSubscribe(const envoy::extensions::filters::network::sip_proxy::v3alpha::CustomizedAffinity customized_affinity);
 
 private:
   ConnectionManager& parent_;
@@ -145,10 +125,9 @@ public:
         ->addressAsString();
   }
 
-  std::string getOwnDomain() override { return config_.settings()->ownDomain(); }
-
-  std::string getDomainMatchParamName() override {
-    return config_.settings()->domainMatchParamName();
+  std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>
+  localServices() override {
+    return config_.settings()->localServices();
   }
 
   void setDestination(const std::string& data) { this->decoder_->metadata()->setDestination(data); }
@@ -188,17 +167,16 @@ private:
       return parent_.parent_.getLocalIp();
     }
 
-    std::string getOwnDomain() override { return parent_.parent_.getOwnDomain(); }
-
-    std::string getDomainMatchParamName() override {
-      return parent_.parent_.getDomainMatchParamName();
+    std::vector<envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService>
+    localServices() override {
+      return parent_.parent_.localServices();
     }
 
     std::shared_ptr<TrafficRoutingAssistantHandler> traHandler() {
       return parent_.parent_.tra_handler_;
     }
 
-    void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;};
+    void setMetadata(MessageMetadataSharedPtr metadata) override { metadata_ = metadata; };
 
     ActiveTrans& parent_;
     MessageMetadataSharedPtr metadata_;
@@ -333,7 +311,7 @@ private:
   void sendLocalReply(MessageMetadata& metadata, const DirectResponse& response, bool end_stream);
   void doDeferredTransDestroy(ActiveTrans& trans);
   void resetAllTrans(bool local_reset);
-  void setMetadata(MessageMetadataSharedPtr metadata) override {metadata_ = metadata;}
+  void setMetadata(MessageMetadataSharedPtr metadata) override { metadata_ = metadata; }
 
   Config& config_;
   SipFilterStats& stats_;

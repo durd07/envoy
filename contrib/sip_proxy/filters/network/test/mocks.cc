@@ -24,9 +24,16 @@ MockConfig::MockConfig() = default;
 MockConfig::~MockConfig() = default;
 
 MockDecoderCallbacks::MockDecoderCallbacks() {
+	/*
+	envoy::extensions::filters::network::sip_proxy::v3alpha::LocalService service1,service2;
+	service1.set_parameter("transport");
+	service1.set_domain("pcsf-cfed.cncs.svc.cluster.local");
+	service1.set_parameter("x-suri");
+	service1.set_domain("pcsf-cfed.cncs.svc.cluster.local");
+	local_services_.emplace_back(service1);
+	local_services_.emplace_back(service2); */
   ON_CALL(*this, getLocalIp()).WillByDefault(Return("127.0.0.1"));
-  ON_CALL(*this, getOwnDomain()).WillByDefault(Return("pcsf-cfed.cncs.svc.cluster.local"));
-  ON_CALL(*this, getDomainMatchParamName()).WillByDefault(Return("x-suri"));
+  ON_CALL(*this, localServices()).WillByDefault(Return(local_services_));
 }
 MockDecoderCallbacks::~MockDecoderCallbacks() = default;
 

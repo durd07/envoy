@@ -199,22 +199,7 @@ FilterStatus Decoder::onDataReady(Buffer::Instance& data) {
 }
 
 auto Decoder::sipHeaderType(absl::string_view sip_line) {
-  static std::map<absl::string_view, HeaderType> sip_header_type_map{
-      {"Call-ID", HeaderType::CallId},
-      {"Via", HeaderType::Via},
-      {"To", HeaderType::To},
-      {"From", HeaderType::From},
-      {"Contact", HeaderType::Contact},
-      {"Record-Route", HeaderType::RRoute},
-      {"CSeq", HeaderType::Cseq},
-      {"Route", HeaderType::Route},
-      {"Path", HeaderType::Path},
-      {"Event", HeaderType::Event},
-      {"Service-Route", HeaderType::SRoute},
-      {"WWW-Authenticate", HeaderType::WAuth},
-      {"Authorization", HeaderType::Auth},
-      {"P-Nokia-Cookie-IP-Mapping", HeaderType::PCookieIPMap},
-      {"", HeaderType::Other}};
+  static std::map<absl::string_view, HeaderType> sip_header_type_map = type_map.headerTypeMap();
 
   auto header_type_str = sip_line.substr(0, sip_line.find_first_of(':'));
   if (auto result = sip_header_type_map.find(header_type_str);
@@ -278,8 +263,7 @@ Decoder::HeaderHandler::HeaderHandler(MessageHandler& parent)
 
 int Decoder::HeaderHandler::processPath(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
-                             parent_.parent_.getDomainMatchParamName());
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.localServices());
   return 0;
 }
 
@@ -292,7 +276,8 @@ int Decoder::HeaderHandler::processRoute(absl::string_view& header) {
   Decoder::getParamFromHeader(header, metadata());
 
   metadata()->setTopRoute(header);
-  metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
+  // TODO
+  // metadata()->setDomain(header, parent_.parent_.getDomainMatchParamName());
   return 0;
 }
 
@@ -303,8 +288,7 @@ int Decoder::HeaderHandler::processRecordRoute(absl::string_view& header) {
 
   setFirstRecordRoute(false);
 
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
-                             parent_.parent_.getDomainMatchParamName());
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.localServices());
   return 0;
 }
 
@@ -360,9 +344,7 @@ int Decoder::OK200HeaderHandler::processCseq(absl::string_view& header) {
 
 int Decoder::HeaderHandler::processContact(absl::string_view& header) {
   metadata()->deleteInstipOperation(rawOffset(), header);
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
-                             parent_.parent_.getDomainMatchParamName());
-
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.localServices());
   return 0;
 }
 
@@ -372,8 +354,7 @@ int Decoder::HeaderHandler::processServiceRoute(absl::string_view& header) {
   }
   setFirstServiceRoute(false);
 
-  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.getOwnDomain(),
-                             parent_.parent_.getDomainMatchParamName());
+  metadata()->addEPOperation(rawOffset(), header, parent_.parent_.localServices());
   return 0;
 }
 
@@ -403,6 +384,9 @@ void Decoder::REGISTERHandler::parseHeader(HeaderType& type, absl::string_view& 
   case HeaderType::RRoute:
     handler_->processRecordRoute(header);
     break;
+  case HeaderType::SRoute:
+    handler_->processServiceRoute(header);
+    break;
   case HeaderType::Auth:
     handler_->processAuth(header);
     break;
@@ -424,6 +408,12 @@ void Decoder::INVITEHandler::parseHeader(HeaderType& type, absl::string_view& he
     break;
   case HeaderType::RRoute:
     handler_->processRecordRoute(header);
+    break;
+  case HeaderType::SRoute:
+    handler_->processServiceRoute(header);
+    break;
+  case HeaderType::Path:
+    handler_->processPath(header);
     break;
   case HeaderType::Contact:
     handler_->processContact(header);
@@ -516,9 +506,6 @@ void Decoder::SUBSCRIBEHandler::parseHeader(HeaderType& type, absl::string_view&
 
 void Decoder::FAILURE4XXHandler::parseHeader(HeaderType& type, absl::string_view& header) {
   switch (type) {
-  case HeaderType::Contact:
-    handler_->processContact(header);
-    break;
   case HeaderType::WAuth:
     handler_->processWwwAuth(header);
     break;
@@ -627,10 +614,6 @@ int Decoder::decode() {
 #endif
       break;
     }
-  }
-
-  if (!metadata->topRoute().has_value() && metadata->msgType() == MsgType::Request) {
-    metadata->setDomain(metadata->requestURI().value(), getDomainMatchParamName());
   }
   return 0;
 }
