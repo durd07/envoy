@@ -448,12 +448,14 @@ void UpstreamRequest::resetStream() { releaseConnection(true); }
 
 void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason, absl::string_view,
                                     Upstream::HostDescriptionConstSharedPtr host) {
-  ENVOY_LOG(info, "on pool failure");
+  ENVOY_LOG(info, "on pool failure {}", reason);
   conn_state_ = ConnectionState::NotConnected;
   conn_pool_handle_ = nullptr;
 
+  // Once onPoolFailure, this instance is invalid, can't be reused.
+  transaction_info_->deleteUpstreamRequest(upstream_host_->address()->ip()->addressAsString());
+
   // Continue to next affinity
-  // callbacks_->metadata()->setState(State::HandleAffinity);
   if (metadata_->destIter != metadata_->destinationList().end()) {
     metadata_->destIter++;
     metadata_->setState(State::HandleAffinity);
@@ -462,7 +464,6 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason, ab
 
   // Mimic an upstream reset.
   onUpstreamHostSelected(host);
-  UNREFERENCED_PARAMETER(reason);
 }
 
 void UpstreamRequest::onPoolReady(Tcp::ConnectionPool::ConnectionDataPtr&& conn_data,
