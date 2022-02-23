@@ -56,6 +56,7 @@ envoy_cc_library(
         "//envoy/event:dispatcher_interface",
         "//envoy/network:connection_interface",
         "//envoy/network:filter_interface",
+        "//envoy/server:transport_socket_config_interface",
         "//envoy/stats:stats_interface",
         "//envoy/stats:timespan_interface",
         "//source/common/buffer:buffer_lib",
@@ -113,7 +114,6 @@ envoy_cc_library(
     external_deps = ["abseil_optional"],
     deps = [
         ":sip_lib",
-        #        ":decoder_lib",
         "//envoy/buffer:buffer_interface",
         "//source/common/common:macros",
         "//source/common/http:header_map_lib",
