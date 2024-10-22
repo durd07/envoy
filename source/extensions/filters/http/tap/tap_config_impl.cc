@@ -171,6 +171,7 @@ bool HttpPerRequestTapperImpl::onDestroyLog() {
   makeBufferedFullTraceIfNeeded();
   auto& http_trace = *buffered_full_trace_->mutable_http_buffered_trace();
   if (request_headers_ != nullptr) {
+    //NNIE
     request_headers_->iterate(fillHeaderList(http_trace.mutable_request()->mutable_headers()));
     if (should_record_headers_received_time_) {
       http_trace.mutable_request()->mutable_headers_received_time()->MergeFrom(

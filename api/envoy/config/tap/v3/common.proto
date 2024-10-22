@@ -263,6 +263,8 @@ message OutputSink {
 
     // Tap output filter will be defined by an extension type
     core.v3.TypedExtensionConfig custom_sink = 6;
+    // Tap output will be sent to udp server
+    UDPPerWorkThreadSink udp_sink = 7;
   }
 }
 
@@ -311,4 +313,10 @@ message StreamingGrpcSink {
 
   // The gRPC server that hosts the Tap Sink Service.
   core.v3.GrpcService grpc_service = 2 [(validate.rules).message = {required: true}];
+}
+
+ // The UDP sink for fast sinking
+message UDPPerWorkThreadSink {
+  uint32 udp_port = 1 [(validate.rules).uint32 = {lte: 65535 gt: 0}];
+  string udp_ip_address = 2 [(validate.rules).string = {min_len: 7}];
 }

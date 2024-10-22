@@ -151,6 +151,46 @@ private:
   const envoy::config::tap::v3::FilePerTapSink config_;
 };
 
+//CFX UDP sink
+class UdpTapSink : public Sink {
+public:
+  UdpTapSink(const envoy::config::tap::v3::UDPPerWorkThreadSink& config) : config_(config) {
+    initUDPData();
+  }
+  ~UdpTapSink() {
+    if (socket_fd_ > 0) {
+      close(socket_fd_);
+      socket_fd_ = -1; 
+    }   
+  }
+
+  // Sink
+  PerTapSinkHandlePtr
+  createPerTapSinkHandle(uint64_t trace_id,
+                         envoy::config::tap::v3::OutputSink::OutputSinkTypeCase) override {
+    return std::make_unique<UdpTapSinkHandle>(*this, trace_id);
+  }
+  void initUDPData(void);
+
+private:
+  struct UdpTapSinkHandle : public PerTapSinkHandle {
+    UdpTapSinkHandle(UdpTapSink& parent, uint64_t trace_id)
+        : parent_(parent), trace_id_(trace_id) {}
+
+    // PerTapSinkHandle
+    void submitTrace(TraceWrapperPtr&& trace,
+                     envoy::config::tap::v3::OutputSink::Format format) override;
+
+    UdpTapSink& parent_;
+    const uint64_t trace_id_;
+  };  
+
+  const envoy::config::tap::v3::UDPPerWorkThreadSink config_;
+  int socket_fd_ = -1;
+  struct sockaddr_in server_addr_;
+  socklen_t server_addr_len_;
+};
+
 } // namespace Tap
 } // namespace Common
 } // namespace Extensions
