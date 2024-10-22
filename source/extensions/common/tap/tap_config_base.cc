@@ -123,6 +123,12 @@ TapConfigBaseImpl::TapConfigBaseImpl(const envoy::config::tap::v3::TapConfig& pr
     sink_to_use_ = sink_.get();
     break;
   }
+  case ProtoOutputSink::OutputSinkTypeCase::kUdpSink: {
+    sink_ = std::make_unique<UdpTapSink>(sinks[0].udp_sink());
+    ENVOY_LOG_MISC(debug, "CFXU, Done init data");
+    sink_to_use_ = sink_.get();
+    break;
+  }
   case envoy::config::tap::v3::OutputSink::OutputSinkTypeCase::kStreamingGrpc:
     PANIC("not implemented");
   case envoy::config::tap::v3::OutputSink::OutputSinkTypeCase::OUTPUT_SINK_TYPE_NOT_SET:
@@ -275,6 +281,98 @@ void FilePerTapSink::FilePerTapSinkHandle::submitTrace(
     output_file_ << MessageUtil::getJsonStringFromMessageOrError(*trace, true, true);
     break;
   }
+}
+
+//udp sink
+void UdpTapSink::initUDPData(void) {
+   ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData, enter");
+   server_addr_len_ = sizeof(server_addr_);
+   memset(&server_addr_, 0, server_addr_len_);
+   server_addr_.sin_family = AF_INET;
+   server_addr_.sin_port = htons(config_.udp_port());   
+   if (inet_pton(AF_INET, config_.udp_ip_address().c_str(), &server_addr_.sin_addr) <= 0) {
+     //Try IPv6
+     server_addr_.sin_family = AF_INET6;
+     if (inet_pton(AF_INET6,  config_.udp_ip_address().c_str(), &server_addr_.sin_addr) <= 0) {
+       ENVOY_LOG_MISC(debug, "CFXU,UdpTapSink::initUDPData Invalid IPv4/ipv6 address <{}>", config_.udp_ip_address().c_str());
+       close(socket_fd_);
+       socket_fd_ = -1;
+       return;
+     }
+   }
+
+   if ((socket_fd_ = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+     ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData failed to create udp socket\n");
+     return;
+   }
+
+   int flags = fcntl(socket_fd_, F_GETFL, 0);
+   if (flags < 0) {
+     ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData failed to get control flag");
+     close(socket_fd_);
+     socket_fd_ = -1;
+     return;
+   }
+   if (fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK) < 0) {
+     ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData failed to set control flag");
+     close(socket_fd_);
+     socket_fd_ = -1;
+     return;
+   }
+   ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData, sokcet_fd={}, udp_port={}, udp_address={}",
+                   socket_fd_, config_.udp_port(), config_.udp_ip_address().c_str());
+   ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::initUDPData, exit");
+}
+
+void UdpTapSink::UdpTapSinkHandle::submitTrace(
+    TraceWrapperPtr&& trace, envoy::config::tap::v3::OutputSink::Format format) {
+  ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::UdpTapSinkHandle::submitTrace, enter [id={}] ", trace_id_);
+  switch (format) {
+    PANIC_ON_PROTO_ENUM_SENTINEL_VALUES;
+  case envoy::config::tap::v3::OutputSink::PROTO_BINARY:
+  case envoy::config::tap::v3::OutputSink::PROTO_BINARY_LENGTH_DELIMITED:
+  case envoy::config::tap::v3::OutputSink::PROTO_TEXT:
+  case envoy::config::tap::v3::OutputSink::JSON_BODY_AS_BYTES:
+    ENVOY_LOG_MISC(debug, "CFXU, not support PROTO_BINARY, PROTO_BINARY_LENGTH_DELIMITED,  PROTO_TEXT:, JSON_BODY_AS_BYTES\n");
+    break;
+  case envoy::config::tap::v3::OutputSink::JSON_BODY_AS_STRING:    {
+    //NNIE
+    //std::string json_string =  MessageUtil::getJsonStringFromMessageOrError(*trace, true, true);
+    (void)trace;
+    std::string json_string = R"({
+        "name": "Alice",
+    })";
+
+    ENVOY_LOG_MISC(debug, "CFXU, message is <\n{}\n", json_string);
+    if (parent_.socket_fd_ < 0) {
+      ENVOY_LOG_MISC(debug, "CFXU, parent_.socket_fd_ < 0 {}\n", parent_.socket_fd_);
+    } else {
+     for (int i=0; i <=3; i ++) {
+      int ret = sendto(parent_.socket_fd_, json_string.c_str(), json_string.length(), 0,
+        reinterpret_cast<struct sockaddr*>(&parent_.server_addr_), parent_.server_addr_len_);
+      if (ret < 0) {
+        if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+          ENVOY_LOG_MISC(debug, "CFXU, FAILURE sendto, try again socket= {}, ret = {}, errno={}, errstr={}", parent_.socket_fd_,ret, errno, strerror(errno));
+          continue;
+        } else {
+          ENVOY_LOG_MISC(debug, "CFXU, FAILURE sendto, socket= {}, ret = {}, errno={}, errstr={}", parent_.socket_fd_,ret, errno, strerror(errno));
+          break;
+        }
+      } else {
+        ENVOY_LOG_MISC(debug, "CFXU, SUCC sendto, socket= {}", parent_.socket_fd_);
+        int l_str_size = json_string.length();
+        if (ret != l_str_size) {
+          ENVOY_LOG_MISC(debug, "CFXU, SUCC sendto, ret={}, real len is {}", ret, json_string.length());
+        }
+        break;
+      }
+     }
+    }
+    break;
+   }
+  }
+  ENVOY_LOG_MISC(debug, "CFXU, UdpTapSink::UdpTapSinkHandle::submitTrace: End");
+  return;
 }
 
 } // namespace Tap
